@@ -18,6 +18,7 @@ Dependencies
 	OpenSSL
 	Qt 5.1 (for GUI only)
 	cmake 2.8.11.2
+        libreadline-dev
 
 Build
 --------------------

@@ -16,6 +16,10 @@ SET( ALL_OPENSSL_LIBRARIES
        ${LIB_EAY_RELEASE}
    )
 
+# Set the Berkeley DB version you use
+IF (MSVC)
+	set(DB_VERSION 60)
+ENDIF()
 FIND_PACKAGE( BerkeleyDB )
 
 #include( VersionMacros )
@@ -76,6 +80,7 @@ include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/vendor/miniupnp )
 include_directories( ${Boost_INCLUDE_DIR} )
 #need this for boost::process (not an official boost library yet)
 include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/fc/vendor/boost_1.51/include )
+include_directories( ${BDB_CXX_INCLUDE_DIR} )
 
    
 #link_directories( ${Boost_LIBRARY_DIRS} )

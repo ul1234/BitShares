@@ -167,10 +167,10 @@ namespace bts {
          return false;
 
       try {
-         unsigned char plaindata[privkey.size()];
-         if ( fc::aes_decrypt( (unsigned char*)&privkey[0], privkey.size(), &key[0], &iv[0], plaindata ) >= 32 )
+         std::vector<unsigned char> plaindata(privkey.size());
+         if ( fc::aes_decrypt( (unsigned char*)&privkey[0], privkey.size(), &key[0], &iv[0], (unsigned char*)&plaindata[0] ) >= 32 )
          {
-            plainkey.assign( (char*)plaindata, (char*)plaindata + 32 );
+            plainkey.assign( (char*)&plaindata[0], (char*)&plaindata[0] + 32 );
             return true;
          }
       }

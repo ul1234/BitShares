@@ -15,6 +15,12 @@
 #include <iostream>
 
 #include <boost/algorithm/string.hpp> 
+
+#ifdef WIN32
+#include <Windows.h>
+#include <wincon.h>
+#endif
+
 struct record
 {
     record():points(0){}
@@ -30,6 +36,17 @@ FC_REFLECT( record, (key)(points)(pub_key) )
 
 int main( int argc, char** argv )
 {
+#ifdef WIN32
+  bool console_ok = AllocConsole();
+
+  freopen("CONOUT$", "wb", stdout);
+  freopen("CONOUT$", "wb", stderr);
+  //freopen( "console.txt", "wb", stdout);
+  //freopen( "console.txt", "wb", stderr);
+  printf("testing stdout\n");
+  fprintf(stderr, "testing stderr\n");
+#endif
+
    try {
          fc::tcp_server                           _tcp_serv;
 
@@ -111,14 +128,21 @@ int main( int argc, char** argv )
             return 1;
             }
          }
-         else
+         else //argc != 2
          {
-               auto itr = _known_names.begin();
-               while( itr.valid() )
-               {
-                  ilog( "${key} => ${value}", ("key",itr.key())("value",itr.value()));
-                  ++itr;
-               }
+            int id_count = 0;
+            int unregistered_count = 0;
+            auto itr = _known_names.begin();
+            while( itr.valid() )
+            {
+              auto id_record = itr.value();
+              ilog( "${key} => ${value}", ("key",itr.key())("value",id_record));
+              ++id_count;
+              if (id_record.pub_key.empty())
+                ++unregistered_count;
+              ++itr;
+            }
+            ilog( "Total Id Count: ${id_count} Unregistered: ${unregistered_count}",("id_count",id_count)("unregistered_count",unregistered_count) );
          }
          _tcp_serv.listen( 3879 );
 

@@ -8,7 +8,9 @@
 #include <fc/io/raw.hpp>
 #include <fc/exception/exception.hpp>
 
+
 #include <fc/log/logger.hpp>
+#include <fc/log/file_appender.hpp>
 #include <unordered_map>
 #include <fstream>
 #include <sstream>
@@ -130,6 +132,16 @@ int main( int argc, char** argv )
          }
          else //argc != 2
          {
+            //configure logger to also write to log file
+            fc::file_appender::config ac;
+            /** \warning Use wstring to construct log file name since %TEMP% can point to path containing
+                native chars.
+            */
+            ac.filename = "log.txt";
+            ac.truncate = false;
+            ac.flush    = true;
+            fc::logger::get().add_appender( fc::shared_ptr<fc::file_appender>( new fc::file_appender( fc::variant(ac) ) ) );
+
             int id_count = 0;
             int unregistered_count = 0;
             auto itr = _known_names.begin();

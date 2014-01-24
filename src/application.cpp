@@ -483,7 +483,7 @@ namespace bts {
      email_no_bcc_list.bcc_list.clear();
      bitchat::decrypted_message msg( email_no_bcc_list );
      msg.sign(from);
-     auto cipher_message = msg.encrypt( to );
+     auto cipher_message = msg.encrypt( to, bts::bitchat::compression_type::lzma_compression );
      cipher_message.timestamp = fc::time_point::now() + my->server_time_offset;
      my->_mail_con.send( mail::message( cipher_message) );
      //my->_bitchat_client->send_message( msg, to, 0/* chan 0 */ );

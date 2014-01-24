@@ -7,6 +7,7 @@
 #include <fc/exception/exception.hpp>
 #include <fc/thread/thread.hpp>
 #include <fc/io/raw.hpp>
+#include <fc/compress/lzma.hpp>
 
 #include <fc/log/logger.hpp>
 
@@ -48,7 +49,11 @@ bool  encrypted_message::decrypt( const fc::ecc::private_key& with, decrypted_me
     }
     wlog( "we passed checksum test... unpack message.." );
 
-    std::vector<char> tmp = fc::aes_decrypt( aes_key, data );
+    std::vector<char> tmp;
+    if( compress_type == compression_type::lzma_compression )
+      tmp = fc::lzma_decompress(fc::aes_decrypt( aes_key, data ));
+    else
+      tmp = fc::aes_decrypt( aes_key, data );
     m = fc::raw::unpack<decrypted_message>(tmp);
     ilog( "type: ${t}", ("t",uint64_t(m.msg_type)) );
     if( m.from_sig )
@@ -146,14 +151,34 @@ decrypted_message&  decrypted_message::sign( const fc::ecc::private_key& from )
  *  Encrypts the message using a random / newly generated one-time private
  *  key.
  */
-encrypted_message decrypted_message::encrypt(const fc::ecc::public_key& to)const
+encrypted_message decrypted_message::encrypt(const fc::ecc::public_key& to, compression_type compress_type)const
 {
     encrypted_message em;
     auto priv_dh_key = fc::ecc::private_key::generate(); 
     em.dh_key        = priv_dh_key.get_public_key();
-    auto aes_key      = priv_dh_key.get_shared_secret( to );
-    em.data = aes_encrypt( aes_key, fc::raw::pack(*this) );
+    auto aes_key     = priv_dh_key.get_shared_secret( to );
 
+    auto packed = fc::raw::pack(*this);
+    
+    if( compress_type == compression_type::lzma_compression )
+    {
+      auto compressed = fc::lzma_compress(packed);
+      if(!compressed.empty() && (compressed.size() < packed.size()))
+      {
+        em.data = aes_encrypt( aes_key, compressed );
+        em.compress_type = compress_type;
+      }
+      else
+      {
+        em.data = aes_encrypt( aes_key, packed );
+        em.compress_type = compression_type::no_compression;
+      }
+    }
+    else
+    {
+      em.data = aes_encrypt( aes_key, packed );
+      em.compress_type = compression_type::no_compression;
+    }
 
     auto check_hash = fc::sha512::hash( aes_key );
     fc::ripemd160::encoder enc;

@@ -52,14 +52,15 @@ namespace bts { namespace bitchat {
     {
         static const message_type type;
         encrypted_message();
-        mutable uint32_t                              noncea; ///< collision a
-        mutable uint32_t                              nonceb; ///< collision b
+        mutable uint32_t                                  noncea; ///< collision a
+        mutable uint32_t                                  nonceb; ///< collision b
 
-        uint16_t                                      nonce; ///< increment timestamp after 63K tests
-        fc::time_point_sec                            timestamp;
-        fc::ecc::public_key                           dh_key;
-        fc::uint160_t                                 check;
-        std::vector<char>                             data;
+        uint16_t                                          nonce; ///< increment timestamp after 63K tests
+        fc::time_point_sec                                timestamp;
+        fc::ecc::public_key                               dh_key;
+        fc::uint160_t                                     check;
+        std::vector<char>                                 data;
+        fc::enum_type<fc::unsigned_int,compression_type>  compress_type;
 
         fc::uint128        id()const;
 
@@ -114,7 +115,8 @@ namespace bts { namespace bitchat {
         }
 
         decrypted_message();
-        encrypted_message                    encrypt( const fc::ecc::public_key& to )const;
+        encrypted_message                    encrypt( const fc::ecc::public_key& to,
+                                                compression_type compress_type = compression_type::no_compression )const;
         decrypted_message&                   sign( const fc::ecc::private_key& from );
         fc::sha256                           digest()const;
 
@@ -221,7 +223,7 @@ FC_REFLECT_ENUM( bts::bitchat::private_message_type, (unknown_msg)(text_msg)(ema
 FC_REFLECT_ENUM( bts::bitchat::compression_type, (no_compression)(smaz_compression)(lzma_compression) )
 FC_REFLECT_ENUM( bts::bitchat::encryption_type, (no_encryption)(blowfish_encryption)(twofish_encryption)(aes_encryption) )
 FC_REFLECT( bts::bitchat::attachment, (filename)(body) )
-FC_REFLECT( bts::bitchat::encrypted_message, (noncea)(nonceb)(nonce)(timestamp)(dh_key)(check)(data) );
+FC_REFLECT( bts::bitchat::encrypted_message, (noncea)(nonceb)(nonce)(timestamp)(dh_key)(check)(data)(compress_type) );
 FC_REFLECT( bts::bitchat::decrypted_message, (msg_type)(data)(sig_time)(from_sig) )
 FC_REFLECT( bts::bitchat::private_text_message, (msg) )
 FC_REFLECT( bts::bitchat::private_email_message, (from_keyhotee_id)(to_list)(cc_list)(subject)(body)(attachments)(bcc_list) )

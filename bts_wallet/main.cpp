@@ -17,7 +17,7 @@
 #include "chain_messages.hpp"
 #include <fc/network/tcp_socket.hpp>
 #include <fc/rpc/json_connection.hpp>
-#ifndef WIN32
+#if defined(WIN32) && !defined(UNIX)
 #include <readline/readline.h>
 #include <readline/history.h>
 #endif ///WIN32
@@ -689,7 +689,7 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
 {
    try {
       std::string line;
-#ifndef WIN32
+#if defined(WIN32) && !defined(UNIX)
       char* line_read = nullptr;
       line_read = readline(">>> ");
       if(line_read && *line_read)
@@ -927,7 +927,7 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
          {
              std::cerr<<e.to_detail_string()<<"\n";
          }
-#ifndef WIN32
+#if defined(WIN32) && !defined(UNIX)
          line_read = nullptr;
          line_read = readline(">>> ");
          if(line_read && *line_read)

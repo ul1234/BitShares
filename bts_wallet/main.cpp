@@ -20,7 +20,7 @@
 #ifndef WIN32
 #include <readline/readline.h>
 #include <readline/history.h>
-#endif ///WIN32
+#endif //!WIN32
 
 using namespace bts::blockchain;
 
@@ -689,7 +689,7 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
 {
    try {
       std::string line;
-#ifndef WIN32
+#ifndef WIN32)
       char* line_read = nullptr;
       line_read = readline(">>> ");
       if(line_read && *line_read)

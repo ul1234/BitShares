@@ -17,10 +17,19 @@ SET( ALL_OPENSSL_LIBRARIES
    )
 
 # Set the Berkeley DB version you use
-IF (MSVC)
-	set(DB_VERSION 60)
+IF (WIN32)
+  SET(DB_VERSION 60)
+  SET(BDB_STATIC_LIBS 1)
 ENDIF()
+
+
 FIND_PACKAGE( BerkeleyDB )
+
+IF (NOT ${BerkeleyDB_FOUND})
+  MESSAGE (SEND_ERROR "Missing required BerkeleyDB package")
+ENDIF()
+
+include_directories(${BDB_INCLUDE_DIR})
 
 #include( VersionMacros )
 #include( SetupTargetMacros )
@@ -169,6 +178,8 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/GitSHA2.cpp.in" "${CMAKE_CURRENT_BIN
 list(APPEND sources "${CMAKE_CURRENT_BINARY_DIR}/GitSHA2.cpp" GitSHA2.h)
 
 add_library( bshare ${sources} )
+target_link_libraries(bshare ${BDB_LIBRARIES} )
+
 add_subdirectory( sancho )
 add_subdirectory( server )
 

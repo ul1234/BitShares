@@ -47,7 +47,7 @@ namespace bts { namespace blockchain {
    {
       return  (other.owner         == owner) &&
               (other.payoff_unit   == payoff_unit)   &&
-              abs( (int64_t(other.payoff_amount) - int64_t(payoff_amount)) ) <= 1;
+              abs( (int64_t(other.payoff_amount) - int64_t(payoff_amount)) ) <= 1000;
    }
 
 } } // bts::blockchain

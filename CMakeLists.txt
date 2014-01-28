@@ -16,7 +16,20 @@ SET( ALL_OPENSSL_LIBRARIES
        ${LIB_EAY_RELEASE}
    )
 
+# Set the Berkeley DB version you use
+IF (WIN32)
+  SET(DB_VERSION 60)
+  SET(BDB_STATIC_LIBS 1)
+ENDIF()
+
+
 FIND_PACKAGE( BerkeleyDB )
+
+IF (NOT ${BerkeleyDB_FOUND})
+  MESSAGE (SEND_ERROR "Missing required BerkeleyDB package")
+ENDIF()
+
+include_directories(${BDB_INCLUDE_DIR})
 
 #include( VersionMacros )
 #include( SetupTargetMacros )
@@ -76,6 +89,7 @@ include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/vendor/miniupnp )
 include_directories( ${Boost_INCLUDE_DIR} )
 #need this for boost::process (not an official boost library yet)
 include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/fc/vendor/boost_1.51/include )
+include_directories( ${BDB_CXX_INCLUDE_DIR} )
 
    
 #link_directories( ${Boost_LIBRARY_DIRS} )
@@ -164,6 +178,8 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/GitSHA2.cpp.in" "${CMAKE_CURRENT_BIN
 list(APPEND sources "${CMAKE_CURRENT_BINARY_DIR}/GitSHA2.cpp" GitSHA2.h)
 
 add_library( bshare ${sources} )
+target_link_libraries(bshare ${BDB_LIBRARIES} )
+
 add_subdirectory( sancho )
 add_subdirectory( server )
 

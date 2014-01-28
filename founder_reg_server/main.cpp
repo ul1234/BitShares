@@ -8,13 +8,21 @@
 #include <fc/io/raw.hpp>
 #include <fc/exception/exception.hpp>
 
+
 #include <fc/log/logger.hpp>
+#include <fc/log/file_appender.hpp>
 #include <unordered_map>
 #include <fstream>
 #include <sstream>
 #include <iostream>
 
 #include <boost/algorithm/string.hpp> 
+
+#ifdef WIN32
+#include <Windows.h>
+#include <wincon.h>
+#endif
+
 struct record
 {
     record():points(0){}
@@ -30,6 +38,17 @@ FC_REFLECT( record, (key)(points)(pub_key) )
 
 int main( int argc, char** argv )
 {
+#ifdef WIN32
+  bool console_ok = AllocConsole();
+
+  freopen("CONOUT$", "wb", stdout);
+  freopen("CONOUT$", "wb", stderr);
+  //freopen( "console.txt", "wb", stdout);
+  //freopen( "console.txt", "wb", stderr);
+  printf("testing stdout\n");
+  fprintf(stderr, "testing stderr\n");
+#endif
+
    try {
          fc::tcp_server                           _tcp_serv;
 
@@ -37,8 +56,27 @@ int main( int argc, char** argv )
          bts::db::level_map<std::string,record>   _known_names;
          _known_names.open( "reg_db" );
          
+         
+         if (argc == 3)
+         {  //update records in goood dbase with matching records from messy database
+            bts::db::level_map<std::string,record>   _messy_names;
+            _messy_names.open( "messy_db" );
+            //walkthrough all names in messydb, see if it matches record in good db, update good db with record if so
+            auto itr = _messy_names.begin();
+            while( itr.valid() )
+            {
+              auto found_itr = _known_names.find( itr.key() );
+              if (found_itr.valid())
+              {
+                auto id_record = itr.value();
+                ilog( "${key} => ${value}", ("key",itr.key())("value",id_record));
+                _known_names.store( itr.key(), id_record);
+              }
+              ++itr;
+            }
+         }
          // TODO: import CSV list of new keyhoteeIds that can be registered
-         if( argc == 2 )
+         else if( argc == 2 )
          {
             FC_ASSERT( fc::exists(argv[1]) );
             std::ifstream in(argv[1]);
@@ -111,14 +149,31 @@ int main( int argc, char** argv )
             return 1;
             }
          }
-         else
+         else //argc != 2
          {
-               auto itr = _known_names.begin();
-               while( itr.valid() )
-               {
-                  ilog( "${key} => ${value}", ("key",itr.key())("value",itr.value()));
-                  ++itr;
-               }
+            //configure logger to also write to log file
+            fc::file_appender::config ac;
+            /** \warning Use wstring to construct log file name since %TEMP% can point to path containing
+                native chars.
+            */
+            ac.filename = "log.txt";
+            ac.truncate = false;
+            ac.flush    = true;
+            fc::logger::get().add_appender( fc::shared_ptr<fc::file_appender>( new fc::file_appender( fc::variant(ac) ) ) );
+
+            int id_count = 0;
+            int unregistered_count = 0;
+            auto itr = _known_names.begin();
+            while( itr.valid() )
+            {
+              auto id_record = itr.value();
+              ilog( "${key} => ${value}", ("key",itr.key())("value",id_record));
+              ++id_count;
+              if (id_record.pub_key.empty())
+                ++unregistered_count;
+              ++itr;
+            }
+            ilog( "Total Id Count: ${id_count} Unregistered: ${unregistered_count}",("id_count",id_count)("unregistered_count",unregistered_count) );
          }
          _tcp_serv.listen( 3879 );
 

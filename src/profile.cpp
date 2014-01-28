@@ -152,10 +152,10 @@ namespace bts {
       my->_idents.store( id.dac_id_string, id ); 
   } FC_RETHROW_EXCEPTIONS( warn, "", ("id",id) ) }
 
-  addressbook::wallet_identity    profile::get_identity( const std::string& id )const
+  addressbook::wallet_identity    profile::get_identity( const std::string& dac_id_string )const
   { try {
-      return my->_idents.fetch( id ); 
-  } FC_RETHROW_EXCEPTIONS( warn, "", ("id",id) ) }
+      return my->_idents.fetch( dac_id_string ); 
+  } FC_RETHROW_EXCEPTIONS( warn, "", ("dac_id",dac_id_string) ) }
   
   /**
    *  Checks the transaction to see if any of the inp

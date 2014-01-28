@@ -3,7 +3,11 @@ cmake_minimum_required( VERSION 2.8.10 )
 
 #set( CMAKE_AUTOMOC ON )
 
-set( CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/fc/CMakeModules" ${CMAKE_MODULE_PATH} )
+set( CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules" "${CMAKE_SOURCE_DIR}/fc/CMakeModules" ${CMAKE_MODULE_PATH} )
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/fc/GitVersionGen/")
+include(GetGitRevisionDescription)
+get_git_head_revision(GIT_REFSPEC GIT_SHA2)
 
 FIND_PACKAGE( OpenSSL )
 SET( ALL_OPENSSL_LIBRARIES
@@ -11,6 +15,21 @@ SET( ALL_OPENSSL_LIBRARIES
        ${SSL_EAY_RELEASE}
        ${LIB_EAY_RELEASE}
    )
+
+# Set the Berkeley DB version you use
+IF (WIN32)
+  SET(DB_VERSION 60)
+  SET(BDB_STATIC_LIBS 1)
+ENDIF()
+
+
+FIND_PACKAGE( BerkeleyDB )
+
+IF (NOT ${BerkeleyDB_FOUND})
+  MESSAGE (SEND_ERROR "Missing required BerkeleyDB package")
+ENDIF()
+
+include_directories(${BDB_INCLUDE_DIR})
 
 #include( VersionMacros )
 #include( SetupTargetMacros )
@@ -70,6 +89,7 @@ include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/vendor/miniupnp )
 include_directories( ${Boost_INCLUDE_DIR} )
 #need this for boost::process (not an official boost library yet)
 include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/fc/vendor/boost_1.51/include )
+include_directories( ${BDB_CXX_INCLUDE_DIR} )
 
    
 #link_directories( ${Boost_LIBRARY_DIRS} )
@@ -85,8 +105,6 @@ add_subdirectory( vendor/miniupnp/miniupnpc )
 #add_subdirectory( vendor/libzerocoin )
 set( BOOST_LIBRARIES ${Boost_THREAD_LIBRARY} ${Boost_SYSTEM_LIBRARY} ${Boost_FILESYSTEM_LIBRARY} ${Boost_DATE_TIME_LIBRARY} ${Boost_CHRONO_LIBRARY} ${ALL_OPENSSL_LIBRARIES} ${Boost_COROUTINE_LIBRARY} ${Boost_CONTEXT_LIBRARY} ${pthread})
 set( BOOST_LIBRARIES ${BOOST_LIBRARIES} PARENT_SCOPE )
-
-
 
 set( sources 
      src/momentum.cpp
@@ -151,13 +169,20 @@ set( sources
      src/wallet.cpp
      src/keychain.cpp
      src/wallet_cache.cpp
+     src/bitcoin_wallet.cpp
 
      vendor/SFMT-src-1.4/SFMT.c
      src/proof_of_work.cpp )
 
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/GitSHA2.cpp.in" "${CMAKE_CURRENT_BINARY_DIR}/GitSHA2.cpp" @ONLY)
+list(APPEND sources "${CMAKE_CURRENT_BINARY_DIR}/GitSHA2.cpp" GitSHA2.h)
+
 add_library( bshare ${sources} )
+target_link_libraries(bshare ${BDB_LIBRARIES} )
+
 add_subdirectory( sancho )
 add_subdirectory( server )
+
 
 #add_executable( wallet_test tests/wallet_test.cpp )
 #target_link_libraries( wallet_test bshare fc ${BOOST_LIBRARIES})
@@ -179,4 +204,4 @@ add_subdirectory( server )
 add_subdirectory( tests )
 add_subdirectory( founder_reg_server )
 add_subdirectory( mail_server )
-
+add_subdirectory( bts_wallet )

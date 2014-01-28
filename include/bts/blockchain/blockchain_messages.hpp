@@ -20,13 +20,13 @@ namespace bts { namespace blockchain {
 
   struct trx_inv_message
   {
-      static const message_type type = trx_inv_msg;
+      static const message_type type;
       std::vector<uint160> items;
   };
 
   struct block_inv_message
   {
-      static const message_type type = block_inv_msg;
+      static const message_type type;
       /**
        * List of block headers starting with the
        * oldest block (in this sequence) and working forward to the
@@ -38,12 +38,12 @@ namespace bts { namespace blockchain {
 
   struct get_trx_inv_message
   {
-      static const message_type type = get_trx_inv_msg;
+      static const message_type type;
   };
   
   struct get_block_inv_message
   {
-      static const message_type type = get_block_inv_msg;
+      static const message_type type;
       /** the block headers known by this node going back 
        * in powers of 2 for up to 1 year so that the
        * remote node can detect where our chains converge.
@@ -53,7 +53,7 @@ namespace bts { namespace blockchain {
 
   struct get_trxs_message
   {
-      static const message_type type = get_trxs_msg;
+      static const message_type type;
       get_trxs_message(){}
 
       get_trxs_message(const uint160& one)
@@ -64,7 +64,7 @@ namespace bts { namespace blockchain {
 
   struct get_full_block_message
   {
-      static const message_type type = get_full_block_msg;
+      static const message_type type;
       get_full_block_message( const block_id_type& b )
       :block_id(b){}
       get_full_block_message(){}
@@ -74,7 +74,7 @@ namespace bts { namespace blockchain {
 
   struct get_trx_block_message
   {
-      static const message_type type = get_trx_block_msg;
+      static const message_type type;
       get_trx_block_message( const block_id_type& b )
       :block_id(b){}
       get_trx_block_message(){}
@@ -84,7 +84,7 @@ namespace bts { namespace blockchain {
 
   struct trxs_message
   {
-     static const message_type type = trxs_msg;
+     static const message_type type;
 
      trxs_message(){}
      trxs_message(const signed_transaction& trx)
@@ -95,7 +95,7 @@ namespace bts { namespace blockchain {
 
   struct full_block_message
   {
-     static const message_type type = full_block_msg;
+     static const message_type type;
 
      full_block_message(){}
      full_block_message(const full_block& blk)
@@ -106,7 +106,7 @@ namespace bts { namespace blockchain {
 
   struct trx_block_message
   {
-     static const message_type type = trx_block_msg;
+     static const message_type type;
 
      trx_block_message(){}
      trx_block_message(const trx_block& blk)

@@ -1,4 +1,5 @@
-#include <mail/mail_connection.hpp>
+#include "chain_connection.hpp"
+#include "chain_messages.hpp"
 #include <mail/message.hpp>
 #include <bts/config.hpp>
 
@@ -16,22 +17,25 @@
 #include <bts/db/level_map.hpp>
 #include <bts/bitchat/bitchat_private_message.hpp>
 
-namespace mail {
+const chain_message_type subscribe_message::type = chain_message_type::subscribe_msg;
+const chain_message_type block_message::type = chain_message_type::block_msg;
+const chain_message_type trx_message::type = chain_message_type::trx_msg;
+const chain_message_type trx_err_message::type = chain_message_type::trx_err_msg;
 
   namespace detail
   {
-     class connection_impl
+     class chain_connection_impl
      {
         public:
-          connection_impl(connection& s)
+          chain_connection_impl(chain_connection& s)
           :self(s),con_del(nullptr){}
-          connection&          self;
+          chain_connection&          self;
           stcp_socket_ptr      sock;
           fc::ip::endpoint     remote_ep;
-          connection_delegate* con_del;
+          chain_connection_delegate* con_del;
 
-          fc::time_point _sync_time;
-          bts::db::level_map<fc::time_point,bts::bitchat::encrypted_message>*   _db;
+          bts::blockchain::block_id_type  _last_block_id;
+          bts::blockchain::blockchain_db* chain;
 
           /** used to ensure that messages are written completely */
           fc::mutex              write_lock;
@@ -39,7 +43,6 @@ namespace mail {
 
           fc::future<void>       read_loop_complete;
           fc::future<void>       exec_sync_loop_complete;
-          fc::time_point         last_msg_time;
 
           void read_loop()
           {
@@ -47,10 +50,12 @@ namespace mail {
             const int LEFTOVER = BUFFER_SIZE - sizeof(message_header);
             try {
                message m;
-               while( true )
+               while( !read_loop_complete.canceled() )
                {
                   char tmp[BUFFER_SIZE];
+                  ilog( "read.." );
                   sock->read( tmp, BUFFER_SIZE );
+                  ilog( "." );
                   memcpy( (char*)&m, tmp, sizeof(message_header) );
                   m.data.resize( m.size + 16 ); //give extra 16 bytes to allow for padding added in send call
                   memcpy( (char*)m.data.data(), tmp + sizeof(message_header), LEFTOVER );
@@ -59,12 +64,18 @@ namespace mail {
                   try { // message handling errors are warnings... 
                     con_del->on_connection_message( self, m );
                   } 
-                  catch ( fc::canceled_exception& e ) { throw; }
-                  catch ( fc::eof_exception& e ) { throw; }
+                  catch ( fc::canceled_exception& e ) { wlog(".");throw; }
+                  catch ( fc::eof_exception& e ) { wlog(".");throw; }
                   catch ( fc::exception& e ) 
                   { 
                      wlog( "disconnected ${er}", ("er", e.to_detail_string() ) );
+                     return;
                      // TODO: log and potentiall disconnect... for now just warn.
+                  }
+                  catch( ... )
+                  {
+                     wlog("...????" );
+                     return;
                   }
                }
             } 
@@ -72,18 +83,22 @@ namespace mail {
             {
               if( con_del )
               {
-                con_del->on_connection_disconnected( self );
+                 con_del->on_connection_disconnected( self );
               }
               else
               {
-          //      wlog( "disconnected ${e}", ("e", e.to_detail_string() ) );
+                wlog( "disconnected ${e}", ("e", e.to_detail_string() ) );
               }
+              wlog( "exit read loop" );
+              return;
             }
             catch ( const fc::eof_exception& e )
             {
               if( con_del )
               {
-                con_del->on_connection_disconnected( self );
+                 ilog( ".");
+                 fc::async( [=](){con_del->on_connection_disconnected( self );} );
+                 ilog( ".");
               }
               else
               {
@@ -92,10 +107,12 @@ namespace mail {
             }
             catch ( fc::exception& er )
             {
+               wlog( ".." );
               if( con_del )
               {
                 elog( "disconnected ${er}", ("er", er.to_detail_string() ) );
-                con_del->on_connection_disconnected( self );
+                //con_del->on_connection_disconnected( self );
+                fc::async( [=](){con_del->on_connection_disconnected( self );} );
               }
               else
               {
@@ -105,6 +122,7 @@ namespace mail {
             }
             catch ( ... )
             {
+               wlog( "unhandled??" );
               // TODO: call con_del->????
               FC_THROW_EXCEPTION( unhandled_exception, "disconnected: {e}", ("e", fc::except_str() ) );
             }
@@ -112,8 +130,8 @@ namespace mail {
      };
   } // namespace detail
 
-  connection::connection( const stcp_socket_ptr& c, connection_delegate* d )
-  :my( new detail::connection_impl(*this) )
+  chain_connection::chain_connection( const stcp_socket_ptr& c, chain_connection_delegate* d )
+  :my( new detail::chain_connection_impl(*this) )
   {
     my->sock = c;
     my->con_del = d;
@@ -121,23 +139,23 @@ namespace mail {
     my->read_loop_complete = fc::async( [=](){ my->read_loop(); } );
   }
 
-  connection::connection( connection_delegate* d )
-  :my( new detail::connection_impl(*this) ) 
+  chain_connection::chain_connection( chain_connection_delegate* d )
+  :my( new detail::chain_connection_impl(*this) ) 
   { 
     assert( d != nullptr );
     my->con_del = d; 
   }
 
-  void connection::set_last_sync_time( const fc::time_point& sync_time )
+  void chain_connection::set_last_block_id( const bts::blockchain::block_id_type& id )
   {
-     my->_sync_time = sync_time;
+     my->_last_block_id = id;
   }
-  fc::time_point connection::get_last_sync_time()const
+  bts::blockchain::block_id_type chain_connection::get_last_block_id()const
   {
-     return my->_sync_time;
+     return my->_last_block_id;
   }
 
-  connection::~connection()
+  chain_connection::~chain_connection()
   {
     try {
         // delegate does not get called from destructor...
@@ -169,27 +187,33 @@ namespace mail {
       elog( "unhandled exception on close ${e}", ("e", fc::except_str()) );   
     }
   }
-  stcp_socket_ptr connection::get_socket()const
+  stcp_socket_ptr chain_connection::get_socket()const
   {
      return my->sock;
   }
 
-  void connection::close()
+  void chain_connection::close()
   {
      try {
          if( my->sock )
          {
-           my->sock->get_socket().close();
+           my->sock->close();
            if( my->read_loop_complete.valid() )
            {
               wlog( "waiting for socket to close" );
-              my->read_loop_complete.wait();
+              my->read_loop_complete.cancel();
+              try {
+                 my->read_loop_complete.wait();
+              } catch ( const fc::exception& e )
+              {
+                 wlog( "${w}", ("w",e.to_detail_string()) );
+              } catch ( ...) {}
               wlog( "socket closed" );
            }
          }
      } FC_RETHROW_EXCEPTIONS( warn, "exception thrown while closing socket" );
   }
-  void connection::connect( const fc::ip::endpoint& ep )
+  void chain_connection::connect( const fc::ip::endpoint& ep )
   {
      try {
        // TODO: do we have to worry about multiple calls to connect?
@@ -201,7 +225,7 @@ namespace mail {
      } FC_RETHROW_EXCEPTIONS( warn, "error connecting to ${ep}", ("ep",ep) );
   }
 
-  void connection::connect( const std::string& host_port )
+  void chain_connection::connect( const std::string& host_port )
   {
       int idx = host_port.find( ':' );
       auto eps = fc::resolve( host_port.substr( 0, idx ), fc::to_int64(host_port.substr( idx+1 )));
@@ -221,7 +245,7 @@ namespace mail {
       FC_THROW_EXCEPTION( exception, "unable to connect to ${host_port}", ("host_port",host_port) );
   }
 
-  void connection::send( const message& m )
+  void chain_connection::send( const message& m )
   {
     try {
       fc::scoped_lock<fc::mutex> lock(my->write_lock);
@@ -236,7 +260,7 @@ namespace mail {
   }
 
 
-  fc::ip::endpoint connection::remote_endpoint()const 
+  fc::ip::endpoint chain_connection::remote_endpoint()const 
   {
      if( get_socket()->get_socket().is_open() )
      {
@@ -246,48 +270,47 @@ namespace mail {
      return my->remote_ep;
   }
 
-  void connection::exec_sync_loop()
+  void chain_connection::exec_sync_loop()
   {
-      ilog( "exec sync loop" );
       my->exec_sync_loop_complete = fc::async( [=]() 
       {
-        try {
-         // ilog( "in exec sync loop" );
           while( !my->exec_sync_loop_complete.canceled() )
           {
-             //ilog( "sync time ${t}", ("t",my->_sync_time) );
-             auto itr = my->_db->lower_bound( my->_sync_time );
-             if( !itr.valid() )
-             {
-              ilog( "no valid message found" );
-             }
-             while( itr.valid() && !my->exec_sync_loop_complete.canceled() )
-             {
-                if( itr.key() > my->_sync_time )
+             try {
+                int32_t  cur_block_num  = int32_t(-1);
+                if( my->_last_block_id != bts::blockchain::block_id_type() )
+                    cur_block_num = my->chain->fetch_block_num( my->_last_block_id );
+                ilog( "head block ${h}  cur block ${c}", ("c",cur_block_num)("h",my->chain->head_block_num() ) );
+                while( cur_block_num < int32_t(my->chain->head_block_num())  )
                 {
-                   send( message( itr.value() ) );
-                   my->_sync_time = itr.key();
+                    cur_block_num++;
+                    block_message blk_msg;
+                    blk_msg.block_data = my->chain->fetch_trx_block( cur_block_num );
+                    // TODO: sign it..
+                    ilog( "sending block ${n} ${c}", ("n",cur_block_num)("c",blk_msg.block_data.id()) );
+                    send( mail::message(blk_msg) );
+                    my->_last_block_id = blk_msg.block_data.id();
+                    fc::usleep( fc::microseconds( 1000*100 ) );
                 }
-                ++itr;
+                ilog( "all synced up, no blocks left to send" );
+                return;
+             } 
+             catch ( const fc::exception& e ) 
+             {
+                wlog( "${e}", ("e", e.to_detail_string() ) );
+                trx_err_message reply;
+                reply.err = e.to_detail_string();
+                send( message( reply ) );
+                get_socket()->get_socket().close();
+                return;
              }
-             fc::usleep( fc::seconds(15) );
           }
-        } 
-        catch ( const fc::exception& e )
-        {
-           wlog( "${e}", ("e", e.to_detail_string() ) );
-        }
-        catch ( ... )
-        {
-           wlog("other exeception" );
-        }
       });
   }
 
-  void connection::set_database( bts::db::level_map<fc::time_point,bts::bitchat::encrypted_message>* db )
+  void chain_connection::set_database( bts::blockchain::blockchain_db* db )
   {
-     my->_db = db;
+     my->chain = db;
   }
 
 
-} // mail

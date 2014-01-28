@@ -91,7 +91,11 @@ namespace mail {
                if( m.type == bts::bitchat::encrypted_message::type )
                {
                    auto pm = m.as<bts::bitchat::encrypted_message>();
-                   if( pm.validate_proof() )
+                   wlog( "received message size: ${s}", ("s",m.size) );
+                   //ilog( "received ${m}", ( "m",pm) );
+             
+            //       if( pm.validate_proof() )
+                   if( m.size < 1024*1024*2 ) // 2 MB limit...
                    {
                       _message_db.store( fc::time_point::now(), pm );
                    }
@@ -99,11 +103,12 @@ namespace mail {
                else if( m.type == bts::bitchat::client_info_message::type )
                {
                    auto ci = m.as<bts::bitchat::client_info_message>();
-                   if( c.get_last_sync_time() == fc::time_point() )
+                   ilog( "sync from time ${t}  server time ${st}", ("t", ci.sync_time )("st",fc::time_point::now()) );
+                   c.set_last_sync_time( ci.sync_time );
+                   if( c.get_last_sync_time() != fc::time_point() )
                    {
                       c.exec_sync_loop();
                    }
-                   c.set_last_sync_time( ci.sync_time );
                }
                else
                {
@@ -115,12 +120,15 @@ namespace mail {
           virtual void on_connection_disconnected( connection& c )
           {
             try {
-              ilog( "cleaning up connection after disconnect ${e}", ("e", c.remote_endpoint()) );
+              ilog( "cleaning up connection after disconnect ${e} remaining connections ${c}", ("e", c.remote_endpoint())("c",connections.size()-1) );
               auto cptr = c.shared_from_this();
               FC_ASSERT( cptr );
               if( ser_del ) ser_del->on_disconnected( cptr );
               auto itr = connections.find(c.remote_endpoint());
               connections.erase( itr ); //c.remote_endpoint() );
+
+              // delete this later... capture it, if we do not do this it will hang
+              fc::async( [cptr](){} );
             } FC_RETHROW_EXCEPTIONS( warn, "error thrown handling disconnect" );
           }
 
@@ -138,11 +146,12 @@ namespace mail {
                 // init DH handshake, TODO: this could yield.. what happens if we exit here before
                 // adding s to connections list.
                 s->accept();
-                ilog( "accepted connection from ${ep}", 
-                      ("ep", std::string(s->get_socket().remote_endpoint()) ) );
                 
                 auto con = std::make_shared<connection>(s,this);
+                con->set_database(&_message_db);
                 connections[con->remote_endpoint()] = con;
+                ilog( "accepted connection from ${ep}  total connections ${c}", 
+                      ("ep", std::string(s->get_socket().remote_endpoint()) )("c",connections.size()) );
                 if( ser_del ) ser_del->on_connected( con );
              } 
              catch ( const fc::canceled_exception& e )
@@ -170,6 +179,7 @@ namespace mail {
                 {
                    stcp_socket_ptr sock = std::make_shared<stcp_socket>();
                    tcp_serv.accept( sock->get_socket() );
+                   ilog( "accept" );
 
                    // do the acceptance process async
                    fc::async( [=](){ accept_connection( sock ); } );

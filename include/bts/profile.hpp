@@ -84,7 +84,7 @@ namespace bts {
       /** 
        * @throw key_not_found_exception if no such identity has been created
        */
-      addressbook::wallet_identity                get_identity(const std::string& wallet_id )const;
+      addressbook::wallet_identity                get_identity(const std::string& dac_id_string )const;
       
       /**
        *  Checks the transaction to see if any of the inp
@@ -100,7 +100,7 @@ namespace bts {
       bitchat::message_db_ptr       get_chat_db()const;
       addressbook::addressbook_ptr  get_addressbook()const;
       keychain                      get_keychain()const;
-      std::string                   get_name()const;
+      std::wstring                  get_name()const;
 
       fc::time_point                get_last_sync_time()const;
       void                          set_last_sync_time( const fc::time_point& n );

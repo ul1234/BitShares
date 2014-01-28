@@ -53,18 +53,23 @@ namespace bts {
       void                                 configure( const application_config& cfg );
       void                                 connect_to_network();
       application_config                   get_configuration()const;
-                                           
+
       void                                 add_node( const fc::ip::endpoint& remote_node_ip_port );
       void                                 set_application_delegate( application_delegate* del );
-                                           
+
       bool                                 has_profile()const;
-      std::vector<std::string>             get_profiles()const;
+      std::vector<std::wstring>            get_profiles()const;
 
       profile_ptr                          get_profile();
+      profile_ptr                          load_profile( const std::wstring& profile_name, 
+                                                         const std::string& password );
+      /** This version is needed only by bts::rpc::details::server_impl::register_bitname_methods
+          and it should be removed when fc::variant will fully support std::wstring convertion.
+      */
       profile_ptr                          load_profile( const std::string& profile_name, 
                                                          const std::string& password );
 
-      profile_ptr                          create_profile( const std::string& profile_name, 
+      profile_ptr                          create_profile( const std::wstring& profile_name, 
                                                            const profile_config& cfg, 
                                                            const std::string& password, std::function<void(double)> progress = std::function<void(double)>() );
                                   

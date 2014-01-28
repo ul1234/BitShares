@@ -14,6 +14,8 @@
 #include <fc/io/fstream.hpp>
 #include <fc/filesystem.hpp>
 
+#define KEYHOTEE_MASTER_KEY_FILE ".keyhotee_master.key"
+
 namespace bts {
 
   namespace detail 
@@ -29,7 +31,7 @@ namespace bts {
             bitchat::message_db_ptr                         _sent_db;
             bitchat::message_db_ptr                         _chat_db;
             db::level_map<std::string, addressbook::wallet_identity>            _idents;
-            std::string                                     _profile_name;
+            std::wstring                                    _profile_name;
             
             fc::mmap_struct<fc::time_point>                 _last_sync_time;
 /*
@@ -68,7 +70,8 @@ namespace bts {
       *my->_last_sync_time = n;
   }
 
-  void profile::create( const fc::path& profile_dir, const profile_config& cfg, const std::string& password, std::function<void(double)> progress )
+  void profile::create( const fc::path& profile_dir, const profile_config& cfg, const std::string& password,
+    std::function<void(double)> progress )
   { try {
        fc::sha512::encoder encoder;
        fc::raw::pack( encoder, password );
@@ -77,22 +80,23 @@ namespace bts {
 
        /// note: this could take a minute
        auto stretched_seed   = keychain::stretch_seed( seed, progress );
-       
+       ilog("finished stretch_seed");
       // FC_ASSERT( !fc::exists( profile_dir ) );
        fc::create_directories( profile_dir );
        
        auto profile_cfg_key  = fc::sha512::hash( password.c_str(), password.size() );
-       fc::aes_save( profile_dir / ".stretched_seed", profile_cfg_key, fc::raw::pack(stretched_seed) );
+       fc::aes_save( profile_dir / KEYHOTEE_MASTER_KEY_FILE, profile_cfg_key, fc::raw::pack(stretched_seed) );
   } FC_RETHROW_EXCEPTIONS( warn, "", ("profile_dir",profile_dir)("config",cfg) ) }
 
-  std::string profile::get_name()const
+  std::wstring profile::get_name()const
   {
-      return my->_profile_name;
+    return my->_profile_name;
   }
 
   void profile::open( const fc::path& profile_dir, const std::string& password )
   { try {
-      my->_profile_name = profile_dir.filename().generic_string();
+      ilog("opening profile: ${profile_dir}",("profile_dir",profile_dir));
+      my->_profile_name = profile_dir.filename().generic_wstring();
 
       fc::create_directories( profile_dir );
       fc::create_directories( profile_dir / "addressbook" );
@@ -104,9 +108,19 @@ namespace bts {
       fc::create_directories( profile_dir / "mail" / "sent" );
       fc::create_directories( profile_dir / "chat" );
 
+      ilog("loading master key file:" KEYHOTEE_MASTER_KEY_FILE);
       auto profile_cfg_key         = fc::sha512::hash( password.c_str(), password.size() );
-      auto stretched_seed_data     = fc::aes_load( profile_dir / ".stretched_seed", profile_cfg_key );
-     
+      std::vector<char> stretched_seed_data;
+      try {
+        stretched_seed_data     = fc::aes_load( profile_dir / KEYHOTEE_MASTER_KEY_FILE, profile_cfg_key );
+      }
+      catch (fc::exception& e)
+      { //try to open legacy name for key file
+        wlog("Could not open " KEYHOTEE_MASTER_KEY_FILE ", trying to open legacy key file (.strecthed_seed).");
+        stretched_seed_data     = fc::aes_load( profile_dir / ".stretched_seed", profile_cfg_key );
+      }
+
+      ilog("opening profile databases");
       my->_keychain.set_seed( fc::raw::unpack<fc::sha512>(stretched_seed_data) );
       my->_addressbook->open( profile_dir / "addressbook", profile_cfg_key );
       my->_idents.open( profile_dir / "idents" );
@@ -120,7 +134,7 @@ namespace bts {
       {
           *my->_last_sync_time = fc::time_point::now() - fc::seconds(60*5);
       }
-
+    ilog("finished opening profile");
   } FC_RETHROW_EXCEPTIONS( warn, "", ("profile_dir",profile_dir) ) }
 
   std::vector<addressbook::wallet_identity>   profile::identities()const
@@ -138,10 +152,10 @@ namespace bts {
       my->_idents.store( id.dac_id_string, id ); 
   } FC_RETHROW_EXCEPTIONS( warn, "", ("id",id) ) }
 
-  addressbook::wallet_identity    profile::get_identity( const std::string& id )const
+  addressbook::wallet_identity    profile::get_identity( const std::string& dac_id_string )const
   { try {
-      return my->_idents.fetch( id ); 
-  } FC_RETHROW_EXCEPTIONS( warn, "", ("id",id) ) }
+      return my->_idents.fetch( dac_id_string ); 
+  } FC_RETHROW_EXCEPTIONS( warn, "", ("dac_id",dac_id_string) ) }
   
   /**
    *  Checks the transaction to see if any of the inp

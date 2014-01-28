@@ -1,7 +1,9 @@
 #pragma once
 #include <leveldb/db.h>
 #include <leveldb/comparator.h>
+
 #include <fc/filesystem.hpp>
+
 #include <fc/reflect/reflect.hpp>
 #include <fc/io/raw.hpp>
 #include <fc/exception/exception.hpp>
@@ -25,12 +27,17 @@ namespace bts { namespace db {
            ldb::Options opts;
            opts.create_if_missing = create;
            opts.comparator = & _comparer;
-           
+
+           /// \waring Given path must exist to succeed toNativeAnsiPath
+           fc::create_directories(dir);
+
+           std::string ldbPath = dir.to_native_ansi_path();
+
            ldb::DB* ndb = nullptr;
-           auto ntrxstat = ldb::DB::Open( opts, dir.generic_string().c_str(), &ndb );
+           auto ntrxstat = ldb::DB::Open( opts, ldbPath.c_str(), &ndb );
            if( !ntrxstat.ok() )
            {
-               FC_THROW_EXCEPTION( exception, "Unable to open database ${db}\n\t${msg}", 
+               FC_THROW_EXCEPTION( db_in_use_exception, "Unable to open database ${db}\n\t${msg}", 
                     ("db",dir)
                     ("msg",ntrxstat.ToString()) 
                     );

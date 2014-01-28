@@ -60,9 +60,6 @@ namespace bts { namespace bitchat {
        assert( chat_delegate != nullptr );
        my->peers = peers;
        my->del   = chat_delegate;
-
-       // By default subscribe to channel 0 where everyone is subscribed.
-       my->subscribe_to_channel( channel_id( network::chat_proto, 0 ) );
    }
    
    client::~client()
@@ -104,10 +101,18 @@ namespace bts { namespace bitchat {
    { try {
       my->_data_dir = dir;
       fc::create_directories(dir);
+      fc::string channel_name;
+      fc::path channel_path;
       for( auto itr = my->_channels.begin(); itr != my->_channels.end(); ++itr )
       {
-         itr->second->configure( channel_config( dir / ("channel"+ fc::to_string( uint64_t(itr->first) ) ) ) );
+         channel_name = "channel"+ fc::to_string( uint64_t(itr->first) );
+         ilog("configuring ${channel_name}",("channel_name",channel_name));
+         channel_path = dir / channel_name;
+         ilog("configuring ${channel_path}",("channel_path",channel_path));
+         itr->second->configure( channel_config( channel_path ) );
       }
+      // By default subscribe to channel 0 where everyone is subscribed.
+      my->subscribe_to_channel( channel_id( network::chat_proto, 0 ) );
    } FC_RETHROW_EXCEPTIONS( warn, "", ("dir",dir) ) }
 
 } }

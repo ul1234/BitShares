@@ -111,6 +111,7 @@ struct claim_by_long_output
    claim_by_long_output( const address& pay_addr, const price& ask, uint64_t min_order = 0 )
    :pay_address(pay_addr),ask_price(ask),min_trade(min_order){}
 
+   bool operator == ( const claim_by_long_output& other )const;
    address                           pay_address; ///< where to send ask_unit (or cancel sig)
    price                             ask_price;   ///< price per unit (base must be bts)
    uint64_t                          min_trade;   ///< measured in bts to accept this order
@@ -153,6 +154,7 @@ struct claim_by_cover_output
    :payoff_amount(0){}
 
    asset get_payoff_amount()const { return asset( payoff_amount, payoff_unit); }
+   bool operator == ( const claim_by_cover_output& other )const;
 
    asset_type      payoff_unit;
    uint64_t        payoff_amount;

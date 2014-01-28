@@ -50,7 +50,7 @@ namespace bts { namespace bitchat {
      */
     struct encrypted_message 
     {
-        static const message_type type = encrypted_msg;
+        static const message_type type;
         encrypted_message();
         mutable uint32_t                              noncea; ///< collision a
         mutable uint32_t                              nonceb; ///< collision b

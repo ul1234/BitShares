@@ -1,6 +1,7 @@
 #pragma once
 #include <fc/uint128.hpp>
 #include <fc/io/enum_type.hpp>
+#include <stdint.h>
 
 namespace bts { namespace blockchain {
 
@@ -17,11 +18,11 @@ namespace bts { namespace blockchain {
       enum type
       {
           bts      = 0,  // 0.001 = 1 BitShare (smallest storable unit)
-          btc      = 1,
+          usd      = 1,  // $0.001 = 1 BitUSD 
+          count, // TODO: move this to the end, for now this will shorten print statements
+          btc      = 4,
           gld      = 2,
           slv      = 3,
-          usd      = 4,  // $0.001 = 1 BitUSD 
-          count, // TODO: move this to the end, for now this will shorten print statements
           cny      = 5,
           gbp      = 6,
           eur      = 7, 
@@ -36,26 +37,32 @@ namespace bts { namespace blockchain {
       };
 
       static const fc::uint128& one();
+      static const fc::uint128& zero();
 
       asset():unit(bts){}
       asset( const std::string& str );
-      asset( uint64_t int_part, asset::type t );
+      asset( asset::type t ):unit(t){}
+      asset( uint32_t ul, asset::type t );
+      asset( uint64_t ull , asset::type t );
+      explicit asset( double   int_part, asset::type t );
+      explicit asset( float   int_part, asset::type t );
       asset( fc::uint128 amnt, asset::type t )
       :amount(amnt),unit(t){}
 
       asset& operator += ( const asset& o );
       asset& operator -= ( const asset& o );
-      //friend asset  operator - ( const asset& a, const asset& b ){ return asset(a) -= b; }
       asset  operator *  ( const fc::uint128_t& fix6464 )const;
       asset  operator *  ( uint64_t mult )const
       {
          return *this * fc::uint128_t(mult,0);
       }
 
-      uint64_t get_rounded_amount()const;
-      asset    get_rounded_asset()const { return asset( get_rounded_amount(),unit); }
-
       operator std::string()const;
+      uint64_t get_rounded_amount()const;
+      //operator double()const;
+      //operator uint64_t()const;
+      uint64_t to_uint64()const { return amount.high_bits(); }
+      double to_double()const;
        
       fc::uint128_t amount;
       type          unit;
@@ -76,7 +83,9 @@ namespace bts { namespace blockchain {
       :ratio(r),base_unit(base),quote_unit(quote){}
 
       price( const std::string& s );
+      price( double a, asset::type base, asset::type quote );
       operator std::string()const;
+      operator double()const;
 
       fc::uint128_t ratio; // 64.64
 

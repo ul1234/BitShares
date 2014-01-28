@@ -6,7 +6,7 @@ namespace bts { namespace bitchat {
 
    namespace detail { class channel_impl; }
 
-   class encrypted_message;
+   struct encrypted_message;
    
    class channel_delegate
    {

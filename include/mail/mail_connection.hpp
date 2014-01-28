@@ -51,6 +51,7 @@ namespace mail {
         void close();
 
         fc::time_point get_last_sync_time()const;
+        fc::time_point get_server_time()const;
         void           set_last_sync_time( const fc::time_point& );
 
         void exec_sync_loop();

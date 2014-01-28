@@ -7,15 +7,17 @@
 #include <bts/network/ipecho.hpp>
 #include <bts/rpc/rpc_server.hpp>
 #include <bts/blockchain/blockchain_client.hpp>
+
 #include <fc/reflect/variant.hpp>
 #include <fc/thread/thread.hpp>
 #include <fc/io/fstream.hpp>
 #include <fc/io/json.hpp>
+#include <fc/log/logger.hpp>
 #include <fc/io/raw.hpp>
 
 #include <mail/mail_connection.hpp>
 
-#include <fc/log/logger.hpp>
+#include <fstream>
 
 namespace bts {
 
@@ -61,6 +63,11 @@ namespace bts {
 
           mail::connection                  _mail_con;
           bool                              _mail_connected;
+
+          void        configure( const application_config& cfg );
+          /// Common implementation of profile loading.
+          profile_ptr loadProfile(const fc::path& profileName, const std::string& password);
+
           void mail_connect_loop()
           {
              assert(!!_config );
@@ -144,6 +151,7 @@ namespace bts {
           }
           void start_mail_connect_loop()
           {
+          ilog("start_mail_connect_loop");
               _mail_connect_loop_complete = fc::async( [=](){
                   fc::usleep(fc::seconds(5));
                   mail_connect_loop(); 
@@ -196,7 +204,108 @@ namespace bts {
               */
           }  
     };
+
+  void application_impl::configure(const application_config& cfg)
+  {
+  try 
+  {
+    ilog("application::configure");
+    _config = cfg;
+
+    _server = std::make_shared<bts::network::server>();
+
+    try
+    {
+      ilog("calling get_external_ip");
+      auto ext_ip = bts::network::get_external_ip();
+      ilog( "external IP ${ip}", ("ip",ext_ip) );
+      if( cfg.enable_upnp )
+      {
+        ilog("enable_upnp");
+        _upnp.map_port( cfg.network_port );
+        _server->set_external_ip( _upnp.external_ip() );
+      }
+      else
+      {
+        ilog("set_external_ip");
+        _server->set_external_ip( ext_ip );
+      }
+    }
+    catch (fc::exception e)
+    {
+      elog("Failed to connect to external IP address: ${e}", ("e",e.to_detail_string()));
+    }
+    catch (...)
+    {
+      elog("unrecognized exception while setting external ip, but we're ignoring it");
+    }
+
+    ilog("configuring server");
+    bts::network::server::config server_cfg;
+    server_cfg.port = cfg.network_port;
+
+    _server->configure( server_cfg );
+
+    ilog("configure bitname client");
+    _peers            = std::make_shared<bts::peer::peer_channel>(_server);
+    _bitname_client   = std::make_shared<bts::bitname::client>(_peers);
+    _bitname_client->set_delegate(this);
+
+    bitname::client::config bitname_config;
+    bitname_config.data_dir = cfg.data_dir / "bitname";
+
+    _bitname_client->configure( bitname_config );
+
+    ilog("configure bitchat client");
+    _bitchat_client  = std::make_shared<bts::bitchat::client>(_peers, this);
+    _bitchat_client->configure( cfg.data_dir / "bitchat" );
+
+    ilog("configuring rpc_server");
+    _rpc_server.configure( cfg.rpc_config );
+    _rpc_server.set_bitname_client(_bitname_client);
+    ilog("done configuring rpc_server");
+
+    ilog("end application::configure");
+    }
+    FC_RETHROW_EXCEPTIONS( warn, "", ("config",cfg) ) 
   }
+
+  profile_ptr application_impl::loadProfile(const fc::path& profileName, const std::string& password)
+    {
+    try {
+    if(_profile)
+      _profile.reset();
+
+    fc::path loadedProfileDir = _profile_dir/profileName;
+
+    // note: stored in temp incase open throws.
+    auto tmp_profile = std::make_shared<profile>();
+    tmp_profile->open(loadedProfileDir, password);
+
+    fc::path configFilePath = loadedProfileDir/"config.json";
+
+    FC_ASSERT( fc::exists(configFilePath) );
+    auto app_config = fc::json::from_file(configFilePath).as<bts::application_config>();
+    configure(app_config);
+
+    std::vector<fc::ecc::private_key> recv_keys;
+    auto keychain =  tmp_profile->get_keychain();
+
+    std::vector<bts::addressbook::wallet_identity> idents = tmp_profile->identities();
+    for(const auto& id : idents)
+    {
+      recv_keys.push_back(keychain.get_identity_key(id.dac_id_string));
+    }
+    
+    _keys = recv_keys;
+    _bitchat_client->set_receive_keys( recv_keys );
+
+    return _profile = tmp_profile;
+  }
+  FC_RETHROW_EXCEPTIONS( warn, "" ) 
+  }
+
+  } /// namespace bts::detail
 
   application::application()
   :my( new detail::application_impl() )
@@ -212,57 +321,15 @@ namespace bts {
   }
 
   void application::configure( const application_config& cfg )
-  { try {
-     my->_config = cfg;
-
-     my->_server = std::make_shared<bts::network::server>();    
-
-     try {
-       auto ext_ip = bts::network::get_external_ip();
-       ilog( "external IP ${ip}", ("ip",ext_ip) );
-       if( cfg.enable_upnp )
-       {
-          my->_upnp.map_port( cfg.network_port );
-          my->_server->set_external_ip( my->_upnp.external_ip() );
-       }
-       else
-       {
-          my->_server->set_external_ip( ext_ip );
-       }
-     }
-     catch (fc::exception e)
-     {
-        elog("Failed to connect to external IP address: ${e}", ("e",e.to_detail_string()));
-     }
-
-     bts::network::server::config server_cfg;
-     server_cfg.port = cfg.network_port;
-
-     my->_server->configure( server_cfg );
-
-     my->_peers            = std::make_shared<bts::peer::peer_channel>(my->_server);
-     my->_bitname_client   = std::make_shared<bts::bitname::client>( my->_peers );
-     my->_bitname_client->set_delegate( my.get() );
-
-     bitname::client::config bitname_config;
-     bitname_config.data_dir = cfg.data_dir / "bitname";
-
-     my->_bitname_client->configure( bitname_config );
-
-     my->_bitchat_client  = std::make_shared<bts::bitchat::client>( my->_peers, my.get() );
-     my->_bitchat_client->configure( cfg.data_dir / "bitchat" );
-
-     my->_rpc_server.configure( cfg.rpc_config );
-     my->_rpc_server.set_bitname_client( my->_bitname_client );
-
-     // START CONNECT LOOP
-     my->start_mail_connect_loop();
-
-  } FC_RETHROW_EXCEPTIONS( warn, "", ("config",cfg) ) }
+  {
+  my->configure(cfg);
+  }
 
   void application::connect_to_network()
   {
-     my->_connect_loop_complete = fc::async( [=]{ my->connect_loop(); } );
+    // START CONNECT LOOP
+    my->start_mail_connect_loop();
+    my->_connect_loop_complete = fc::async( [=]{ my->connect_loop(); } );
   }
 
   bool application::is_mail_connected()const
@@ -296,9 +363,10 @@ namespace bts {
     return my->_profile;
   }
 
-  std::vector<std::string>  application::get_profiles()const
+  std::vector<std::wstring>  application::get_profiles()const
   { try {
-     std::vector<std::string> profile_dirs;
+    std::vector<std::wstring> profileDirs;
+     std::vector<std::string> logCapableProfileDirs;
      fc::directory_iterator   profile_dir(my->_profile_dir);
      while( profile_dir != fc::directory_iterator() )
      {
@@ -306,39 +374,25 @@ namespace bts {
         if( fc::is_directory(p) && fc::exists( p / "config.json" ) )
         {
            ilog( "${p}", ("p",p) );
-           profile_dirs.push_back(p.filename().generic_string() );
+           fc::path fName = p.filename();
+           profileDirs.push_back(fName.generic_wstring() );
+           logCapableProfileDirs.push_back(fName.generic_string());
         }
         ++profile_dir;
      }
-     ilog( "profiles ${p}", ("p",profile_dirs) );
-     return profile_dirs;
+     ilog( "profiles ${p}", ("p", logCapableProfileDirs) );
+     return profileDirs;
   } FC_RETHROW_EXCEPTIONS( warn, "error getting profiles" ) }
 
-  profile_ptr   application::load_profile( const std::string& profile_name, const std::string& password )
-  { try {
-    if( my->_profile ) my->_profile.reset();
+  profile_ptr application::load_profile(const std::wstring& profileName, const std::string& password)
+  {
+    return my->loadProfile(fc::path(profileName), password);
+  }
 
-    FC_ASSERT( fc::exists(my->_profile_dir/profile_name/"config.json") );
-    auto app_config = fc::json::from_file(my->_profile_dir/profile_name/"config.json").as<bts::application_config>();
-    configure(app_config);
-
-    // note: stored in temp incase open throws.
-    auto tmp_profile = std::make_shared<profile>();
-    tmp_profile->open( my->_profile_dir / profile_name, password );
-
-    std::vector<fc::ecc::private_key> recv_keys;
-    auto keychain =  tmp_profile->get_keychain();
-
-    std::vector<bts::addressbook::wallet_identity>   idents = tmp_profile->identities();
-    for( auto itr = idents.begin(); itr != idents.end(); ++itr )
-    {
-       recv_keys.push_back( keychain.get_identity_key( itr->dac_id_string ) );
-    }
-    my->_keys = recv_keys;
-    my->_bitchat_client->set_receive_keys( recv_keys );
-
-    return my->_profile = tmp_profile;
-  } FC_RETHROW_EXCEPTIONS( warn, "" ) }
+  profile_ptr application::load_profile(const std::string& profileName, const std::string& password)
+  {
+    return my->loadProfile(fc::path(profileName), password);
+  }
 
   void  application::add_receive_key( const fc::ecc::private_key& k )
   {
@@ -346,10 +400,12 @@ namespace bts {
      my->_bitchat_client->add_receive_key( k );
   }
 
-  profile_ptr   application::create_profile( const std::string& profile_name,
-                                             const profile_config& cfg, const std::string& password, std::function<void(double)> progress )
+  profile_ptr   application::create_profile( const std::wstring& profileName,
+                                             const profile_config& cfg, const std::string& password, 
+                                             std::function<void(double)> progress )
   { try {
-     auto pro_dir = my->_profile_dir / profile_name;
+     fc::path fcProfPath(profileName);
+     auto pro_dir = my->_profile_dir / fcProfPath;
      fc::create_directories( pro_dir );
      auto config_file = pro_dir / "config.json";
      
@@ -358,13 +414,23 @@ namespace bts {
      {
        bts::application_config default_cfg;
        default_cfg.data_dir = pro_dir / "data";
+       fc::create_directories(default_cfg.data_dir);
        default_cfg.network_port = 0;
        default_cfg.rpc_config.port = 0;
-       default_cfg.default_nodes.push_back( fc::ip::endpoint( std::string("162.243.67.4"), 9876 ) );
+       //DLNFIX Quiet error messages as there's no server listening to this port currently.
+       //       Let's setup a peer server soon somewhere that does handle connection attempts.
+       // default_cfg.default_nodes.push_back( fc::ip::endpoint( std::string("162.243.67.4"), 9876 ) );
        default_cfg.default_mail_nodes.push_back( fc::ip::endpoint( std::string("162.243.67.4"), 7896 ) );
        
+       /** \warning Don't use fc::ostream - this class doesn't provide info about write/opening
+           operation status.
+       */
+       //std::ofstream out(config_file.generic_wstring());
        fc::ofstream out(config_file);
-       out << fc::json::to_pretty_string(default_cfg);
+       //if(out)
+        out << fc::json::to_pretty_string(default_cfg);
+       //else
+       //  FC_THROW("Cannot write config file: ${path}", ("path", config_file));
      }
 
      auto app_config = fc::json::from_file(config_file).as<bts::application_config>();
@@ -448,9 +514,16 @@ namespace bts {
 
   void application::quit()
   { try {
+       /// Notify quit to break direct connection and mail connection loops
        my->_quit_promise->set_value();
+       
+       /// Wait until direct connection loop finishes.
        if(my->_connect_loop_complete.valid())
          my->_connect_loop_complete.wait();
+       
+       /// Wait until mail connection loop finishes.
+       if(my->_mail_connect_loop_complete.valid())
+         my->_mail_connect_loop_complete.wait();
 
        if(my->_server)
          my->_server->close();

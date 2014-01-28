@@ -115,6 +115,7 @@ int main( int argc, char** argv )
 
     std::shared_ptr<bitchat_del>   chat_del       = std::make_shared<bitchat_del>();
     bts::bitchat::client_ptr       chat_cl        = std::make_shared<bts::bitchat::client>( peer_ch, address_book, chat_del.get() );
+    chat_cl->configure(".");
 
     /// provides synchronized accounts across all computers in the network
    /*

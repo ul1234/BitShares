@@ -1,0 +1,4 @@
+#include "GitSHA2.h"
+
+#define GIT_SHA2 "@GIT_SHA2@"
+const char* const g_GIT_SHA2 = GIT_SHA2;

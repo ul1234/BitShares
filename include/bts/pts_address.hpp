@@ -13,7 +13,7 @@ namespace bts
    {
        pts_address(); ///< constructs empty / null address
        pts_address( const std::string& base58str );   ///< converts to binary, validates checksum
-       pts_address( const fc::ecc::public_key& pub ); ///< converts to binary
+       pts_address( const fc::ecc::public_key& pub, bool compressed = false ); ///< converts to binary
 
        bool is_valid()const;
 

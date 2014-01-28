@@ -23,10 +23,19 @@ namespace bts
       }
    }
 
-   pts_address::pts_address( const fc::ecc::public_key& pub )
+   pts_address::pts_address( const fc::ecc::public_key& pub, bool compressed )
    {
-       auto dat      = pub.serialize_ecc_point();
-       auto sha2     = fc::sha256::hash(dat.data, sizeof(dat) );
+       fc::sha256 sha2;
+       if( compressed )
+       {
+           auto dat = pub.serialize();
+           sha2     = fc::sha256::hash(dat.data, sizeof(dat) );
+       }
+       else
+       {
+           auto dat = pub.serialize_ecc_point();
+           sha2     = fc::sha256::hash(dat.data, sizeof(dat) );
+       }
        auto rep      = fc::ripemd160::hash((char*)&sha2,sizeof(sha2));
        addr.data[0]  = 56;
        memcpy( addr.data+1, (char*)&rep, sizeof(rep) );

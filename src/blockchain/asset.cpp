@@ -1,8 +1,11 @@
 #define __STDC_CONSTANT_MACROS
 #include <bts/blockchain/asset.hpp>
+#include <bts/config.hpp>
 #include <fc/exception/exception.hpp>
 #include <fc/crypto/bigint.hpp>
 #include <fc/log/logger.hpp>
+#include <fc/reflect/variant.hpp>
+#include <sstream>
 #include <cstdint>
 
 
@@ -14,21 +17,54 @@
 namespace bts { namespace blockchain {
 
   asset::asset( const std::string& s )
-  :unit( bts )
   {
-    // TODO:  string to asset
-    FC_ASSERT( !"Not Implemented" );
+     std::stringstream ss(s);
+     double a;
+     ss >> a;
+     std::string u;
+     ss >> u;
+     amount = fc::uint128( a * COIN, 0 );
+     unit = fc::variant(u).as<asset::type>();
   }
 
-  asset::asset( uint64_t int_p, asset::type t )
+  asset::asset( uint32_t amnt, asset::type t )
   :unit(t)
   {
-     amount = fc::uint128( int_p, 0 );
+     amount = fc::uint128( amnt, 0 );
+  }
+  asset::asset( double d, asset::type t )
+  :unit(t)
+  {
+     amount = fc::uint128(d * COIN,0);
+  }
+
+  asset::asset( float d, asset::type t )
+  :unit(t)
+  {
+     amount = fc::uint128(double(d) * COIN,0);
+  }
+
+  asset::asset( uint64_t ull, asset::type t )
+  :unit(t)
+  {
+     amount = fc::uint128(ull,0);
+  }
+
+  double asset::to_double()const
+  {
+     //return double(get_rounded_amount())/COIN;
+     auto div = (amount / fc::uint128(COIN,0));
+     div += fc::uint128( 0, 100 ); // round up 
+     return  double(div.high_bits()) + double(div.low_bits())/uint64_t(-1); 
   }
 
   asset::operator std::string()const
   {
-     uint64_t integer     = amount.high_bits();
+     auto rounded_amnt = get_rounded_amount();
+     std::string int_part = fc::to_string(uint64_t(rounded_amnt/COIN) );
+     uint64_t fract = uint64_t(rounded_amnt % COIN + COIN);
+     return  int_part  + "." + fc::to_string(fract).substr(1) + " " + std::string(fc::reflector<asset::type>::to_string( unit ));
+     /*
      fc::uint128 fraction( amount.low_bits() );
      fraction *= BASE10_PRECISION;
      fraction /= one();
@@ -47,19 +83,25 @@ namespace bts { namespace blockchain {
 
      s += " " + std::string(fc::reflector<asset::type>::to_string( unit ));
      return s;
+     */
   }
 
   uint64_t asset::get_rounded_amount()const
   {
     auto tmp = amount;
     tmp += (fc::uint128(1,0)>>1);
-    return tmp.high_bits(); // TODO: round rather than truncate
+    return tmp.high_bits();
   }
 
 
   const fc::uint128& asset::one()
   {
      static fc::uint128_t o = fc::uint128(1,0);
+     return o;
+  }
+  const fc::uint128& asset::zero()
+  {
+     static fc::uint128_t o = fc::uint128(0,0);
      return o;
   }
 
@@ -110,7 +152,28 @@ namespace bts { namespace blockchain {
   }
   price::price( const std::string& s )
   {
-    // TODO:  price to asset
+     /*
+     std::stringstream ss(s);
+     std::string a,b,q;
+     char d;
+     ss >> a >> b >> q >> d;
+     */
+  }
+  price::price( double a, asset::type q, asset::type b )
+  {
+     FC_ASSERT( q > b, "${quote} > ${base}", ("quote",q)("base",b) );
+
+     uint64_t high_bits = uint64_t(a);
+     double fract_part = a - high_bits;
+     uint64_t low_bits = uint64_t(-1)*fract_part;
+     ratio = fc::uint128( high_bits, low_bits );
+     base_unit = b;
+     quote_unit = q;
+  }
+
+  price::operator double()const
+  {
+     return double(ratio.high_bits()) + double(ratio.low_bits()) / double(uint64_t(-1));
   }
 
   price::operator std::string()const
@@ -131,8 +194,8 @@ namespace bts { namespace blockchain {
      s += ".";
      std::string frac(fraction);
      s += frac.substr(1,frac.size()-2);
-     s += " " + std::string(quote_unit);//std::string(fc::reflector<asset::type>::to_string( quote_unit ));
-     s += "/" + std::string(base_unit); //std::string(fc::reflector<asset::type>::to_string( base_unit ));
+     s += " " + std::string(quote_unit);
+     s += "/" + std::string(base_unit); 
      return s;
   }
 
@@ -141,33 +204,26 @@ namespace bts { namespace blockchain {
    *  asset type with the lower enum value is always the
    *  denominator.  Therefore  bts/usd and  usd/bts will
    *  always result in a price measured in usd/bts because
-   *  bitasset_type::bit_shares <  bitasset_type::bit_usd.
+   *  asset::bts <  asset::usd.
    */
   price operator / ( const asset& a, const asset& b )
   {
     try 
     {
+        ilog( "${a} / ${b}", ("a",a)("b",b) );
         price p;
         auto l = a; auto r = b;
-        if( a.unit < b.unit ) 
-        {
-          std::swap(l,r);
-          p.base_unit = a.unit;
-          p.quote_unit = b.unit;
-        }
-        else
-        {
-          p.base_unit = b.unit;
-          p.quote_unit = a.unit;
-        }
+        if( l.unit < r.unit ) { std::swap(l,r); }
+        ilog( "${a} / ${b}", ("a",l)("b",r) );
+
+        p.base_unit = r.unit;
+        p.quote_unit = l.unit;
 
         fc::bigint bl = l.amount;
         fc::bigint br = r.amount;
-                            // bl   64.128 =>  0.64
         fc::bigint result = (bl <<= 64) / br;
 
         p.ratio = result;
-       // ilog( "${a} / ${b} => ${r}", ("a",a)("b",b)("r",p) );
         return p;
     } FC_RETHROW_EXCEPTIONS( warn, "${a} / ${b}", ("a",a)("b",b) );
   }

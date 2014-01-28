@@ -92,6 +92,51 @@ namespace bts { namespace blockchain {
        std::vector<meta_trx_output> meta_outputs; // tracks where the output was spent
     };
 
+    struct bid_data
+    {
+       bid_data():amount(0){}
+       bid_data( price p, uint64_t a )
+       :bid_price(p),amount(a),is_short(false){}
+
+       price    bid_price;
+       uint64_t amount;
+       bool     is_short;
+    };
+
+    struct ask_data
+    {
+       ask_data():amount(0){}
+       ask_data( price p, uint64_t a )
+       :ask_price(p),amount(a){}
+       price ask_price;
+       uint64_t amount;
+    };
+
+    struct short_data
+    {
+       short_data():amount(0){}
+       short_data( price p, uint64_t a )
+       :short_price(p),amount(a){}
+
+       price short_price;
+       uint64_t amount;
+    };
+
+    struct margin_data
+    {
+       price    call_price;
+       uint64_t amount;
+       uint64_t collateral;
+    };
+
+    struct market_data
+    {
+        std::vector<bid_data>     bids;
+        std::vector<ask_data>     asks;
+        std::vector<short_data>   shorts;
+        std::vector<margin_data>  margins;
+    };
+
 
     /**
      *  This database only stores valid blocks and applied transactions,
@@ -107,9 +152,10 @@ namespace bts { namespace blockchain {
           void open( const fc::path& dir, bool create = true );
           void close();
 
-          uint32_t head_block_num()const;
-          uint64_t get_stake(); // head - 1 
-          asset    get_fee_rate()const;
+          uint32_t      head_block_num()const;
+          block_id_type head_block_id()const;
+          uint64_t      get_stake(); // head - 1 
+          asset         get_fee_rate()const;
 
          /**
           *  Validates that trx could be included in a future block, that
@@ -130,6 +176,7 @@ namespace bts { namespace blockchain {
          trx_num    fetch_trx_num( const uint160& trx_id );
          meta_trx   fetch_trx( const trx_num& t );
 
+         signed_transaction          fetch_transaction( const transaction_id_type& trx_id );
          std::vector<meta_trx_input> fetch_inputs( const std::vector<trx_input>& inputs, uint32_t head = INVALID_BLOCK_NUM );
 
          uint32_t     fetch_block_num( const block_id_type& block_id );
@@ -152,6 +199,8 @@ namespace bts { namespace blockchain {
 
          std::string dump_market( asset::type quote, asset::type base );
 
+         market_data get_market( asset::type quote, asset::type base );
+
        private:
          void   store_trx( const signed_transaction& trx, const trx_num& t );
          std::unique_ptr<detail::blockchain_db_impl> my;          
@@ -166,3 +215,9 @@ FC_REFLECT( bts::blockchain::trx_num, (block_num)(trx_idx) );
 FC_REFLECT( bts::blockchain::meta_trx_output, (trx_id)(input_num) )
 FC_REFLECT( bts::blockchain::meta_trx_input, (source)(output_num)(output)(meta_output) )
 FC_REFLECT_DERIVED( bts::blockchain::meta_trx, (bts::blockchain::signed_transaction), (meta_outputs) );
+FC_REFLECT( bts::blockchain::bid_data, (bid_price)(amount)(is_short) )
+FC_REFLECT( bts::blockchain::ask_data, (ask_price)(amount) )
+FC_REFLECT( bts::blockchain::short_data, (short_price)(amount) )
+FC_REFLECT( bts::blockchain::margin_data, (call_price)(amount)(collateral) )
+FC_REFLECT( bts::blockchain::market_data, (bids)(asks)(shorts)(margins) )
+

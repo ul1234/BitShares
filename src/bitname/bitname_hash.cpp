@@ -91,6 +91,28 @@ void replace_char_runs( std::string& s )
   }
 }
 
+static inline void convertToASCII(const std::string& input, std::string* buffer)
+  {
+  assert(buffer != nullptr);
+  buffer->reserve(input.size());
+
+  for(const auto& c : input)
+    {
+    unsigned int cCode = c;
+    if(cCode > 0x7F)
+      {
+      /// Non ASCII character
+      char numBuffer[64];
+      sprintf(numBuffer, "_0x%X_", cCode);
+      buffer->append(numBuffer);
+      }
+    else
+      {
+      *buffer += toupper(c);
+      }
+    }
+  }
+
 /**
  * @param n - the name in UTF-8 format
  */
@@ -99,34 +121,35 @@ uint64_t  name_hash( const std::string& n )
   if( n.size() == 0 ) return 0;
 
   // TODO: Use http://www.gnu.org/software/libidn/doxygen/ to convert Chinese to ASCII
+  std::string asciiName;
+  convertToASCII(n, &asciiName);
 
-  std::locale loc = std::locale::classic();
-  std::string up(n);
-  int length  = n.size();
-  for(int i=0;i<length;++i)
-    up[i] = std::toupper( n[i], loc );
-
-
-  for( auto itr = up.begin(); itr != up.end(); ++itr )
+  for( auto itr = asciiName.begin(); itr != asciiName.end(); ++itr )
     *itr = replace_similar(*itr);
  
   // remove any and all hidden or invalid characters
-  up.erase(std::remove_if(up.begin(), up.end(), is_invalid_char), up.end());
+  asciiName.erase(std::remove_if(asciiName.begin(), asciiName.end(), is_invalid_char), asciiName.end());
 
-  if( up.size() == 0 ) return 0;
+  if(asciiName.empty())
+    return 0;
 
   // replace NN UU ___ etc with a single instance to avoid any
   // confusion this way... yes this means mom, moon, noon will be the same.. boob, bob, bo will
   // all be treated the same, so one person can 'claim' all of those names with a single 
   // name registration. 
-  replace_char_runs(up);
+  replace_char_runs(asciiName);
 
-  if( up.size() && up.front() == '.' ) up.erase(0,1);
-  if( up.size() && up.back() == '.' )  up.resize( up.size()-1);
-  FC_ASSERT( up.size() > 0 );
+  if( asciiName.size() && asciiName.front() == '.' )
+    asciiName.erase(0,1);
+
+  if( asciiName.size() && asciiName.back() == '.' )
+    //asciiName.pop_back();
+    asciiName.erase (asciiName.size() - 1);
+
+  FC_ASSERT( asciiName.size() > 0 );
 
   // secure hash function
-  fc::sha256 h = fc::sha256::hash( up.c_str(), up.size() );
+  fc::sha256 h = fc::sha256::hash( asciiName.c_str(), asciiName.size() );
 
   // compress it down to 64 bits
   return fc::city_hash64( (char*)&h, sizeof(h) );

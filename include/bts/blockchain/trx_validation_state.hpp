@@ -2,6 +2,7 @@
 #include <bts/blockchain/block.hpp>
 #include <bts/blockchain/transaction.hpp>
 #include <bts/blockchain/blockchain_db.hpp>
+#include <fc/log/logger.hpp>
 
 namespace bts { namespace blockchain {
   
@@ -30,7 +31,7 @@ namespace bts { namespace blockchain {
                                 uint32_t  head_idx = -1
                                 );
 
-           trx_validation_state(){}
+           trx_validation_state() : trx(signed_transaction()) {}
            
            /** tracks the sum of all inputs and outputs for a particular
             * asset type in the balance_sheet 
@@ -38,8 +39,32 @@ namespace bts { namespace blockchain {
            struct asset_balance
            {
               asset in;
+              asset collat_in;
+              asset neg_in; 
               asset out;
-              bool is_balanced()const { return (in - out).amount == fc::uint128(0); }
+              asset collat_out;
+              asset neg_out; // collateral
+              bool is_balanced()const 
+              { 
+                 int64_t sum = int64_t(in.amount.high_bits());
+                 sum -= int64_t(neg_in.amount.high_bits());
+                 sum -= int64_t(out.amount.high_bits());
+                 sum += int64_t(neg_out.amount.high_bits());
+                 ilog( "is blanced sum ${s} ${u}", ("s",sum)("u",in.unit));
+                 return abs(sum) <= 2;
+              }
+              bool creates_money()const 
+              { 
+                 int64_t sum = int64_t(in.amount.high_bits());
+                 sum -= int64_t(neg_in.amount.high_bits());
+                 sum -= int64_t(out.amount.high_bits());
+                 sum += int64_t(neg_out.amount.high_bits());
+                 ilog( "is blanced sum ${s} ${u}", ("s",sum)("u",in.unit));
+                 if(  abs(sum) <= 2 ) return false;
+                 return sum < 0;
+             }
+
+                 //return ((in - neg_in) - (out - neg_out)).amount >= fc::uint128(0); }
            };
 
            /** this is cost because validation shouldn't modify the trx and
@@ -89,7 +114,7 @@ namespace bts { namespace blockchain {
            uint16_t find_unused_sig_output( const address& a, const asset& bal );
            uint16_t find_unused_bid_output( const claim_by_bid_output& b );
            uint16_t find_unused_long_output( const claim_by_long_output& b );
-           uint16_t find_unused_cover_output( const claim_by_cover_output& b );
+           uint16_t find_unused_cover_output( const claim_by_cover_output& b, uint64_t min_collat );
 
            void validate_input( const meta_trx_input& );
            void validate_signature( const meta_trx_input& );
@@ -113,7 +138,7 @@ namespace bts { namespace blockchain {
     };
 
 } } // bts::blockchain
-FC_REFLECT( bts::blockchain::trx_validation_state::asset_balance, (in)(out) )
+FC_REFLECT( bts::blockchain::trx_validation_state::asset_balance, (in)(neg_in)(collat_in)(out)(neg_out)(collat_out) )
 FC_REFLECT( bts::blockchain::trx_validation_state, 
     (trx)
     (inputs)

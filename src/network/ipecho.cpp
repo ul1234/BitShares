@@ -17,6 +17,7 @@ namespace bts { namespace network {
       request << "Host: ipecho.net\r\n\r\nConnection:Close\r\n";
       auto req = request.str();
 
+      ilog("resolve ipecho.net port 80");
       auto endpoints = fc::resolve( "ipecho.net", 80 );
       for( auto itr = endpoints.begin(); itr != endpoints.end(); ++itr )
       {
@@ -40,6 +41,7 @@ namespace bts { namespace network {
             std::getline(instr, line);
             std::getline(instr, line);
 //            std::cerr<<"IP: "<<line<<"\n";
+            ilog("ip line=${line}",("line",line));
             return fc::ip::address(line.substr(0,line.size()-1));
          } 
          catch ( fc::exception& e ) 

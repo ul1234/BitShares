@@ -7,20 +7,20 @@ namespace bts { namespace bitchat {
   // other protocol messages... not encapsulated by data_message
   struct inv_message 
   {
-      static const message_type type = message_type::inv_msg;
+      static const message_type type;
       std::vector<fc::uint128>  items;
   };
 
   // other protocol messages... not encapsulated by data_message
   struct cache_inv_message 
   {
-      static const message_type type = message_type::cache_inv_msg;
+      static const message_type type;
       std::vector<fc::uint128>  items;
   };
 
   struct get_priv_message
   {
-      static const message_type type = message_type::get_priv_msg;
+      static const message_type type;
       get_priv_message(){}
       get_priv_message( const fc::uint128& p )
       {
@@ -30,7 +30,7 @@ namespace bts { namespace bitchat {
   };
   struct get_cache_priv_message
   {
-      static const message_type type = message_type::get_cache_priv_msg;
+      static const message_type type;
       get_cache_priv_message(){}
       get_cache_priv_message( const fc::uint128& p )
       {
@@ -48,7 +48,7 @@ namespace bts { namespace bitchat {
    */
   struct get_inv_message
   {
-      static const message_type type = message_type::get_inv_msg;
+      static const message_type type;
       fc::time_point_sec after;
   };
 
@@ -57,7 +57,7 @@ namespace bts { namespace bitchat {
    */
   struct get_cache_inv_message
   {
-      static const message_type type = message_type::get_cache_inv_msg;
+      static const message_type type;
       get_cache_inv_message( const fc::time_point& s, const fc::time_point e )
       :start_time(s),end_time(e){}
       get_cache_inv_message(){}
@@ -67,7 +67,7 @@ namespace bts { namespace bitchat {
 
   struct server_info_message
   {
-      static const message_type type = message_type::server_info_msg;
+      static const message_type type;
       server_info_message()
       :version(0){}
 
@@ -79,7 +79,7 @@ namespace bts { namespace bitchat {
 
   struct client_info_message
   {
-      static const message_type type = message_type::client_info_msg;
+      static const message_type type;
       client_info_message()
       :version(0){}
 

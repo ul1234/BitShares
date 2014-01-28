@@ -56,8 +56,27 @@ int main( int argc, char** argv )
          bts::db::level_map<std::string,record>   _known_names;
          _known_names.open( "reg_db" );
          
+         
+         if (argc == 3)
+         {  //update records in goood dbase with matching records from messy database
+            bts::db::level_map<std::string,record>   _messy_names;
+            _messy_names.open( "messy_db" );
+            //walkthrough all names in messydb, see if it matches record in good db, update good db with record if so
+            auto itr = _messy_names.begin();
+            while( itr.valid() )
+            {
+              auto found_itr = _known_names.find( itr.key() );
+              if (found_itr.valid())
+              {
+                auto id_record = itr.value();
+                ilog( "${key} => ${value}", ("key",itr.key())("value",id_record));
+                _known_names.store( itr.key(), id_record);
+              }
+              ++itr;
+            }
+         }
          // TODO: import CSV list of new keyhoteeIds that can be registered
-         if( argc == 2 )
+         else if( argc == 2 )
          {
             FC_ASSERT( fc::exists(argv[1]) );
             std::ifstream in(argv[1]);

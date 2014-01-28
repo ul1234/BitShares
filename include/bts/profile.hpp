@@ -84,7 +84,7 @@ namespace bts {
       /** 
        * @throw key_not_found_exception if no such identity has been created
        */
-      addressbook::wallet_identity                get_identity(const std::string& wallet_id )const;
+      addressbook::wallet_identity                get_identity(const std::string& dac_id_string )const;
       
       /**
        *  Checks the transaction to see if any of the inp

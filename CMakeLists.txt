@@ -158,6 +158,8 @@ set( sources
 
      src/rpc/rpc_server.cpp
 
+     src/unity/node.cpp
+
      src/application.cpp
      src/difficulty.cpp 
      src/profile.cpp

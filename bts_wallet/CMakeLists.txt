@@ -1,5 +1,9 @@
 if( UNIX ) 
-set(READLINE_LIBRARIES readline)
+  find_library(READLINE_LIBRARIES NAMES readline)
+  find_path(READLINE_INCLUDE_DIR readline/readline.h)
+  if(NOT READLINE_INCLUDE_DIR OR NOT READLINE_LIBRARIES)
+    MESSAGE(FATAL_ERROR "Could not find lib readline.")
+  endif()
 endif()
 
 add_executable( bts_wallet main.cpp chain_connection.cpp )

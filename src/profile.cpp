@@ -147,6 +147,17 @@ namespace bts {
      return idents;
   } FC_RETHROW_EXCEPTIONS( warn, "" ) }
   
+  void    profile::removeIdentity( const std::string& id )
+  { try {
+      my->_idents.remove( id);
+  } FC_RETHROW_EXCEPTIONS( warn, "", ("id",id) ) }
+
+  bool    profile::isIdentityPresent( const std::string& id )
+  { try {
+      auto itr = my->_idents.find( id);
+       return itr.valid();
+  } FC_RETHROW_EXCEPTIONS( warn, "", ("id",id) ) }
+
   void    profile::store_identity( const addressbook::wallet_identity& id )
   { try {
       my->_idents.store( id.dac_id_string, id ); 

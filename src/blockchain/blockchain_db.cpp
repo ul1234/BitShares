@@ -264,13 +264,13 @@ namespace bts { namespace blockchain {
                          bidder_change     = bid_amount_bts - (ask_amount_usd * long_claim.ask_price);
 
                         // ask_change.reset();
-                         working_ask.amount = asset(0ull,working_ask.amount.unit);
+                         working_ask.amount = asset(ULLCONST(0),working_ask.amount.unit);
                          working_bid.amount = bidder_change;
 
                          market_trx.inputs.push_back( ask_itr->location );
-                         if( pay_asker.amount > static_cast<uint64_t>(0ull) )
+                         if( pay_asker.amount > ULLCONST(0) )
                             market_trx.outputs.push_back( trx_output( claim_by_signature_output( ask_claim.pay_address ), pay_asker) );
-                         pay_asker = asset(static_cast<uint64_t>(0ull),pay_asker.unit);
+                         pay_asker = asset(ULLCONST(0),pay_asker.unit);
                          ++ask_itr;
                          if( ask_itr != asks.end() )  working_ask = get_output( ask_itr->location );
                      }
@@ -283,7 +283,7 @@ namespace bts { namespace blockchain {
                                ("bid_bts",ask_amount_bts)("loan_amount",loan_amount)("price",ask_claim.ask_price)("result",loan_amount*ask_claim.ask_price) );
                          asker_change       = ask_amount_bts - (bid_amount_usd* ask_claim.ask_price);
 
-                         working_bid.amount = asset(0ull,working_bid.amount.unit);
+                         working_bid.amount = asset(ULLCONST(0),working_bid.amount.unit);
                          working_ask.amount = asker_change;
                         // working_ask_tmp_amount = asker_change;
                          ask_change             = working_ask;
@@ -292,7 +292,7 @@ namespace bts { namespace blockchain {
                          market_trx.outputs.push_back( 
                                  trx_output( claim_by_cover_output( loan_amount, long_claim.pay_address ), collateral_amount) );
 
-                         loan_amount       = asset(static_cast<uint64_t>(0ull),loan_amount.unit);
+                         loan_amount       = asset(ULLCONST(0),loan_amount.unit);
                          collateral_amount = asset();
                          ++bid_itr;
                          if( bid_itr != bids.rend() ) working_bid = get_output( bid_itr->location );
@@ -301,11 +301,11 @@ namespace bts { namespace blockchain {
                          {
                             market_trx.inputs.push_back( ask_itr->location );
                             ilog( "ASK CLAIM ADDR ${A} amnt ${a}", ("A",ask_claim.pay_address)("a",pay_asker) );
-                            if( pay_asker != asset(static_cast<uint64_t>(0ull),pay_asker.unit) )
+                            if( pay_asker != asset(ULLCONST(0),pay_asker.unit) )
                             {
                                 market_trx.outputs.push_back( trx_output( claim_by_signature_output( ask_claim.pay_address ), pay_asker) );
                             }
-                            pay_asker = asset(0ull,pay_asker.unit);
+                            pay_asker = asset(ULLCONST(0),pay_asker.unit);
                             ++ask_itr;
                             if( ask_itr != asks.end() )  working_ask = get_output( ask_itr->location );
                          }
@@ -342,18 +342,18 @@ namespace bts { namespace blockchain {
                         bidder_change      = bid_amount_usd - delta_bidder * bid_claim.ask_price;
 
                         ask_change.reset();
-                        working_ask.amount = asset(0ull,working_ask.amount.unit);
+                        working_ask.amount = asset(ULLCONST(0),working_ask.amount.unit);
                         working_bid.amount = bidder_change;//.get_rounded_amount();
                         bid_change = working_bid;
 
                         market_trx.inputs.push_back( ask_itr->location );
                         ilog( "ASK CLAIM ADDR ${A} amnt ${a}", ("A",ask_claim.pay_address)("a",pay_asker) );
                         ilog( "BID CHANGE ${C}", ("C", working_bid ) );
-                        if( pay_asker > asset(static_cast<uint64_t>(0ull),pay_asker.unit) )
+                        if( pay_asker > asset(ULLCONST(0),pay_asker.unit) )
                         {
                           market_trx.outputs.push_back( trx_output( claim_by_signature_output( ask_claim.pay_address ), pay_asker) );
                         }
-                        pay_asker = asset(0ull,pay_asker.unit);
+                        pay_asker = asset(ULLCONST(0),pay_asker.unit);
                         ++ask_itr;
                         if( ask_itr != asks.end() )  working_ask = get_output( ask_itr->location );
                      }
@@ -380,7 +380,7 @@ namespace bts { namespace blockchain {
                         market_trx.inputs.push_back( bid_itr->location );
                         ilog( "BID CLAIM ADDR ${A} ${a}", ("A",bid_claim.pay_address)("a",pay_bidder) );
                         market_trx.outputs.push_back( trx_output( claim_by_signature_output( bid_claim.pay_address ), pay_bidder) );
-                        pay_bidder = asset(static_cast<uint64_t>(0ull),pay_bidder.unit);
+                        pay_bidder = asset(ULLCONST(0),pay_bidder.unit);
 
                         ++bid_itr;
                         if( bid_itr != bids.rend() ) working_bid = get_output( bid_itr->location );
@@ -391,7 +391,7 @@ namespace bts { namespace blockchain {
                            ilog( "ASK CLAIM ADDR ${A} amnt ${a}", ("A",ask_claim.pay_address)("a",pay_asker) );
                            if( pay_asker.get_rounded_amount() > 0 )
                               market_trx.outputs.push_back( trx_output( claim_by_signature_output( ask_claim.pay_address ), pay_asker) );
-                           pay_asker = asset(static_cast<uint64_t>(0ull),pay_asker.unit);
+                           pay_asker = asset(ULLCONST(0),pay_asker.unit);
                            ++ask_itr;
                            if( ask_itr != asks.end() )  working_ask = get_output( ask_itr->location );
                         }

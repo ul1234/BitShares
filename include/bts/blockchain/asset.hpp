@@ -64,8 +64,8 @@ namespace bts { namespace blockchain {
       uint64_t to_uint64()const { return amount.high_bits(); }
       double to_double()const;
        
-      fc::uint128_t amount;
-      type          unit;
+      fc::uint128_t                 amount;
+      fc::enum_type<uint8_t,type>   unit;
   };
   typedef fc::enum_type<uint8_t,asset::type> asset_type;
   
@@ -147,4 +147,5 @@ FC_REFLECT_ENUM( bts::blockchain::asset::type,
   (bts) (btc) (gld) (slv) (usd) (cny) (gbp) (eur) (jpy) (chf) (aud) (cad) (sek) (hkd) (wti) (iii)
 )
 FC_REFLECT( bts::blockchain::price, (ratio)(quote_unit)(base_unit) );
+FC_REFLECT( bts::blockchain::asset, (amount)(unit) );
 

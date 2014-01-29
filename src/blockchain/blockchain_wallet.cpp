@@ -64,9 +64,9 @@ namespace bts { namespace blockchain {
                    for( auto itr = _unspent_outputs.begin(); itr != _unspent_outputs.end(); ++itr )
                    {
                       //ilog( "unspent outputs ${o}", ("o",*itr) );
-                       if( itr->second.claim_func == claim_by_signature && itr->second.unit == balance_type )
+                       if( itr->second.claim_func == claim_by_signature && itr->second.amount.unit == balance_type )
                        {
-                           total_bal += itr->second.get_amount(); // TODO: apply interest earned 
+                           total_bal += itr->second.amount; // TODO: apply interest earned 
                        }
                    }
                    return total_bal;
@@ -82,13 +82,13 @@ namespace bts { namespace blockchain {
                    for( auto itr = _unspent_outputs.begin(); itr != _unspent_outputs.end(); ++itr )
                    {
                       ilog( "unspent outputs ${o}", ("o",*itr) );
-                       if( itr->second.claim_func == claim_by_signature && itr->second.unit == min_amnt.unit )
+                       if( itr->second.claim_func == claim_by_signature && itr->second.amount.unit == min_amnt.unit )
                        {
                            inputs.push_back( trx_input( itr->first ) );
-                           total_in += itr->second.get_amount();
+                           total_in += itr->second.amount;
                            req_sigs.insert( itr->second.as<claim_by_signature_output>().owner );
                            ilog( "total in ${in}  min ${min}", ( "in",total_in)("min",min_amnt) );
-                           if( total_in >= min_amnt )
+                           if( total_in.get_rounded_amount() >= min_amnt.get_rounded_amount() )
                            {
                               return inputs;
                            }
@@ -110,7 +110,7 @@ namespace bts { namespace blockchain {
                            {
                               asset payoff( cbc.payoff_amount, unit );
                               total_due += payoff;
-                              total_collat += itr->second.get_amount();
+                              total_collat += itr->second.amount;
                            }
                        }
                    }
@@ -134,7 +134,7 @@ namespace bts { namespace blockchain {
                            if( cbc.payoff_unit == min_amnt.unit )
                            {
                               asset payoff( cbc.payoff_amount, min_amnt.unit );
-                              inputs.insert( std::pair<price,trx_input>( payoff / itr->second.get_amount(), trx_input( itr->first )  ) );
+                              inputs.insert( std::pair<price,trx_input>( payoff / itr->second.amount, trx_input( itr->first )  ) );
 
                            }
                        }
@@ -148,7 +148,7 @@ namespace bts { namespace blockchain {
                        asset payoff( cover_out.payoff_amount, cover_out.payoff_unit );
 
                        total_payoff += payoff;
-                       total_collat += out.get_amount();
+                       total_collat += out.amount;
                        req_sigs.insert( cover_out.owner );
                        results.push_back( ritr->second );
 
@@ -485,14 +485,14 @@ namespace bts { namespace blockchain {
        {
           auto bid_out = bid_out_itr->second.as<claim_by_bid_output>();
           trx.outputs.push_back( trx_output( claim_by_signature_output( bid_out.pay_address ), 
-                                             bid_out_itr->second.amount, bid_out_itr->second.unit ) );
+                                             bid_out_itr->second.amount ) );
           req_sigs.insert( bid_out.pay_address);
        }
        else if( bid_out_itr->second.claim_func == claim_by_long )
        {
           auto bid_out = bid_out_itr->second.as<claim_by_long_output>();
           trx.outputs.push_back( trx_output( claim_by_signature_output( bid_out.pay_address ), 
-                                             bid_out_itr->second.amount, bid_out_itr->second.unit ) );
+                                             bid_out_itr->second.amount ) );
           req_sigs.insert( bid_out.pay_address);
        }
        // TODO: collect fee for this transaction
@@ -536,12 +536,12 @@ namespace bts { namespace blockchain {
 
           asset payoff( cover_out.payoff_amount, cover_out.payoff_unit );
 
-          wlog( "Payoff ${amnt}  Collateral ${c}", ("amnt",amnt)("c",txout.get_amount()) );
+          wlog( "Payoff ${amnt}  Collateral ${c}", ("amnt",amnt)("c",txout.amount) );
 
           // if remaining > itr->owed then free 100% of the collateral and remaining -= itr->owed
           if( remaining >= payoff )
           {
-             freed_collateral += txout.get_amount();
+             freed_collateral += txout.amount;
              remaining -= payoff;
           }
 
@@ -557,7 +557,7 @@ namespace bts { namespace blockchain {
               wlog( "Leftover Collateral ${price}", ("price",price) );
               wlog( "Leftover Debt  ${price}", ("price",price) );
 
-              freed_collateral += txout.get_amount() - leftover_collateral; //remaining * price;
+              freed_collateral += txout.amount - leftover_collateral; //remaining * price;
              // freed_collateral.amount *= 9; // -= asset(COIN / 1000,asset::bts); // TODO: this is a hack to fix rounding errors
 
               if( leftover_debt.amount.high_bits() > 2 )
@@ -807,7 +807,7 @@ namespace bts { namespace blockchain {
            {
               case claim_by_signature:
                  std::cerr<<std::string(itr->first.trx_hash)<<":"<<int(itr->first.output_idx)<<"]  ";
-                 std::cerr<<std::string(itr->second.get_amount())<<" ";
+                 std::cerr<<std::string(itr->second.amount)<<" ";
                  std::cerr<<fc::variant(itr->second.claim_func).as_string()<<" ";
                  std::cerr<< std::string(itr->second.as<claim_by_signature_output>().owner);
                  std::cerr<<"\n";
@@ -825,13 +825,13 @@ namespace bts { namespace blockchain {
            {
               case claim_by_bid:
                  std::cerr<<std::string(itr->first.trx_hash)<<":"<<int(itr->first.output_idx)<<"]  ";
-                 std::cerr<<std::string(itr->second.get_amount())<<" ";
+                 std::cerr<<std::string(itr->second.amount)<<" ";
                  std::cerr<<fc::variant(itr->second.claim_func).as_string()<<" ";
 
                  std::cerr<< std::string(itr->second.as<claim_by_bid_output>().ask_price);
                  std::cerr<< " owner: ";
                  std::cerr<< std::string(itr->second.as<claim_by_bid_output>().pay_address);
-                 std::cerr<< " min trade: "<< itr->second.as<claim_by_bid_output>().min_trade;
+               //  std::cerr<< " min trade: "<< itr->second.as<claim_by_bid_output>().min_trade;
                  std::cerr<<"\n";
                  break;
               default:
@@ -848,12 +848,12 @@ namespace bts { namespace blockchain {
            {
               case claim_by_long:
                  std::cerr<<std::string(itr->first.trx_hash)<<":"<<int(itr->first.output_idx)<<"]  ";
-                 std::cerr<<std::string(itr->second.get_amount())<<" ";
+                 std::cerr<<std::string(itr->second.amount)<<" ";
                  std::cerr<<fc::variant(itr->second.claim_func).as_string()<<" ";
                  std::cerr<< std::string(itr->second.as<claim_by_long_output>().ask_price);
                  std::cerr<< " owner: ";
                  std::cerr<< std::string(itr->second.as<claim_by_long_output>().pay_address);
-                 std::cerr<< " min trade: "<< itr->second.as<claim_by_long_output>().min_trade;
+                 //std::cerr<< " min trade: "<< itr->second.as<claim_by_long_output>().min_trade;
                  std::cerr<<"\n";
                  break;
               default:
@@ -873,7 +873,7 @@ namespace bts { namespace blockchain {
               case claim_by_cover:
               {
                  std::cerr<<std::string(itr->first.trx_hash)<<":"<<int(itr->first.output_idx)<<"]  ";
-                 std::cerr<<std::string(itr->second.get_amount())<<" ";
+                 std::cerr<<std::string(itr->second.amount)<<" ";
                  std::cerr<<fc::variant(itr->second.claim_func).as_string()<<" ";
 
                  auto cover = itr->second.as<claim_by_cover_output>();
@@ -883,7 +883,7 @@ namespace bts { namespace blockchain {
                  std::cerr<< " owner: ";
                  std::cerr<< std::string(itr->second.as<claim_by_cover_output>().owner);
                  // this is the break even price... we actually need to cover at half the price?
-                 std::cerr<< " price: " << std::string(payoff_threshold / itr->second.get_amount());
+                 std::cerr<< " price: " << std::string(payoff_threshold / itr->second.amount);
                  std::cerr<<"\n";
                  break;
               }

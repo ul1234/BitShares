@@ -43,7 +43,7 @@ bts::blockchain::trx_block create_test_genesis_block()
    std::cerr<<"Genesis Private Key: "<<std::string(test_genesis_private_key().get_secret() )<<"\n";
    // TODO: init from PTS here...
    coinbase.outputs.push_back( 
-      bts::blockchain::trx_output( bts::blockchain::claim_by_signature_output( bts::address(test_genesis_private_key().get_public_key()) ), b.total_shares, bts::blockchain::asset::bts) );
+      bts::blockchain::trx_output( bts::blockchain::claim_by_signature_output( bts::address(test_genesis_private_key().get_public_key()) ), bts::blockchain::asset(b.total_shares, bts::blockchain::asset::bts)) );
 
    b.trxs.emplace_back( std::move(coinbase) );
    b.trx_mroot   = b.calculate_merkle_root();
@@ -111,7 +111,7 @@ namespace detail
              try {
                 while( true )
                 {
-                   fc::usleep( fc::seconds(20) );
+                   fc::usleep( fc::seconds(5) );
 
                    auto order_trxs   = chain.match_orders(); 
                    pending.insert( pending.end(), order_trxs.begin(), order_trxs.end() );
@@ -271,7 +271,7 @@ namespace detail
 
                  // limit the rate at which we accept connections to prevent
                  // DOS attacks.
-                 fc::usleep( fc::microseconds( 1000*10 ) );
+                 fc::usleep( fc::microseconds( 1000*1 ) );
               }
            } 
            catch ( fc::eof_exception& e )

@@ -63,7 +63,7 @@ namespace bts { namespace blockchain {
      auto rounded_amnt = get_rounded_amount();
      std::string int_part = fc::to_string(uint64_t(rounded_amnt/COIN) );
      uint64_t fract = uint64_t(rounded_amnt % COIN + COIN);
-     return  int_part  + "." + fc::to_string(fract).substr(1) + " " + std::string(fc::reflector<asset::type>::to_string( unit ));
+     return  int_part  + "." + fc::to_string(fract).substr(1) + " " + std::string(unit); //fc::reflector<asset::type>::to_string( unit ));
      /*
      fc::uint128 fraction( amount.low_bits() );
      fraction *= BASE10_PRECISION;
@@ -134,7 +134,12 @@ namespace bts { namespace blockchain {
      amount -= o.amount;
      if( amount > old.amount ) 
      {
-       FC_THROW_EXCEPTION( exception, "asset addition underflow  ${a} - ${b} = ${c}", 
+        if( get_rounded_amount() == 0 )
+        {
+            amount = 0;
+            return *this;
+        }
+        FC_THROW_EXCEPTION( exception, "asset addition underflow  ${a} - ${b} = ${c}", 
                             ("a", old)("b",o)("c",*this) );
      }
      return *this;

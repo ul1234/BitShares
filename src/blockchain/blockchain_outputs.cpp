@@ -34,14 +34,14 @@ namespace bts { namespace blockchain {
    bool claim_by_bid_output::operator == ( const claim_by_bid_output& other )const
    {
       return  (other.pay_address == pay_address) &&
-              (other.ask_price   == ask_price)   &&
-              (other.min_trade   == min_trade);
+              (other.ask_price   == ask_price);  // &&
+       //       (other.min_trade   == min_trade);
    }
    bool claim_by_long_output::operator == ( const claim_by_long_output& other )const
    {
       return  (other.pay_address == pay_address) &&
-              (other.ask_price   == ask_price)   &&
-              (other.min_trade   == min_trade);
+              (other.ask_price   == ask_price);//
+           //   (other.min_trade   == min_trade);
    }
    bool claim_by_cover_output::operator == ( const claim_by_cover_output& other )const
    {

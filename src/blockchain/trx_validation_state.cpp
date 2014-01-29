@@ -137,9 +137,8 @@ void trx_validation_state::validate_input( const meta_trx_input& in )
 
 void trx_validation_state::validate_output( const trx_output& out )
 {
-     FC_ASSERT( out.unit < asset::count );
-     FC_ASSERT( out.amount < MAX_BITSHARE_SUPPLY ); // some sanity checks here
-     FC_ASSERT( out.amount > 0 );
+     // FC_ASSERT( out.amount < MAX_BITSHARE_SUPPLY ); // some sanity checks here
+     // FC_ASSERT( out.amount > 0 );
      switch( out.claim_func )
      {
         case claim_by_signature:
@@ -176,9 +175,8 @@ void trx_validation_state::validate_signature( const trx_output& o )
    auto cbs = o.as<claim_by_signature_output>();
    ilog( "${cbs}", ("cbs",cbs));
    FC_ASSERT( cbs.owner != address() );
-   asset out(o.amount,o.unit);
 
-   balance_sheet[(asset::type)o.unit].out += out;
+   balance_sheet[(asset::type)o.amount.unit].out += o.amount;
    
 }
 void trx_validation_state::validate_bid( const trx_output& o )
@@ -186,12 +184,12 @@ void trx_validation_state::validate_bid( const trx_output& o )
    auto bid = o.as<claim_by_bid_output>();
    FC_ASSERT( bid.ask_price.ratio != fc::uint128(0) );
    FC_ASSERT( bid.pay_address != address() );
-   FC_ASSERT( bid.ask_price.base_unit == o.unit ||
-              bid.ask_price.quote_unit == o.unit );
+   FC_ASSERT( bid.ask_price.base_unit == o.amount.unit ||
+              bid.ask_price.quote_unit == o.amount.unit );
    FC_ASSERT( bid.ask_price.base_unit != bid.ask_price.quote_unit );
    FC_ASSERT( bid.ask_price.base_unit.value < bid.ask_price.quote_unit.value );
 
-   balance_sheet[(asset::type)o.unit].out += asset(o.amount,o.unit);
+   balance_sheet[(asset::type)o.amount.unit].out += o.amount; 
 }
 void trx_validation_state::validate_long( const trx_output& o )
 {
@@ -200,7 +198,7 @@ void trx_validation_state::validate_long( const trx_output& o )
    FC_ASSERT( long_claim.ask_price.base_unit != long_claim.ask_price.quote_unit );
    FC_ASSERT( long_claim.ask_price.base_unit.value < long_claim.ask_price.quote_unit.value );
 
-   balance_sheet[(asset::type)o.unit].out += asset(o.amount,o.unit);
+   balance_sheet[(asset::type)o.amount.unit].out += o.amount; 
 
 }
 
@@ -216,15 +214,15 @@ void trx_validation_state::validate_cover( const trx_output& o )
    auto cover_claim = o.as<claim_by_cover_output>();
    try {
    auto payoff_unit = (asset::type)cover_claim.payoff_unit;
-   balance_sheet[(asset::type)o.unit].out += o.get_amount(); //asset(o.amount,o.unit);
+   balance_sheet[(asset::type)o.amount.unit].out += o.amount;
    balance_sheet[payoff_unit].neg_out += cover_claim.get_payoff_amount();
    if( balance_sheet[(asset::type)cover_claim.payoff_unit].collat_in != asset() )
    {
       auto req_price =  balance_sheet[payoff_unit].collat_in / balance_sheet[payoff_unit].neg_in;
       // TODO: verify this should be <= instead of >=
-      FC_ASSERT( req_price >= o.get_amount() / cover_claim.get_payoff_amount(), "",
-                 ("req_price",req_price)( "amnt", o.get_amount() )( "payoff", cover_claim.get_payoff_amount())("new_price", 
-                                                                                                               o.get_amount() / cover_claim.get_payoff_amount() ));
+      FC_ASSERT( req_price >= o.amount / cover_claim.get_payoff_amount(), "",
+                 ("req_price",req_price)( "amnt", o.amount )( "payoff", cover_claim.get_payoff_amount())("new_price", 
+                                                                                                               o.amount / cover_claim.get_payoff_amount() ));
    }
 } FC_RETHROW_EXCEPTIONS( warn, "${cover}", ("cover",cover_claim) ) }
 
@@ -267,8 +265,7 @@ void trx_validation_state::validate_signature( const meta_trx_input& in )
        ilog( "${cbs}", ("cbs",cbs));
        required_sigs.insert( cbs.owner );
 
-       asset output_bal( in.output.amount, in.output.unit );
-       balance_sheet[(asset::type)in.output.unit].in += output_bal;
+       balance_sheet[(asset::type)in.output.amount.unit].in += in.output.amount; //output_bal;
    
    } FC_RETHROW_EXCEPTIONS( warn, "validating signature input ${i}", ("i",in) );
 }
@@ -287,8 +284,7 @@ void trx_validation_state::validate_bid( const meta_trx_input& in )
 { try {
     auto cbb = in.output.as<claim_by_bid_output>();
    
-    asset output_bal( in.output.amount, in.output.unit );
-    balance_sheet[(asset::type)in.output.unit].in += output_bal;
+    balance_sheet[(asset::type)in.output.amount.unit].in += in.output.amount;
 
     wlog( "      *** SIGNED BY ***     \n ${signed} \n ", ("signed", signed_addresses) );
 
@@ -297,7 +293,7 @@ void trx_validation_state::validate_bid( const meta_trx_input& in )
     {
        //balance_sheet[asset::bts].in += output_bal; 
 
-       balance_sheet[uint8_t(in.output.unit)].in += output_bal;  
+       balance_sheet[uint8_t(in.output.amount.unit)].in += in.output.amount;  
     }
     else // someone else accepted the offer based upon the terms of the bid.
     {
@@ -309,8 +305,8 @@ void trx_validation_state::validate_bid( const meta_trx_input& in )
        uint16_t split_order = find_unused_bid_output( cbb );
        if( split_order == output_not_found ) // must be a full order...
        {
-         uint16_t sig_out   = find_unused_sig_output( cbb.pay_address, output_bal * cbb.ask_price  );
-         FC_ASSERT( sig_out != output_not_found, " unable to find payment of ${asset} to ${pay_addr}", ("asset", output_bal*cbb.ask_price)("pay_addr",cbb.pay_address)("in",in) );
+         uint16_t sig_out   = find_unused_sig_output( cbb.pay_address, in.output.amount * cbb.ask_price  );
+         FC_ASSERT( sig_out != output_not_found, " unable to find payment of ${asset} to ${pay_addr}", ("asset", in.output.amount*cbb.ask_price)("pay_addr",cbb.pay_address)("in",in) );
          mark_output_as_used( sig_out );
        }
        else // look for change, must be a partial order
@@ -322,12 +318,12 @@ void trx_validation_state::validate_bid( const meta_trx_input& in )
          ilog( "split bid: ${claim}", ( "claim", split_claim) );
 
 
-         FC_ASSERT( split_out.amount                      >= cbb.min_trade );
-         FC_ASSERT( (in.output.amount - split_out.amount) >= cbb.min_trade );
-         FC_ASSERT( split_out.unit   == in.output.unit                     );
+        // FC_ASSERT( split_out.amount                      >= cbb.min_trade );
+        // FC_ASSERT( (in.output.amount - split_out.amount) >= cbb.min_trade );
+         FC_ASSERT( split_out.amount.unit   == in.output.amount.unit                     );
          
          // the balance of the order that was accepted
-         asset accepted_bal = asset( in.output.amount - split_out.amount, split_out.unit ) * cbb.ask_price; 
+         asset accepted_bal = (in.output.amount - split_out.amount) * cbb.ask_price; 
 
          // get balance of partial order, validate that it is greater than min_trade 
          // subtract partial order from output_bal and insure the remaining order is greater than min_trade
@@ -349,21 +345,24 @@ void trx_validation_state::validate_bid( const meta_trx_input& in )
 void trx_validation_state::validate_long( const meta_trx_input& in )
 { try {
     auto long_claim = in.output.as<claim_by_long_output>();
-    asset output_bal( in.output.amount, in.output.unit );
-    balance_sheet[(asset::type)in.output.unit].in += output_bal;
+    const asset& output_bal = in.output.amount; //( in.output.amount, in.output.unit );
+    balance_sheet[(asset::type)in.output.amount.unit].in += output_bal;
     
     if( signed_addresses.find( long_claim.pay_address ) != signed_addresses.end() )
     {
         // canceled orders can reclaim their dividends (assuming the order has been open long enough)
         //balance_sheet[asset::bts].in += output_bal;
-       balance_sheet[uint8_t(in.output.unit)].in += output_bal;  
+       balance_sheet[uint8_t(in.output.amount.unit)].in += output_bal;  
     }
     else // someone else accepted the offer based on terms of the long
     {
        uint16_t split_order = find_unused_long_output( long_claim );
        if( split_order == output_not_found ) // must be a full order...
        {
-         uint16_t sig_out   = find_unused_cover_output( claim_by_cover_output( output_bal * long_claim.ask_price, long_claim.pay_address ), 2*in.output.amount ); 
+         uint16_t sig_out   = find_unused_cover_output( 
+                                     claim_by_cover_output( output_bal * long_claim.ask_price, long_claim.pay_address ), 
+                                     2*in.output.amount.get_rounded_amount() );  // must have 2x collateral
+
          FC_ASSERT( sig_out != output_not_found, " unable to find cover position of ${asset} to ${pay_addr} with collateral ${collat}", 
                     ("asset", output_bal*long_claim.ask_price)("pay_addr",long_claim.pay_address)("in",in)( "collat",output_bal) );
          mark_output_as_used( sig_out );
@@ -377,19 +376,20 @@ void trx_validation_state::validate_long( const meta_trx_input& in )
          ilog( "split bid: ${claim}", ( "claim", split_claim) );
 
 
-         FC_ASSERT( split_out.amount                      >= long_claim.min_trade );
+         //FC_ASSERT( split_out.amount                      >= long_claim.min_trade );
          FC_ASSERT( split_out.amount                      <= in.output.amount );
-         FC_ASSERT( (in.output.amount - split_out.amount) >= long_claim.min_trade );
-         FC_ASSERT( split_out.unit   == in.output.unit                     );
+         //FC_ASSERT( (in.output.amount - split_out.amount) >= long_claim.min_trade );
+         //FC_ASSERT( split_out.unit   == in.output.unit                     );
          
          // the balance of the order that was accepted
-         asset accepted_bal = asset( in.output.amount - split_out.amount, split_out.unit ) * long_claim.ask_price; 
+         asset accepted_bal = ( in.output.amount - split_out.amount ) * long_claim.ask_price; 
 
          // get balance of partial order, validate that it is greater than min_trade 
          // subtract partial order from output_bal and insure the remaining order is greater than min_trade
          // look for an output making payment of the balance to the pay address
          FC_ASSERT( accepted_bal.amount > 0 )
-         uint16_t sig_out   = find_unused_cover_output( claim_by_cover_output( accepted_bal, long_claim.pay_address ), 2*(in.output.amount-split_out.amount) );
+         uint16_t sig_out   = find_unused_cover_output( claim_by_cover_output( accepted_bal, long_claim.pay_address ), 
+                                                        2*(in.output.amount-split_out.amount).get_rounded_amount() );
          FC_ASSERT( sig_out != output_not_found );
 
          // TODO: verfiy that the collateral is >= 2x input collateral
@@ -402,10 +402,10 @@ void trx_validation_state::validate_cover( const meta_trx_input& in )
 {
    auto cover_in = in.output.as<claim_by_cover_output>();
     
-   balance_sheet[(asset::type)in.output.unit].in += in.output.get_amount(); //asset(o.amount,o.unit);
+   balance_sheet[(asset::type)in.output.amount.unit].in += in.output.amount;
    balance_sheet[(asset::type)cover_in.payoff_unit].neg_in += cover_in.get_payoff_amount();
    // track collateral for payoff unit
-   balance_sheet[(asset::type)cover_in.payoff_unit].collat_in += in.output.get_amount();
+   balance_sheet[(asset::type)cover_in.payoff_unit].collat_in += in.output.amount;
 }
 
 void trx_validation_state::validate_opt( const meta_trx_input& in )
@@ -432,7 +432,6 @@ void trx_validation_state::mark_output_as_used( uint16_t output_number )
 
 uint16_t trx_validation_state::find_unused_sig_output( const address& owner, const asset& bal )
 { try {
-  auto rounded_amount = bal; //asset(bal.get_rounded_amount(),bal.unit);
   ilog( "find unused sig output ${o}  ${bal}", ("o", owner)("bal",bal) );
   for( uint32_t i = 0; i < trx.outputs.size(); ++i )
   {
@@ -441,11 +440,13 @@ uint16_t trx_validation_state::find_unused_sig_output( const address& owner, con
         ilog( "out: ${i}", ("i",trx.outputs[i]) );
         if( trx.outputs[i].claim_func == claim_by_signature )
         {
-           ilog( "amount: ${i} ==? ${r} ", ("i",trx.outputs[i].get_amount())("r",rounded_amount) );
-           ilog( "round down amount: ${i} ==? ${r} ", ("i",trx.outputs[i].amount/10)("r",rounded_amount.amount.high_bits()/10) );
-           auto delta = int64_t(trx.outputs[i].amount) - int64_t(bal.amount.high_bits());
-           ilog( "delta ${d}", ("d",delta) );
-           if( abs(delta) < 5  && trx.outputs[i].unit == bal.unit )
+           //ilog( "amount: ${i} ==? ${r} ", ("i",trx.outputs[i].amount)("r",rounded_amount) );
+           //ilog( "round down amount: ${i} ==? ${r} ", ("i",trx.outputs[i].amount/10)("r",rounded_amount.amount.high_bits()/10) );
+           //auto delta = int64_t(trx.outputs[i].amount) - int64_t(bal.amount.high_bits());
+           //ilog( "delta ${d}", ("d",delta) );
+           //if( abs(delta) < 5  && trx.outputs[i].unit == bal.unit )
+           if( trx.outputs[i].amount.unit == bal.unit &&
+               trx.outputs[i].amount.get_rounded_amount() == bal.get_rounded_amount() )
            {
               if( trx.outputs[i].as<claim_by_signature_output>().owner == owner )
               {
@@ -519,7 +520,7 @@ uint16_t trx_validation_state::find_unused_cover_output( const claim_by_cover_ou
         if( trx.outputs[i].claim_func == claim_by_cover )
         {
            ilog( "claim by cover ${i} ==? ${e} ", ("i",trx.outputs[i].as<claim_by_cover_output>())("e",cover_claim) );
-           if( trx.outputs[i].as<claim_by_cover_output>() == cover_claim && trx.outputs[i].amount >= min_collat ) // TODO: build in some epsilon here?
+           if( trx.outputs[i].as<claim_by_cover_output>() == cover_claim && trx.outputs[i].amount.get_rounded_amount() >= min_collat ) 
            {
               ilog( "return found! ${i}", ("i",i) );
               return i;

@@ -26,7 +26,7 @@ namespace bts { namespace blockchain  {
 
       // TODO: init from PTS here...
       coinbase.outputs.push_back( 
-         trx_output( claim_by_signature_output( address("GmckPDdjQejZBP3t2gZqCqmEfi4") ), 1000000, asset::bts) );
+         trx_output( claim_by_signature_output( address("GmckPDdjQejZBP3t2gZqCqmEfi4") ), asset( 1000000., asset::bts) ) );
       
       b.trxs.emplace_back( std::move(coinbase) );
       b.trx_mroot   = b.calculate_merkle_root();

@@ -41,7 +41,8 @@ struct client_config
     client_config()
     :rpc_port(5678)
     {
-        unique_node_list["162.243.45.158:4567"] = "";
+        //unique_node_list["162.243.45.158:4567"] = "";
+        unique_node_list["127.0.0.1:4567"] = "";
     }
 
     uint16_t rpc_port;

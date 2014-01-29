@@ -45,7 +45,6 @@ namespace fc {
    {
       fc::mutable_variant_object obj;
       obj["amount"] = var.amount; //std::string(bts::blockchain::asset( var.amount, var.unit ));
-      obj["unit"] = var.unit; //std::string(bts::blockchain::asset( var.amount, var.unit ));
       obj["claim_func"] = var.claim_func;
       switch( var.claim_func )
       {

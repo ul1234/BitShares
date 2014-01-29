@@ -82,14 +82,7 @@ struct trx_output
 {
     template<typename ClaimType>
     trx_output( const ClaimType& t, const asset& a )
-    :amount(a.to_uint64()),unit(a.unit)
-    {
-       claim_func = ClaimType::type;
-       claim_data = fc::raw::pack(t);
-    }
-    template<typename ClaimType>
-    trx_output( const ClaimType& t, uint64_t a, asset::type u )
-    :amount(a),unit(u)
+    :amount(a)
     {
        claim_func = ClaimType::type;
        claim_data = fc::raw::pack(t);
@@ -102,15 +95,9 @@ struct trx_output
        return fc::raw::unpack<ClaimType>(claim_data);
     }
 
-    trx_output():amount(0){}
+    trx_output(){}
 
-    asset get_amount()const { return asset( amount,unit ); }
-    // NOTE: note this class has a custom to_variant method 
-    //   that pretty prints the claim data for known types
-    //   and this method must be updated if you change these
-    //   fields.
-    uint64_t                                    amount;
-    asset_type                                  unit;
+    asset                                       amount;
     claim_type                                  claim_func;
     std::vector<char>                           claim_data;
 };
@@ -169,7 +156,7 @@ namespace std {
 
 FC_REFLECT( bts::blockchain::output_reference, (trx_hash)(output_idx) )
 FC_REFLECT( bts::blockchain::trx_input, (output_ref)(input_data) )
-FC_REFLECT( bts::blockchain::trx_output, (amount)(unit)(claim_func)(claim_data) )
+FC_REFLECT( bts::blockchain::trx_output, (amount)(claim_func)(claim_data) )
 FC_REFLECT( bts::blockchain::transaction, (version)(stake)(timestamp)(valid_after)(valid_until)(inputs)(outputs) )
 FC_REFLECT_DERIVED( bts::blockchain::signed_transaction, (bts::blockchain::transaction), (sigs) );
 

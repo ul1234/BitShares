@@ -264,7 +264,7 @@ namespace bts { namespace blockchain {
                          bidder_change     = bid_amount_bts - (ask_amount_usd * long_claim.ask_price);
 
                         // ask_change.reset();
-                         working_ask.amount = asset(0ull,working_ask.amount.unit);
+                         working_ask.amount = asset(ULLCONST(0),working_ask.amount.unit);
                          working_bid.amount = bidder_change;
 
                          market_trx.inputs.push_back( ask_itr->location );

@@ -80,6 +80,11 @@ namespace bts {
       void  open( const fc::path& profile_dir, const std::string& password );
 
       std::vector<addressbook::wallet_identity>   identities()const;
+
+      void                                        removeIdentity( const std::string& id);
+
+      bool                                        isIdentityPresent( const std::string& id);
+
       void                                        store_identity( const addressbook::wallet_identity& id );
       /** 
        * @throw key_not_found_exception if no such identity has been created

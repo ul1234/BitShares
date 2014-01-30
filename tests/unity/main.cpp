@@ -1,4 +1,5 @@
 #include <unity/server.hpp>
+#include <unity/messages.hpp>
 #include <fc/reflect/variant.hpp>
 #include <fc/io/json.hpp>
 #include <fc/thread/thread.hpp>
@@ -45,6 +46,7 @@ int main( int argc, char** argv )
           fc::usleep( fc::microseconds( rand()%1000000 ) );
           std::vector<char> blob( (rand()%1024) + 256 );
           read( random_dev, blob.data(), blob.size() );
+          serv.add_blob(blob); 
       }
 
       return 0;

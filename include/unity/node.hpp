@@ -5,6 +5,7 @@
 #include <fc/reflect/reflect.hpp>
 #include <unordered_set>
 #include <unordered_map>
+#include <bts/address.hpp>
 
 namespace unity 
 {
@@ -12,8 +13,8 @@ namespace unity
          
    struct config
    {
-       std::vector<id_type>   unique_node_list;
-       fc::ecc::private_key   node_key; 
+       std::vector<bts::address> unique_node_list;
+       fc::ecc::private_key      node_key; 
    };
 
    struct proposal
@@ -30,7 +31,7 @@ namespace unity
    {
       signed_proposal(){}
       signed_proposal( const proposal& p, const fc::ecc::private_key& key );
-      id_type                     get_signee_id()const;
+      bts::address   get_signee_id()const;
 
 
       fc::ecc::compact_signature  node_signature;

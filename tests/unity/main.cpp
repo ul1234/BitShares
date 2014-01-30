@@ -7,6 +7,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <iostream>
+#include <fstream>
+#include <bts/address.hpp>
 
 
 
@@ -20,8 +22,18 @@ int main( int argc, char** argv )
          return -1;
       }
       fc::path config_file = fc::path( std::string(argv[1]) );
-      FC_ASSERT( fc::exists( config_file ), "config file does not exist" );
+      if( !fc::exists( config_file ) )
+      {
+         unity::server::config default_config;
+         default_config.node_config.node_key = fc::ecc::private_key::generate();
+         std::ofstream out( argv[1] );
+         out << fc::json::to_pretty_string( default_config );
+      }
       auto config = fc::json::from_file( config_file ).as<unity::server::config>();
+
+      std::cout<< "server public key: "
+               << std::string( bts::address(config.node_config.node_key.get_public_key()) ) 
+               << "\n";
      
       unity::server serv;
       serv.configure(config);

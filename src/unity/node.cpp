@@ -20,6 +20,10 @@ namespace unity
       return enc.result();
    }
 
+   bts::address   signed_proposal::get_signee_id()const
+   {
+      return bts::address( fc::ecc::public_key( node_signature, digest() ) );
+   }
    namespace detail
    {
         struct proposal_state 
@@ -44,12 +48,12 @@ namespace unity
               config _config;
               uint32_t _round;
 
-              std::unordered_map<id_type,item_state>           _item_states;
-              std::unordered_map<id_type,proposal_state>       _peer_proposals;
+              std::unordered_map<id_type,item_state>                _item_states;
+              std::unordered_map<bts::address,proposal_state>       _peer_proposals;
 
               proposal                                         _current_proposal;
 
-              bool signee_in_unique_node_list( const id_type& id )
+              bool signee_in_unique_node_list( const bts::address& id )
               {
                   for( auto itr = _config.unique_node_list.begin(); 
                        itr != _config.unique_node_list.end(); ++itr )

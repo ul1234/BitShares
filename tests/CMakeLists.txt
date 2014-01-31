@@ -5,6 +5,8 @@ else (WIN32)
   set( PLATFORM_SPECIFIC_LIBS )
 endif(WIN32)
 
+add_subdirectory( unity )
+
 add_executable( bitshares_test bitshares_test.cpp )
 target_link_libraries( bitshares_test ${rt_library} ${pthread_library} bshare fc leveldb ${BOOST_LIBRARIES} ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY} ${PLATFORM_SPECIFIC_LIBS} ${rt_library} ${pthread_library} ${CMAKE_DL_LIBS} )
 

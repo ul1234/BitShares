@@ -69,10 +69,6 @@ namespace detail
             ilog( "closing connections..." );
             try 
             {
-                for( auto i = pending_connections.begin(); i != pending_connections.end(); ++i )
-                {
-                  (*i)->close();
-                }
                 tcp_serv.close();
                 if( accept_loop_complete.valid() )
                 {
@@ -97,7 +93,6 @@ namespace detail
         fc::ip::address                                             _external_ip;
         std::unordered_map<fc::ip::endpoint,chain_connection_ptr>   connections;
 
-        std::set<chain_connection_ptr>                              pending_connections;
         chain_server::config                                        cfg;
         fc::tcp_server                                              tcp_serv;
                                                                    

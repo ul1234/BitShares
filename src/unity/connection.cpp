@@ -54,7 +54,7 @@ namespace unity {
           fc::ip::endpoint     remote_ep;
           connection_delegate* con_del;
 
-          std::unordered_set<fc::sha256> _blobs;
+          std::unordered_set<fc::ripemd160> _blobs;
 
           /** used to ensure that messages are written completely */
           fc::mutex              write_lock;
@@ -276,7 +276,7 @@ namespace unity {
 
   bts::address  connection::get_remote_id()const               { return my->_id; }
   void          connection::set_remote_id( const bts::address& id ) { my->_id = id;   }
-  void          connection::set_knows_blob( const fc::sha256& blob_id ) { my->_blobs.insert(blob_id); }
-  void          connection::clear_knows_blob( const fc::sha256& blob_id ) { my->_blobs.erase(blob_id); }
-  bool          connection::knows_blob( const fc::sha256& blob_id ) { return my->_blobs.find(blob_id) != my->_blobs.end(); }
+  void          connection::set_knows_blob( const fc::ripemd160& blob_id ) { my->_blobs.insert(blob_id); }
+  void          connection::clear_knows_blob( const fc::ripemd160& blob_id ) { my->_blobs.erase(blob_id); }
+  bool          connection::knows_blob( const fc::ripemd160& blob_id ) { return my->_blobs.find(blob_id) != my->_blobs.end(); }
 } // namespace unity

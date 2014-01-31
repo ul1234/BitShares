@@ -1,6 +1,7 @@
 #include <unity/messages.hpp>
 #include <unity/server.hpp>
 #include <unity/connection.hpp>
+#include <unity/node.hpp>
 #include <fc/crypto/sha256.hpp>
 
 #include <fc/reflect/reflect.hpp>
@@ -29,13 +30,13 @@ namespace unity
       {
           public:
              server::config                                        _config;
-                                                                  
+             unity::node                                           _node;                                                     
              fc::tcp_server                                        _tcp_serv;
              fc::future<void>                                      _accept_loop_complete;
              fc::future<void>                                      _connect_loop_complete;
              std::unordered_map<fc::ip::endpoint,connection_ptr>   _connections;
-             std::unordered_map<fc::sha256, std::vector<char> >    _unconfirmed_blobs;
-             std::unordered_set<fc::sha256>                        _confirmed_blobs;
+             std::unordered_map<fc::ripemd160, std::vector<char> > _unconfirmed_blobs;
+             std::unordered_set<fc::ripemd160>                     _confirmed_blobs;
 
              void close()
              {
@@ -88,14 +89,24 @@ namespace unity
              void add_blob( std::vector<char> blob )
              {
                  FC_ASSERT( blob.size() > 0 );
-                 auto id = fc::sha256::hash( blob.data(), blob.size() );
+                 auto id = fc::ripemd160::hash( blob.data(), blob.size() );
 
                  if( !is_unconfirmed_blob( id ) )
                  {
                     if( is_confirmed_blob(id) ) return;
                     _unconfirmed_blobs[id] = blob;
-                    // TODO: only broadcast to nodes that don't have this blob...
+                    _node.set_item_validity( id, true );
 
+
+                    auto cur = _node.get_current_proposal();
+                    if( cur.items.size() > 0 ) 
+                    {
+                       ilog( "broadcast counter proposal ${p}", ("p",cur) );
+                       broadcast( mail::message( proposal_message( cur ) ) );
+                    }
+
+
+                    // TODO: only broadcast to nodes that don't have this blob...
                       auto cons_copy = _connections;
                       fc::async( [cons_copy,blob,id]()
                       { 
@@ -113,17 +124,17 @@ namespace unity
                  }
              }
 
-             bool is_confirmed_blob( const fc::sha256& id )
+             bool is_confirmed_blob( const fc::ripemd160& id )
              {
                  return _confirmed_blobs.find(id) != _confirmed_blobs.end();
              }
 
-             bool is_unconfirmed_blob( const fc::sha256& id )
+             bool is_unconfirmed_blob( const fc::ripemd160& id )
              {
                  return _unconfirmed_blobs.find(id) != _unconfirmed_blobs.end();
              }
 
-             bool is_new_blob( const fc::sha256& id )
+             bool is_new_blob( const fc::ripemd160& id )
              {
                  if( is_confirmed_blob(id)   ) return false;
                  if( is_unconfirmed_blob(id) ) return false;
@@ -241,9 +252,10 @@ namespace unity
                   else if( m.type == message_type::blob_msg )
                   {
                      auto blob = m.as<blob_message>();
-                     ilog( "recv: ${m}", ("m",blob) );
                      FC_ASSERT( c.get_remote_id() != bts::address() );
-                     c.set_knows_blob( fc::sha256::hash( blob.blob.data(), blob.blob.size() ) );
+                     auto blob_id = fc::ripemd160::hash( blob.blob.data(), blob.blob.size() );
+                     ilog( "recv blob: ${m} size: ${s}", ("m",blob_id)("s",blob.blob.size()) );
+                     c.set_knows_blob( blob_id );
                      add_blob( blob.blob );
                      // if this is a new message for us, broadcast it to all
                      // connections... else drop it
@@ -252,11 +264,10 @@ namespace unity
                   }
                   else if( m.type == message_type::proposal_msg )
                   {
+                     FC_ASSERT( c.get_remote_id() != bts::address() );
                      auto prop = m.as<proposal_message>();
                      ilog( "recv: ${m}", ("m",prop) );
-                     FC_ASSERT( c.get_remote_id() != bts::address() );
-                     // process proposal...
-
+                     handle_proposal( c, prop.signed_prop );
                      // if output proposal message changed... broadcast it
                   }
                   else
@@ -265,6 +276,18 @@ namespace unity
                      c.close();
                   }
              }
+             void handle_proposal( connection& c, const signed_proposal& p )
+             {
+                 ilog( "handle proposal ${p}", ("p",p) );
+                 if( _node.process_proposal( p ) )
+                 {
+                    auto cur = _node.get_current_proposal();
+                    ilog( "broadcast counter proposal ${p}", ("p",cur) );
+                    broadcast( mail::message( proposal_message( cur ) ) );
+                 }
+             }
+
+
              virtual void on_connection_disconnected( connection& c )
              {
                try {
@@ -337,6 +360,15 @@ void server::configure( const server::config& cfg )
 { try {
     my->_config = cfg;
     my->_tcp_serv.listen( cfg.unity_port );
+    
+    auto node_cfg = cfg.node_config;
+    for( auto itr = cfg.hosts.begin(); itr != cfg.hosts.end(); ++itr )
+    {
+       node_cfg.unique_node_list.insert(itr->first);
+    }
+    my->_node.configure(node_cfg);
+
+
     my->_accept_loop_complete  = fc::async( [=](){ my->accept_loop();  } );
     my->_connect_loop_complete = fc::async( [=](){ my->connect_loop(); } );
 } FC_RETHROW_EXCEPTIONS( warn, "", ("config",cfg) ) }

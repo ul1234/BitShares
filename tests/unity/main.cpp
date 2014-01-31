@@ -43,7 +43,7 @@ int main( int argc, char** argv )
 
       while( true )
       {
-          fc::usleep( fc::microseconds( rand()%1000000 ) );
+          fc::usleep( fc::microseconds( rand()%20000000 ) );
           std::vector<char> blob( (rand()%1024) + 256 );
           read( random_dev, blob.data(), blob.size() );
           serv.add_blob(blob); 

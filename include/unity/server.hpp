@@ -18,12 +18,13 @@ namespace unity
 
          struct config
          {
-             uint16_t                   unity_port;
-             std::vector<std::string>   hosts;
-             unity::config              node_config;
+             uint16_t                                      unity_port;
+             std::unordered_map<bts::address,std::string>  hosts;
+             unity::config                                 node_config;
          };
 
          void configure( const server::config& cfg );
+         void add_blob( std::vector<char> blob );
       
       private:
          std::unique_ptr<detail::server_impl> my;

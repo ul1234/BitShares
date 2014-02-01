@@ -661,6 +661,7 @@ namespace bts { namespace blockchain {
               else
               {
                  e.fees = vstate.balance_sheet[asset::bts].in - vstate.balance_sheet[asset::bts].out;
+                 e.coindays_destroyed = vstate.total_cdd;
               }
            }
            return e;
@@ -704,7 +705,7 @@ namespace bts { namespace blockchain {
     void blockchain_db::push_block( const trx_block& b )
     {
       try {
-        FC_ASSERT( b.version.value                     == fc::unsigned_int(0).value );
+        FC_ASSERT( b.version                           == 0 );
         FC_ASSERT( b.trxs.size()                       > 0                          );
         FC_ASSERT( b.block_num                         == head_block_num() + 1      );
         FC_ASSERT( b.prev                              == my->head_block_id         );
@@ -810,7 +811,8 @@ namespace bts { namespace blockchain {
          fc::datastream<size_t>  block_size;
          uint32_t conflicts = 0;
 
-         asset total_fees;
+         asset    total_fees;
+         uint64_t total_cdd = 0;
 
          std::unordered_set<output_reference> consumed_outputs;
          for( size_t i = 0; i < stats.size(); ++i )
@@ -842,6 +844,7 @@ namespace bts { namespace blockchain {
                      ("tf", total_fees)
                      ("fees",stats[i].eval.fees) );
                total_fees += stats[i].eval.fees;
+               total_cdd  += stats[i].eval.coindays_destroyed;
             }
          }
 
@@ -870,7 +873,7 @@ namespace bts { namespace blockchain {
          new_blk.block_num                 = head_block_num() + 1;
          new_blk.prev                      = my->head_block_id;
          new_blk.total_shares              = my->head_block.total_shares - total_fees.amount.high_bits(); 
-         new_blk.total_coindays_destroyed  = my->head_block.total_coindays_destroyed; // TODO: Prev Block.CDD + CDD
+         new_blk.total_cdd                 = my->head_block.total_cdd + total_cdd; 
 
          new_blk.trx_mroot = new_blk.calculate_merkle_root();
 

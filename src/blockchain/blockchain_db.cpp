@@ -705,11 +705,14 @@ namespace bts { namespace blockchain {
     void blockchain_db::push_block( const trx_block& b )
     {
       try {
-        FC_ASSERT( b.version                           == 0 );
-        FC_ASSERT( b.trxs.size()                       > 0                          );
-        FC_ASSERT( b.block_num                         == head_block_num() + 1      );
-        FC_ASSERT( b.prev                              == my->head_block_id         );
-        FC_ASSERT( b.trx_mroot                         == b.calculate_merkle_root() );
+        FC_ASSERT( b.version      == 0                                          );
+        FC_ASSERT( b.trxs.size()  > 0                                           );
+        FC_ASSERT( b.block_num    == head_block_num() + 1                       );
+        FC_ASSERT( b.prev         == my->head_block_id                          );
+        FC_ASSERT( b.trx_mroot    == b.calculate_merkle_root()                  );
+        FC_ASSERT( b.timestamp    < (fc::time_point::now() + fc::seconds(60))   );
+        FC_ASSERT( b.timestamp    > fc::time_point(my->head_block.timestamp) + fc::seconds(30)  );
+        FC_ASSERT( b.get_difficulty() > b.get_required_difficulty( my->head_block.next_difficulty ) );
 
         //validate_issuance( b, my->head_block /*aka new prev*/ );
         validate_unique_inputs( b.trxs );
@@ -870,10 +873,23 @@ namespace bts { namespace blockchain {
          }
 
          new_blk.timestamp                 = fc::time_point::now();
+         FC_ASSERT( new_blk.timestamp > my->head_block.timestamp );
+
          new_blk.block_num                 = head_block_num() + 1;
          new_blk.prev                      = my->head_block_id;
          new_blk.total_shares              = my->head_block.total_shares - total_fees.amount.high_bits(); 
-         new_blk.total_cdd                 = my->head_block.total_cdd + total_cdd; 
+
+         new_blk.next_difficulty           = my->head_block.next_difficulty;
+         if( my->head_block.block_num > 144 )
+         {
+             auto     oldblock = fetch_block( my->head_block.block_num - 144 ); 
+             auto     delta_time = my->head_block.timestamp - oldblock.timestamp;
+             uint64_t avg_sec_per_block = delta_time.count() / 144000000;
+
+             auto cur_tar = my->head_block.next_difficulty;
+             new_blk.next_difficulty = (cur_tar * 300 /* 300 sec per block */) / avg_sec_per_block;
+         }
+         new_blk.total_cdd                 = total_cdd; 
 
          new_blk.trx_mroot = new_blk.calculate_merkle_root();
 

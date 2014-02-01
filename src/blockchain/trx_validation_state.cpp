@@ -266,7 +266,11 @@ void trx_validation_state::validate_signature( const meta_trx_input& in )
        required_sigs.insert( cbs.owner );
 
        balance_sheet[(asset::type)in.output.amount.unit].in += in.output.amount; //output_bal;
-       total_cdd += in.output.amount.get_rounded_amount() * (ref_head-in.source.block_num);
+       if( in.output.amount.unit == asset::bts )
+       {
+          // TODO: only count if trx proof of stake prev == one of the last two blocks
+          total_cdd += in.output.amount.get_rounded_amount() * (ref_head-in.source.block_num);
+       }
    } FC_RETHROW_EXCEPTIONS( warn, "validating signature input ${i}", ("i",in) );
 }
 
@@ -406,6 +410,8 @@ void trx_validation_state::validate_cover( const meta_trx_input& in )
    balance_sheet[(asset::type)cover_in.payoff_unit].neg_in += cover_in.get_payoff_amount();
    // track collateral for payoff unit
    balance_sheet[(asset::type)cover_in.payoff_unit].collat_in += in.output.amount;
+
+   total_cdd += in.output.amount.get_rounded_amount() * (ref_head-in.source.block_num);
 }
 
 void trx_validation_state::validate_opt( const meta_trx_input& in )

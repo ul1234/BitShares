@@ -1,5 +1,6 @@
 #include <bts/blockchain/block.hpp>
 #include <bts/proof_of_work.hpp>
+#include <bts/difficulty.hpp>
 #include <bts/config.hpp>
 #include <bts/small_hash.hpp>
 #include <fc/io/raw.hpp>
@@ -74,6 +75,24 @@ namespace bts { namespace blockchain  {
         layer_one = std::move(layer_two);
      }
      return layer_one.front();
+  }
+
+  uint64_t block_header::get_required_difficulty(uint64_t prev_difficulty)const
+  {
+      uint64_t cdd = total_cdd > total_shares ? total_shares : total_cdd;
+      uint64_t factor = total_shares - cdd ;
+      factor /= 4*COIN;
+      //factor *= factor;
+      factor += 1;
+      // as CDD approaches the average CDD per block the factor approaches 0
+      // as CDD approaches 0 factor approaches total_shares^2
+      // if we have the threshold CDD then there is no difficulty penalty...
+      // otherwise the difficulty goes up dramatically.
+      return prev_difficulty * factor;
+  }
+  uint64_t block_header::get_difficulty()const
+  {
+     return bts::difficulty(id());
   }
 
 

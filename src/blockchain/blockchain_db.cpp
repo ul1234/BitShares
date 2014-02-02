@@ -644,6 +644,8 @@ namespace bts { namespace blockchain {
            */
 
            trx_validation_state vstate( trx, this ); 
+           vstate.prev_block_id1 = get_stake();
+           vstate.prev_block_id2 = get_stake2();
            vstate.validate();
 
            trx_eval e;
@@ -664,6 +666,7 @@ namespace bts { namespace blockchain {
                  e.coindays_destroyed = vstate.total_cdd;
               }
            }
+           e.total_spent += vstate.balance_sheet[asset::bts].in.get_rounded_amount() + vstate.balance_sheet[asset::bts].collat_in.get_rounded_amount();
            return e;
        } FC_RETHROW_EXCEPTIONS( warn, "error evaluating transaction ${t}", ("t", trx) );
     }
@@ -705,14 +708,19 @@ namespace bts { namespace blockchain {
     void blockchain_db::push_block( const trx_block& b )
     {
       try {
-        FC_ASSERT( b.version      == 0                                          );
-        FC_ASSERT( b.trxs.size()  > 0                                           );
-        FC_ASSERT( b.block_num    == head_block_num() + 1                       );
-        FC_ASSERT( b.prev         == my->head_block_id                          );
-        FC_ASSERT( b.trx_mroot    == b.calculate_merkle_root()                  );
-        FC_ASSERT( b.timestamp    < (fc::time_point::now() + fc::seconds(60))   );
-        FC_ASSERT( b.timestamp    > fc::time_point(my->head_block.timestamp) + fc::seconds(30)  );
-        FC_ASSERT( b.get_difficulty() > b.get_required_difficulty( my->head_block.next_difficulty ) );
+        FC_ASSERT( b.version      == 0                                                         );
+        FC_ASSERT( b.trxs.size()  > 0                                                          );
+        FC_ASSERT( b.block_num    == head_block_num() + 1                                      );
+        FC_ASSERT( b.prev         == my->head_block_id                                         );
+        FC_ASSERT( b.trx_mroot    == b.calculate_merkle_root()                                 );
+        FC_ASSERT( b.timestamp    < (fc::time_point::now() + fc::seconds(60))                  );
+        if( b.block_num >= 1 )
+        {
+           FC_ASSERT( b.timestamp    > fc::time_point(my->head_block.timestamp) + fc::seconds(30) );
+           FC_ASSERT( b.get_difficulty() >= b.get_required_difficulty( 
+                                                 my->head_block.next_difficulty,
+                                                 my->head_block.avail_coindays ) );
+        }
 
         //validate_issuance( b, my->head_block /*aka new prev*/ );
         validate_unique_inputs( b.trxs );
@@ -954,6 +962,12 @@ namespace bts { namespace blockchain {
     uint64_t blockchain_db::get_stake()
     {
        return my->head_block_id._hash[0];
+    }
+    uint64_t blockchain_db::get_stake2()
+    {
+       if( head_block_num() <= 1 ) return 0;
+       if( head_block_num() == uint32_t(-1) ) return 0;
+       return fetch_block( head_block_num() - 1 ).id()._hash[0];
     }
     asset    blockchain_db::get_fee_rate()const
     {

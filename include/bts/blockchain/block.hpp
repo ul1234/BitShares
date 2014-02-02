@@ -19,12 +19,13 @@ namespace bts { namespace blockchain {
    struct block_header
    {
        block_header()
-       :version(0),block_num(-1),next_difficulty(1),total_shares(0),total_cdd(0),noncea(0),nonceb(0){}
+       :version(0),block_num(-1),next_difficulty(1),total_shares(0),avail_coindays(0),total_cdd(0),noncea(0),nonceb(0){}
       
        block_id_type       id()const;
        /** given the total cdd by this block, calculate the adjusted difficulty */
-       uint64_t            get_required_difficulty(uint64_t prev_difficulty)const;
+       uint64_t            get_required_difficulty(uint64_t prev_difficulty, uint64_t prev_avail_cdays)const;
        uint64_t            get_difficulty()const;
+       bool                validate_work()const;
       
        uint8_t             version;
        block_id_type       prev;
@@ -32,7 +33,8 @@ namespace bts { namespace blockchain {
        fc::time_point_sec  timestamp;       ///< seconds from 1970
        uint64_t            next_difficulty; ///< difficulty for the next block.
        uint64_t            total_shares; 
-       uint64_t            total_cdd;       ///< cumulative coin days destroyed for entire chain
+       uint64_t            avail_coindays;  ///< total coin days available in the network
+       uint64_t            total_cdd;       ///< coindays destroyed by this block
        uint160             trx_mroot;       ///< merkle root of trx included in block, required for light client validation
        uint32_t            noncea;          ///< used for proof of work
        uint32_t            nonceb;          ///< used for proof of work
@@ -80,7 +82,7 @@ namespace fc
    void from_variant( const variant& var,  bts::blockchain::trx_output& vo );
 }
 
-FC_REFLECT( bts::blockchain::block_header,  (version)(prev)(block_num)(timestamp)(next_difficulty)(total_shares)(total_cdd)(trx_mroot)(noncea)(nonceb) )
+FC_REFLECT( bts::blockchain::block_header,  (version)(prev)(block_num)(timestamp)(next_difficulty)(total_shares)(avail_coindays)(total_cdd)(trx_mroot)(noncea)(nonceb) )
 FC_REFLECT_DERIVED( bts::blockchain::full_block,  (bts::blockchain::block_header),        (trx_ids) )
 FC_REFLECT_DERIVED( bts::blockchain::trx_block,   (bts::blockchain::block_header),        (trxs) )
 

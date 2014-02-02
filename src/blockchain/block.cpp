@@ -3,6 +3,7 @@
 #include <bts/difficulty.hpp>
 #include <bts/config.hpp>
 #include <bts/small_hash.hpp>
+#include <bts/momentum.hpp>
 #include <fc/io/raw.hpp>
 #include <fc/reflect/variant.hpp>
 namespace bts { namespace blockchain  {
@@ -10,7 +11,6 @@ namespace bts { namespace blockchain  {
 
   /**
    * Creates the gensis block and returns it.
-   */
   trx_block create_genesis_block()
   {
     try {
@@ -35,6 +35,7 @@ namespace bts { namespace blockchain  {
       return b;
     } FC_RETHROW_EXCEPTIONS( warn, "error creating gensis block" );
   }
+  */
 
   trx_block::operator full_block()const
   {
@@ -77,12 +78,11 @@ namespace bts { namespace blockchain  {
      return layer_one.front();
   }
 
-  uint64_t block_header::get_required_difficulty(uint64_t prev_difficulty)const
+  uint64_t block_header::get_required_difficulty(uint64_t prev_difficulty,uint64_t prev_avail_cdays)const
   {
-      uint64_t cdd = total_cdd > total_shares ? total_shares : total_cdd;
+      prev_avail_cdays /= BLOCKS_PER_YEAR;
+      uint64_t cdd = total_cdd > prev_avail_cdays ? prev_avail_cdays : total_cdd;
       uint64_t factor = total_shares - cdd ;
-      factor /= 4*COIN;
-      //factor *= factor;
       factor += 1;
       // as CDD approaches the average CDD per block the factor approaches 0
       // as CDD approaches 0 factor approaches total_shares^2
@@ -95,6 +95,16 @@ namespace bts { namespace blockchain  {
      return bts::difficulty(id());
   }
 
+
+  bool    block_header::validate_work()const
+  {
+     block_header tmp = *this;
+     tmp.noncea = 0;
+     tmp.nonceb = 0;
+     auto tmp_id = tmp.id();
+     auto seed = fc::sha256::hash( (char*)&tmp_id, sizeof(tmp_id) );
+     return momentum_verify( seed, noncea, nonceb );
+  }
 
   /**
    *  @return the digest of the block header used to evaluate the proof of work

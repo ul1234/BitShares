@@ -110,10 +110,10 @@ typedef uint160 transaction_id_type;
  */
 struct transaction
 {
-   transaction():stake(0){}
+   transaction():version(0),stake(0){}
    fc::sha256                   digest()const;
 
-   fc::unsigned_int             version;        ///< trx version number
+   uint8_t                      version;        ///< trx version number
    uint32_t                     stake;          ///< used for proof of stake, last 8 bytes of block.id()
    fc::time_point_sec           timestamp;      ///< used to future proof, proof-of-stake
    fc::time_point_sec           valid_after;    ///< trx is only valid after a given time

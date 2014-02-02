@@ -663,10 +663,10 @@ namespace bts { namespace blockchain {
               else
               {
                  e.fees = vstate.balance_sheet[asset::bts].in - vstate.balance_sheet[asset::bts].out;
-                 e.coindays_destroyed = vstate.total_cdd;
               }
            }
            e.total_spent += vstate.balance_sheet[asset::bts].in.get_rounded_amount() + vstate.balance_sheet[asset::bts].collat_in.get_rounded_amount();
+           e.coindays_destroyed = vstate.total_cdd;
            return e;
        } FC_RETHROW_EXCEPTIONS( warn, "error evaluating transaction ${t}", ("t", trx) );
     }
@@ -795,6 +795,7 @@ namespace bts { namespace blockchain {
             {
                 trx_stat s;
                 s.eval = evaluate_signed_transaction( trxs[i] );
+                ilog( "eval: ${eval}", ("eval",s.eval) );
 
                // TODO: enforce fees
                // if( s.eval.fees.amount == fc::uint128_t(0) )
@@ -854,9 +855,11 @@ namespace bts { namespace blockchain {
                   break;
                }
                FC_ASSERT( i < stats.size() );
-               ilog( "total fees ${tf} += ${fees}", 
+               ilog( "total fees ${tf} += ${fees},  total cdd ${tcdd} += ${cdd}", 
                      ("tf", total_fees)
-                     ("fees",stats[i].eval.fees) );
+                     ("fees",stats[i].eval.fees)
+                     ("tcdd",total_cdd)
+                     ("cdd",stats[i].eval.coindays_destroyed) );
                total_fees   += stats[i].eval.fees;
                total_cdd    += stats[i].eval.coindays_destroyed;
                total_spent  += stats[i].eval.total_spent;

@@ -399,6 +399,7 @@ class client : public chain_connection_delegate
           
           if( chain.head_block_num() != uint32_t(-1) )
              _wallet.scan_chain( chain );
+          _wallet.set_stake( chain.get_stake() );
 
           // load config, connect to server, and start subscribing to blocks...
           //sim_loop_complete = fc::async( [this]() { server_sim_loop(); } );
@@ -726,7 +727,7 @@ void print_help()
 {
     std::cout<<"Commands:\n";
     std::cout<<" quit\n";
-    std::cout<<" importkey PRIV_KEY\n";
+    std::cout<<" importkey PRIV_KEY [rescan]\n";
     std::cout<<" balance  -  print the wallet balances\n";
     std::cout<<" newaddr  -  print a new wallet address\n";
 	  std::cout<<" listaddr  - print the wallet address(es)\n";

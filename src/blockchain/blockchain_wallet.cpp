@@ -10,6 +10,7 @@
 #include <fc/io/json.hpp>
 #include <fc/log/logger.hpp>
 #include <fc/reflect/variant.hpp>
+#include <sstream>
 
 #include <iostream>
 
@@ -38,6 +39,13 @@ FC_REFLECT( bts::blockchain::wallet_data,
 
 namespace bts { namespace blockchain {
   
+   output_index::operator std::string()const
+   {
+      std::stringstream ss;
+      ss<<block_idx<<"."<<trx_idx<<"."<<output_idx;
+      return ss.str();
+   }
+
    namespace detail 
    {
       class wallet_impl
@@ -50,8 +58,12 @@ namespace bts { namespace blockchain {
               asset                                                      _current_fee_rate;
               uint64_t                                                   _stake;
 
-              std::unordered_map<output_reference,trx_output>            _unspent_outputs;
-              std::unordered_map<output_reference,trx_output>            _spent_outputs;
+              std::map<output_index, output_reference>                   _output_index_to_ref;
+              std::unordered_map<output_reference, output_index>         _output_ref_to_index;
+
+              // keep sorted so we spend oldest first to maximize CDD
+              std::map<output_index, trx_output>                         _unspent_outputs;
+              std::map<output_index, trx_output>                         _spent_outputs;
 
               // maps address to private key index
               std::unordered_map<bts::address,uint32_t>                  _my_addresses;
@@ -84,7 +96,7 @@ namespace bts { namespace blockchain {
                       ilog( "unspent outputs ${o}", ("o",*itr) );
                        if( itr->second.claim_func == claim_by_signature && itr->second.amount.unit == min_amnt.unit )
                        {
-                           inputs.push_back( trx_input( itr->first ) );
+                           inputs.push_back( trx_input( _output_index_to_ref[itr->first] ) );
                            total_in += itr->second.amount;
                            req_sigs.insert( itr->second.as<claim_by_signature_output>().owner );
                            ilog( "total in ${in}  min ${min}", ( "in",total_in)("min",min_amnt) );
@@ -134,7 +146,7 @@ namespace bts { namespace blockchain {
                            if( cbc.payoff_unit == min_amnt.unit )
                            {
                               asset payoff( cbc.payoff_amount, min_amnt.unit );
-                              inputs.insert( std::pair<price,trx_input>( payoff / itr->second.amount, trx_input( itr->first )  ) );
+                              inputs.insert( std::pair<price,trx_input>( payoff / itr->second.amount, trx_input( _output_index_to_ref[itr->first] )  ) );
 
                            }
                        }
@@ -162,7 +174,9 @@ namespace bts { namespace blockchain {
 
               trx_output get_cover_output( const output_reference& r )
               { try {
-                  auto itr = _unspent_outputs.find(r);
+                  auto refitr = _output_ref_to_index.find(r);
+                  FC_ASSERT( refitr != _output_ref_to_index.end() );
+                  auto itr = _unspent_outputs.find(refitr->second);
                   FC_ASSERT( itr != _unspent_outputs.end() );
                   FC_ASSERT( itr->second.claim_func = claim_by_cover );
                   return itr->second;
@@ -338,13 +352,19 @@ namespace bts { namespace blockchain {
    void wallet::mark_as_spent( const output_reference& r )
    {
      // wlog( "MARK SPENT ${s}", ("s",r) );
-      auto itr = my->_unspent_outputs.find(r);
+      auto ref_itr = my->_output_ref_to_index.find(r);
+      if( ref_itr == my->_output_ref_to_index.end() ) 
+      {
+         return;
+      }
+
+      auto itr = my->_unspent_outputs.find(ref_itr->second);
       if( itr == my->_unspent_outputs.end() )
       {
           return;
       }
-      my->_unspent_outputs.erase(r);
-      my->_spent_outputs[r] = itr->second;
+      my->_unspent_outputs.erase(ref_itr->second);
+      my->_spent_outputs[ref_itr->second] = itr->second;
    }
 
    void wallet::sign_transaction( signed_transaction& trx, const bts::address& addr )
@@ -475,9 +495,12 @@ namespace bts { namespace blockchain {
 
    signed_transaction    wallet::cancel_bid( const output_reference& bid )
    { try {
+       auto bid_idx_itr = my->_output_ref_to_index.find(bid);
+       FC_ASSERT( bid_idx_itr != my->_output_ref_to_index.end() );
+
        signed_transaction trx; 
        std::unordered_set<bts::address> req_sigs; 
-       auto bid_out_itr = my->_unspent_outputs.find(bid);
+       auto bid_out_itr = my->_unspent_outputs.find(bid_idx_itr->second);
        FC_ASSERT( bid_out_itr != my->_unspent_outputs.end() );
 
        trx.inputs.push_back( trx_input( bid ) );
@@ -691,8 +714,9 @@ namespace bts { namespace blockchain {
               // for each output
               for( uint32_t out_idx = 0; out_idx < trx.outputs.size(); ++out_idx )
               {
-                  const trx_output& out = trx.outputs[out_idx];
-                  auto out_ref          = output_reference( trx.id(),out_idx );
+                  const trx_output& out   = trx.outputs[out_idx];
+                  const output_reference  out_ref( trx.id(),out_idx );
+                  const output_index      oidx( i, trx_idx, out_idx );
                   switch( out.claim_func )
                   {
                      case claim_by_signature:
@@ -702,7 +726,11 @@ namespace bts { namespace blockchain {
                         if( aitr != my->_my_addresses.end() )
                         {
                             if( !trx.meta_outputs[out_idx].is_spent() )
-                               my->_unspent_outputs[output_reference( trx.id(), out_idx )] = trx.outputs[out_idx];
+                            {
+                               my->_output_index_to_ref[oidx]    = out_ref;
+                               my->_output_ref_to_index[out_ref] = oidx;
+                               my->_unspent_outputs[oidx] = trx.outputs[out_idx];
+                            }
                             else
                             {
                                mark_as_spent( out_ref ); //output_reference(trx.id(), out_idx ) );
@@ -732,7 +760,10 @@ namespace bts { namespace blockchain {
                             }
                             else
                             {
-                               my->_unspent_outputs[out_ref] = trx.outputs[out_idx];
+                               //my->_unspent_outputs[out_ref] = trx.outputs[out_idx];
+                               my->_output_index_to_ref[oidx]    = out_ref;
+                               my->_output_ref_to_index[out_ref] = oidx;
+                               my->_unspent_outputs[oidx] = trx.outputs[out_idx];
                             }
                         }
                         else
@@ -756,7 +787,9 @@ namespace bts { namespace blockchain {
                             }
                             else
                             {
-                               my->_unspent_outputs[out_ref] = trx.outputs[out_idx];
+                               my->_output_index_to_ref[oidx]    = out_ref;
+                               my->_output_ref_to_index[out_ref] = oidx;
+                               my->_unspent_outputs[oidx] = trx.outputs[out_idx];
                             }
                         }
                         else
@@ -781,7 +814,10 @@ namespace bts { namespace blockchain {
                             else
                             {
                                elog( "UNSPENT COVER DISCOVERED ${B}", ("B",out_ref) );
-                               my->_unspent_outputs[out_ref] = trx.outputs[out_idx];
+                               //my->_unspent_outputs[out_ref] = trx.outputs[out_idx];
+                               my->_output_index_to_ref[oidx]    = out_ref;
+                               my->_output_ref_to_index[out_ref] = oidx;
+                               my->_unspent_outputs[oidx] = trx.outputs[out_idx];
                             }
                         }
                         else
@@ -806,7 +842,7 @@ namespace bts { namespace blockchain {
            switch( itr->second.claim_func )
            {
               case claim_by_signature:
-                 std::cerr<<std::string(itr->first.trx_hash)<<":"<<int(itr->first.output_idx)<<"]  ";
+                 std::cerr<<std::string(itr->first)<<"]  ";
                  std::cerr<<std::string(itr->second.amount)<<" ";
                  std::cerr<<fc::variant(itr->second.claim_func).as_string()<<" ";
                  std::cerr<< std::string(itr->second.as<claim_by_signature_output>().owner);
@@ -824,7 +860,8 @@ namespace bts { namespace blockchain {
            switch( itr->second.claim_func )
            {
               case claim_by_bid:
-                 std::cerr<<std::string(itr->first.trx_hash)<<":"<<int(itr->first.output_idx)<<"]  ";
+                 //std::cerr<<std::string(itr->first.trx_hash)<<":"<<int(itr->first.output_idx)<<"]  ";
+                 std::cerr<<std::string(itr->first)<<"]  ";
                  std::cerr<<std::string(itr->second.amount)<<" ";
                  std::cerr<<fc::variant(itr->second.claim_func).as_string()<<" ";
 
@@ -847,7 +884,8 @@ namespace bts { namespace blockchain {
            switch( itr->second.claim_func )
            {
               case claim_by_long:
-                 std::cerr<<std::string(itr->first.trx_hash)<<":"<<int(itr->first.output_idx)<<"]  ";
+                 //std::cerr<<std::string(itr->first.trx_hash)<<":"<<int(itr->first.output_idx)<<"]  ";
+                 std::cerr<<std::string(itr->first)<<"]  ";
                  std::cerr<<std::string(itr->second.amount)<<" ";
                  std::cerr<<fc::variant(itr->second.claim_func).as_string()<<" ";
                  std::cerr<< std::string(itr->second.as<claim_by_long_output>().ask_price);
@@ -872,7 +910,8 @@ namespace bts { namespace blockchain {
            {
               case claim_by_cover:
               {
-                 std::cerr<<std::string(itr->first.trx_hash)<<":"<<int(itr->first.output_idx)<<"]  ";
+                // std::cerr<<std::string(itr->first.trx_hash)<<":"<<int(itr->first.output_idx)<<"]  ";
+                 std::cerr<<std::string(itr->first)<<"]  ";
                  std::cerr<<std::string(itr->second.amount)<<" ";
                  std::cerr<<fc::variant(itr->second.claim_func).as_string()<<" ";
 

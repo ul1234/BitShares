@@ -6,6 +6,40 @@ namespace bts { namespace blockchain {
 
    namespace detail { class wallet_impl; }
 
+   struct output_index
+   {
+        output_index( uint32_t block_id = 0, uint16_t trx_id = 0, uint16_t output_id = 0)
+        :block_idx(block_id),trx_idx(trx_id),output_idx(output_id){}
+
+        friend bool operator < ( const output_index& a, const output_index& b )
+        {
+           if( a.block_idx == b.block_idx )
+           {
+              if( a.trx_idx == b.trx_idx )
+              {
+                 return a.output_idx < b.output_idx;
+              }
+              else
+              {
+                 return a.trx_idx < b.trx_idx;
+              }
+           }
+           else
+           {
+              return a.block_idx < b.block_idx;
+           }
+        }
+        friend bool operator == ( const output_index& a, const output_index& b )
+        {
+          return a.block_idx == b.block_idx && a.trx_idx == b.trx_idx && a.output_idx == b.output_idx;
+        }
+        operator std::string()const;
+
+        uint32_t   block_idx;
+        uint16_t   trx_idx;
+        uint16_t   output_idx;
+   };
+
    /**
     *  The wallet stores all signed_transactions that reference one of its
     *  addresses in the inputs or outputs section.  It also tracks all
@@ -20,14 +54,14 @@ namespace bts { namespace blockchain {
            void open( const fc::path& wallet_file );
            void save();
 
-           bts::address          get_new_address();
-		   std::vector<bts::address> list_address();
-           asset                 get_balance( asset::type t );
-           asset                 get_margin( asset::type t, asset& collat );
-           void                  set_stake( uint64_t stake );
-           void                  import_key( const fc::ecc::private_key& key );
-           void                  set_fee_rate( const asset& pts_per_byte );
-           uint64_t              last_scanned()const;
+           bts::address              get_new_address();
+           std::vector<bts::address> list_address();
+           asset                     get_balance( asset::type t );
+           asset                     get_margin( asset::type t, asset& collat );
+           void                      set_stake( uint64_t stake );
+           void                      import_key( const fc::ecc::private_key& key );
+           void                      set_fee_rate( const asset& pts_per_byte );
+           uint64_t                  last_scanned()const;
 
            signed_transaction    transfer( const asset& amnt, const bts::address& to );
            signed_transaction    bid( const asset& amnt, const price& ratio );
@@ -77,3 +111,5 @@ namespace bts { namespace blockchain {
            std::unique_ptr<detail::wallet_impl> my;
    };
 } } // bts::blockchain
+
+FC_REFLECT( bts::blockchain::output_index, (block_idx)(trx_idx)(output_idx) )

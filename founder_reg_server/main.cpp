@@ -226,7 +226,7 @@ int main( int argc, char** argv )
             {
               auto id_record = itr.value();
               //ilog( "${key} => ${value}", ("key",itr.key())("value",id_record));
-              ilog( "${key}, ${public_key}", ("key",itr.key())("value",id_record.pub_key));
+              ilog( "${key}, ${pub_key}", ("key",itr.key())("pub_key",id_record.pub_key));
               ++id_count;
               if (id_record.pub_key.empty())
                 ++unregistered_count;

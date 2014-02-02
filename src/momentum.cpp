@@ -24,7 +24,7 @@ namespace bts
   //Reduced hash table size to accomodate machines with less ram
   //and to avoid problems on WIN32 with allocating large contiguous blocks
   //of memory.
-  const int TABLE_SIZE =  (1<<25);
+  const int TABLE_SIZE =  (1<<26);
 
   class hashtable
   {

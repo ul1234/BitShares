@@ -2,6 +2,7 @@
 #include <sstream>
 #include <iomanip>
 #include <fc/filesystem.hpp>
+#include <bts/momentum.hpp>
 #include <bts/blockchain/blockchain_wallet.hpp>
 #include <fc/thread/thread.hpp>
 #include <fc/reflect/variant.hpp>
@@ -408,6 +409,10 @@ class client : public chain_connection_delegate
       { try {
          _chain_con.send( trx_message( trx ) );
       } FC_RETHROW_EXCEPTIONS( warn, "unable to send ${trx}", ("trx",trx) ) }
+      void broadcast_block( const trx_block& blk )
+      { try {
+         _chain_con.send( block_message( blk ) );
+      } FC_RETHROW_EXCEPTIONS( warn, "unable to send block: ${blk}", ("blk",blk) ) }
 
       /*
       void server_sim_loop()
@@ -669,6 +674,47 @@ class client : public chain_connection_delegate
          return trx.id();
       }
 
+      void mine()
+      {
+         ilog( "mine" );
+          auto new_trxs = chain.match_orders();
+          for( auto itr = pending.begin(); itr != pending.end(); ++itr )
+          {
+             new_trxs.push_back(itr->second);
+          }
+          auto block_template = chain.generate_next_block( new_trxs );
+          std::cout<<"block template\n" << fc::json::to_pretty_string(block_template)<<"\n";
+          if( block_template.trxs.size() == 0 )
+          {
+             std::cerr<<"no transactions to mine\n";
+             return;
+          }
+          while( true )
+          {
+              block_template.timestamp = fc::time_point::now();
+              auto id = block_template.id();
+              auto seed = fc::sha256::hash( (char*)&id, sizeof(id) );
+
+              auto canidates = bts::momentum_search( seed );
+              std::cout<<"canidates: "<<canidates.size()<<"\n";
+              for( uint32_t i = 0; i < canidates.size(); ++i )
+              {
+                 block_template.noncea = canidates[i].first;
+                 block_template.nonceb = canidates[i].second;
+                 auto dif = block_template.get_difficulty();
+                 auto req = block_template.get_required_difficulty( chain.current_difficulty(), chain.available_coindays() );
+
+                 std::cout<< "difficulty: " << dif <<"    required: " <<  req <<"\n";
+                 if( dif >= req )
+                 {
+                    FC_ASSERT( block_template.validate_work() );
+                    broadcast_block( block_template );
+                    return;
+                 }
+              }
+          }
+      }
+
 
       bts::blockchain::blockchain_db    chain;
       bts::blockchain::wallet           _wallet;
@@ -683,7 +729,7 @@ void print_help()
     std::cout<<" importkey PRIV_KEY\n";
     std::cout<<" balance  -  print the wallet balances\n";
     std::cout<<" newaddr  -  print a new wallet address\n";
-	std::cout<<" listaddr  - print the wallet address(es)\n";
+	  std::cout<<" listaddr  - print the wallet address(es)\n";
     std::cout<<" transfer AMOUNT UNIT to ADDRESS  \n";
     std::cout<<" buy AMOUNT UNIT \n";
     std::cout<<" sell AMOUNT UNIT  \n";
@@ -724,6 +770,10 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
          if( command == "h" || command == "help" )
          {
             print_help();
+         }
+         else if( command == "mine" )
+         {
+            main_thread->async( [=](){ c->mine(); } ).wait();
          }
          else if( command == "html" )
          {

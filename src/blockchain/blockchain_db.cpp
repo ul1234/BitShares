@@ -719,7 +719,9 @@ namespace bts { namespace blockchain {
            FC_ASSERT( b.timestamp    > fc::time_point(my->head_block.timestamp) + fc::seconds(30) );
            FC_ASSERT( b.get_difficulty() >= b.get_required_difficulty( 
                                                  my->head_block.next_difficulty,
-                                                 my->head_block.avail_coindays ) );
+                                                 my->head_block.avail_coindays ), "",
+                      ("required_difficulty",b.get_required_difficulty( my->head_block.next_difficulty, my->head_block.avail_coindays )  )
+                      ("block_difficulty", b.get_difficulty() ) );
         }
 
         //validate_issuance( b, my->head_block /*aka new prev*/ );
@@ -824,6 +826,7 @@ namespace bts { namespace blockchain {
 
          asset    total_fees;
          uint64_t total_cdd = 0;
+         uint64_t total_spent  = 0;
 
          std::unordered_set<output_reference> consumed_outputs;
          for( size_t i = 0; i < stats.size(); ++i )
@@ -854,8 +857,9 @@ namespace bts { namespace blockchain {
                ilog( "total fees ${tf} += ${fees}", 
                      ("tf", total_fees)
                      ("fees",stats[i].eval.fees) );
-               total_fees += stats[i].eval.fees;
-               total_cdd  += stats[i].eval.coindays_destroyed;
+               total_fees   += stats[i].eval.fees;
+               total_cdd    += stats[i].eval.coindays_destroyed;
+               total_spent  += stats[i].eval.total_spent;
             }
          }
 
@@ -898,6 +902,10 @@ namespace bts { namespace blockchain {
              new_blk.next_difficulty = (cur_tar * 300 /* 300 sec per block */) / avg_sec_per_block;
          }
          new_blk.total_cdd                 = total_cdd; 
+         new_blk.avail_coindays            = my->head_block.avail_coindays 
+                                             - total_cdd 
+                                             + my->head_block.total_shares - total_spent
+                                             - total_fees.get_rounded_amount();
 
          new_blk.trx_mroot = new_blk.calculate_merkle_root();
 
@@ -973,6 +981,15 @@ namespace bts { namespace blockchain {
     {
        return asset(static_cast<uint64_t>(1000ull), asset::bts);
     }
+    uint64_t blockchain_db::current_difficulty()const
+    {
+       return my->head_block.next_difficulty;
+    }
+    uint64_t blockchain_db::available_coindays()const
+    {
+       return my->head_block.avail_coindays;
+    }
+
 
 }  } // bts::blockchain
 

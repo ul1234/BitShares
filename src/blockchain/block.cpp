@@ -82,7 +82,7 @@ namespace bts { namespace blockchain  {
   {
       prev_avail_cdays /= BLOCKS_PER_YEAR;
       uint64_t cdd = total_cdd > prev_avail_cdays ? prev_avail_cdays : total_cdd;
-      uint64_t factor = total_shares - cdd ;
+      uint64_t factor = prev_avail_cdays - cdd ;
       factor += 1;
       // as CDD approaches the average CDD per block the factor approaches 0
       // as CDD approaches 0 factor approaches total_shares^2

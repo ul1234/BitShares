@@ -101,23 +101,23 @@ namespace bts
 
    bool momentum_verify( pow_seed_type head, uint32_t a, uint32_t b )
    {
-          if( a == b ) return false;
-          if( a > MAX_MOMENTUM_NONCE ) return false;
-          if( b > MAX_MOMENTUM_NONCE ) return false;
+       if( a == b ) return false;
+       if( a > MAX_MOMENTUM_NONCE ) return false;
+       if( b > MAX_MOMENTUM_NONCE ) return false;
 
-          uint32_t ia = (a / 8) * 8; 
-          fc::sha512::encoder enca;
-          enca.write( (char*)&ia, sizeof(ia) );
-          enca.write( (char*)&head, sizeof(head) );
-          auto ar = enca.result();
+       uint32_t ia = (a / 8) * 8; 
+       fc::sha512::encoder enca;
+       enca.write( (char*)&ia, sizeof(ia) );
+       enca.write( (char*)&head, sizeof(head) );
+       auto ar = enca.result();
 
-          uint32_t ib = (b / 8) * 8; 
-          fc::sha512::encoder encb;
-          encb.write( (char*)&ib, sizeof(ib) );
-          encb.write( (char*)&head, sizeof(head) );
-          auto br = encb.result();
+       uint32_t ib = (b / 8) * 8; 
+       fc::sha512::encoder encb;
+       encb.write( (char*)&ib, sizeof(ib) );
+       encb.write( (char*)&head, sizeof(head) );
+       auto br = encb.result();
 
-          return (ar._hash[a%8]>>14) == (br._hash[b%8]>>14);
+       return (ar._hash[a%8]>>14) == (br._hash[b%8]>>14);
    }
 
 }

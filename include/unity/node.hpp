@@ -3,7 +3,7 @@
 #include <fc/crypto/elliptic.hpp>
 #include <fc/time.hpp>
 #include <fc/reflect/reflect.hpp>
-#include <unordered_set>
+#include <set>
 #include <unordered_map>
 #include <bts/address.hpp>
 
@@ -13,18 +13,18 @@ namespace unity
          
    struct config
    {
-       std::vector<bts::address> unique_node_list;
+       std::set<bts::address> unique_node_list;
        fc::ecc::private_key      node_key; 
    };
 
    struct proposal
    {
-      proposal():round(0){}
+      proposal(){}
       fc::sha256 digest()const;
 
-      fc::time_point_sec            timestamp;
-      uint32_t                      round;
-      std::unordered_set<id_type>   items;
+      fc::time_point_sec          timestamp;
+      fc::sha256                  prev;
+      std::set<id_type>           items;
    };
 
    struct signed_proposal : public proposal
@@ -52,7 +52,7 @@ namespace unity
          ~node();
 
          void             configure( const config& cfg );
-         void             set_round( uint32_t round );
+         void             set_prev( const fc::sha256& prev );
 
          /**
           *  Track items that the local node has an opinion on
@@ -67,20 +67,6 @@ namespace unity
          bool             process_proposal( const signed_proposal& p );
          signed_proposal  get_current_proposal()const;
 
-         /**
-          * Make sure that 70% of proposals agree on the timestamp and
-          * that the current proposal has 70% agreement for every item
-          * in the set.
-          */
-         bool             has_unity()const;
-
-         /**
-          *  Removes the items in the current proposal from the input set which
-          *  triggers the generation of a new proposal from the unaccepted set.
-          *
-          *  Resets last proposal from all nodes and increments the round.
-          */
-         void            accept_current_proposal();
       private: 
          std::unique_ptr<detail::node_impl> my;
    };
@@ -88,5 +74,5 @@ namespace unity
 } // namespace unity
 
 FC_REFLECT( unity::config, (unique_node_list)(node_key) )
-FC_REFLECT( unity::proposal, (timestamp)(round)(items) )
+FC_REFLECT( unity::proposal, (timestamp)(prev)(items) )
 FC_REFLECT_DERIVED( unity::signed_proposal, (unity::proposal), (node_signature) )

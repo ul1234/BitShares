@@ -18,13 +18,15 @@ namespace bts { namespace blockchain {
      */
     struct trx_eval
     {
-       trx_eval():coindays_destroyed(0){}
+       trx_eval():coindays_destroyed(0),total_spent(0){}
        asset  fees; // any fees that would be generated
        uint64_t coindays_destroyed;
+       uint64_t total_spent;
        trx_eval& operator += ( const trx_eval& e )
        {
          fees               += e.fees;
          coindays_destroyed += e.coindays_destroyed;
+         total_spent        += e.total_spent;
          return *this;
        }
     };
@@ -155,6 +157,7 @@ namespace bts { namespace blockchain {
           uint32_t      head_block_num()const;
           block_id_type head_block_id()const;
           uint64_t      get_stake(); // head - 1 
+          uint64_t      get_stake2(); // head - 2 
           asset         get_fee_rate()const;
 
          /**

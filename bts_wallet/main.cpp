@@ -69,6 +69,7 @@ class client : public chain_connection_delegate
       // we do not detect RPC disconnects
       std::unordered_set<fc::rpc::json_connection*> _login_set;
       client_config                                 _config;
+      std::unordered_map<bts::blockchain::transaction_id_type,bts::blockchain::signed_transaction> pending;
 
       ~client()
       {
@@ -349,6 +350,7 @@ class client : public chain_connection_delegate
       }
 
 
+
       client():_chain_con(this),_chain_connected(false){}
       virtual void on_connection_message( chain_connection& c, const message& m )
       {
@@ -361,6 +363,15 @@ class client : public chain_connection_delegate
             {
                 std::cout<<"new transactions received\n";
                 print_balances();
+            }
+         }
+         else if( m.type == trx_message::type )
+         {
+            auto trx_msg = m.as<trx_message>();
+            chain.evaluate_signed_transaction( trx_msg.signed_trx ); // throws exception if invalid trx.
+            if( pending.insert( std::make_pair(trx_msg.signed_trx.id(),trx_msg.signed_trx) ).second )
+            {
+               // reset the mining thread...
             }
          }
          else if( m.type == trx_err_message::type )
@@ -630,14 +641,14 @@ class client : public chain_connection_delegate
       void dump_chain_json( std::string name )
       {
           std::ofstream html( name.c_str() );
-          html <<"{\n";
+          html <<"[\n";
           for( uint32_t i = 0; i <= chain.head_block_num(); ++i )
           {
              auto b = chain.fetch_trx_block(i);
              html << fc::json::to_pretty_string( b );
              if( i != chain.head_block_num() ) html << ",\n";
           }
-          html <<"}\n";
+          html <<"]\n";
       }
       std::string cover( double amnt, std::string u )
       {
@@ -690,7 +701,7 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
 {
    try {
       std::string line;
-#ifndef WIN32)
+#ifndef WIN32
       char* line_read = nullptr;
       line_read = readline(">>> ");
       if(line_read && *line_read)

@@ -2,7 +2,8 @@
 #include <mail/stcp_socket.hpp>
 #include <mail/message.hpp>
 #include <fc/exception/exception.hpp>
-#include <unity/node.hpp>
+#include <fc/crypto/ripemd160.hpp>
+#include <bts/address.hpp>
 
 using namespace mail;
 
@@ -41,8 +42,11 @@ namespace unity
    
         stcp_socket_ptr  get_socket()const;
         fc::ip::endpoint remote_endpoint()const;
-        id_type          get_remote_id()const;
-        void             set_remote_id( const id_type& id );
+        bts::address     get_remote_id()const;
+        void             set_remote_id( const bts::address& id );
+        void             set_knows_blob( const fc::ripemd160& blob_id );
+        void             clear_knows_blob( const fc::ripemd160& blob_id );
+        bool             knows_blob( const fc::ripemd160& blob_id );
         
         void send( const message& m );
    

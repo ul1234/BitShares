@@ -9,7 +9,7 @@
 namespace bts  { namespace blockchain { 
 
 trx_validation_state::trx_validation_state( const signed_transaction& t, blockchain_db* d, bool enf, uint32_t h )
-:trx(t),balance_sheet( asset::count ),db(d),enforce_unspent(enf),ref_head(h)
+:prev_block_id1(0),prev_block_id2(0),trx(t),total_cdd(0),balance_sheet( asset::count ),db(d),enforce_unspent(enf),ref_head(h)
 { 
   inputs  = d->fetch_inputs( t.inputs, ref_head );
   if( ref_head == std::numeric_limits<uint32_t>::max()  )
@@ -266,7 +266,14 @@ void trx_validation_state::validate_signature( const meta_trx_input& in )
        required_sigs.insert( cbs.owner );
 
        balance_sheet[(asset::type)in.output.amount.unit].in += in.output.amount; //output_bal;
-   
+       if( in.output.amount.unit == asset::bts )
+       {
+          //  only count if trx proof of stake prev == one of the last two blocks
+          if( trx.stake == prev_block_id1 || trx.stake == prev_block_id2 )
+          {
+             total_cdd += in.output.amount.get_rounded_amount() * (ref_head-in.source.block_num);
+          }
+       }
    } FC_RETHROW_EXCEPTIONS( warn, "validating signature input ${i}", ("i",in) );
 }
 
@@ -406,6 +413,11 @@ void trx_validation_state::validate_cover( const meta_trx_input& in )
    balance_sheet[(asset::type)cover_in.payoff_unit].neg_in += cover_in.get_payoff_amount();
    // track collateral for payoff unit
    balance_sheet[(asset::type)cover_in.payoff_unit].collat_in += in.output.amount;
+
+   if( trx.stake == prev_block_id1 || trx.stake == prev_block_id2 )
+   {
+      total_cdd += in.output.amount.get_rounded_amount() * (ref_head-in.source.block_num);
+   }
 }
 
 void trx_validation_state::validate_opt( const meta_trx_input& in )

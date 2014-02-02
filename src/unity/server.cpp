@@ -1,6 +1,8 @@
+#include <unity/messages.hpp>
 #include <unity/server.hpp>
 #include <unity/connection.hpp>
-#include <unity/messages.hpp>
+#include <unity/node.hpp>
+#include <fc/crypto/sha256.hpp>
 
 #include <fc/reflect/reflect.hpp>
 #include <mail/message.hpp>
@@ -28,10 +30,13 @@ namespace unity
       {
           public:
              server::config                                        _config;
-                                                                  
+             unity::node                                           _node;                                                     
              fc::tcp_server                                        _tcp_serv;
              fc::future<void>                                      _accept_loop_complete;
+             fc::future<void>                                      _connect_loop_complete;
              std::unordered_map<fc::ip::endpoint,connection_ptr>   _connections;
+             std::unordered_map<fc::ripemd160, std::vector<char> > _unconfirmed_blobs;
+             std::unordered_set<fc::ripemd160>                     _confirmed_blobs;
 
              void close()
              {
@@ -58,6 +63,130 @@ namespace unity
                      elog( "unexpected exception" );
                  }
              }
+             bool is_authorized_node( const bts::address& adr )
+             {
+                for( auto itr = _config.hosts.begin(); itr != _config.hosts.end(); ++itr )
+                {
+                   if( itr->first == adr ) return true;
+                }
+                return false;
+             }
+
+             void broadcast( const mail::message& msg )
+             {
+                auto cons_copy = _connections;
+                fc::async( [cons_copy,msg]()
+                {
+                   for( auto itr = cons_copy.begin(); itr != cons_copy.end(); ++itr )
+                   {
+                      try {
+                         itr->second->send( msg );
+                      } catch ( ... ) {}
+                   }
+                } ).wait();
+             }
+
+             void add_blob( std::vector<char> blob )
+             {
+                 FC_ASSERT( blob.size() > 0 );
+                 auto id = fc::ripemd160::hash( blob.data(), blob.size() );
+
+                 if( !is_unconfirmed_blob( id ) )
+                 {
+                    if( is_confirmed_blob(id) ) return;
+                    _unconfirmed_blobs[id] = blob;
+                    _node.set_item_validity( id, true );
+
+
+                    auto cur = _node.get_current_proposal();
+                    if( cur.items.size() > 0 ) 
+                    {
+                       ilog( "broadcast counter proposal ${p}", ("p",cur) );
+                       broadcast( mail::message( proposal_message( cur ) ) );
+                    }
+
+
+                    // TODO: only broadcast to nodes that don't have this blob...
+                      auto cons_copy = _connections;
+                      fc::async( [cons_copy,blob,id]()
+                      { 
+                         auto  msg = mail::message( blob_message( blob ) );
+                         for( auto itr = cons_copy.begin(); itr != cons_copy.end(); ++itr )
+                         {
+                            try {
+                               if( !itr->second->knows_blob(id) )
+                               {
+                                  itr->second->send( msg  );
+                               }
+                            } catch ( ... ) {}
+                         }
+                      } ).wait();
+                 }
+             }
+
+             bool is_confirmed_blob( const fc::ripemd160& id )
+             {
+                 return _confirmed_blobs.find(id) != _confirmed_blobs.end();
+             }
+
+             bool is_unconfirmed_blob( const fc::ripemd160& id )
+             {
+                 return _unconfirmed_blobs.find(id) != _unconfirmed_blobs.end();
+             }
+
+             bool is_new_blob( const fc::ripemd160& id )
+             {
+                 if( is_confirmed_blob(id)   ) return false;
+                 if( is_unconfirmed_blob(id) ) return false;
+                 return true;
+             }
+
+             void connect_loop()
+             {
+                 while( !_connect_loop_complete.canceled() )
+                 {
+                    for( auto itr = _config.hosts.begin(); itr != _config.hosts.end(); ++itr )
+                    {
+                        if( !is_connected( itr->first ) && itr->second != std::string() )
+                        {
+                           try {
+                              auto con = std::make_shared<unity::connection>(this);
+                              con->connect( itr->second );
+                              on_new_connection( con );
+                           } 
+                           catch ( const fc::exception& e )
+                           {
+                              wlog( "${warn}", ( "warn", e.to_detail_string() ) );
+                           }
+                        }
+                    }
+                    fc::usleep( fc::seconds(60) );
+                 }
+             }
+
+             bool is_connected( const bts::address& unique_node )
+             {
+                auto cons = _connections;
+                for( auto itr = cons.begin(); itr != cons.end(); ++itr )
+                {
+                   if( itr->second->get_remote_id() == unique_node )
+                      return true;
+                }
+                return false;
+             } // is_connected
+
+             void on_new_connection( const connection_ptr& con )
+             {
+                 _connections[con->remote_endpoint()] = con;
+                 ilog( "connected to ${ep}" , ( "ep",con->remote_endpoint() ) );
+
+                 subscribe_message msg;
+                 msg.version = 0;
+                 msg.timestamp = fc::time_point::now();
+                 msg.sign( _config.node_config.node_key );
+                 con->send( message( msg ) );
+                 //if( ser_del ) ser_del->on_connected( con );
+             }
 
              /**
               *  This method is called via async from accept_loop and
@@ -77,8 +206,7 @@ namespace unity
                          ("ep", std::string(s->get_socket().remote_endpoint()) ) );
                    
                    auto con = std::make_shared<connection>(s,this);
-                   _connections[con->remote_endpoint()] = con;
-                   //if( ser_del ) ser_del->on_connected( con );
+                   on_new_connection( con );
                 } 
                 catch ( const fc::canceled_exception& e )
                 {
@@ -92,7 +220,7 @@ namespace unity
                 {
                    elog( "unexpected exception" );
                 }
-             }
+             } // accept_connection
 
 
              /**
@@ -110,14 +238,25 @@ namespace unity
                   {
                      auto sm = m.as<subscribe_message>();
                      ilog( "recv: ${m}", ("m",sm) );
+                     auto node_id = bts::address(sm.signee());
+                     ilog( "remote id: ${id}", ("id", node_id ) );
                      // verify c is on the unique node list, if c is already connected
                      // then close the connection.
+                     if( !is_authorized_node( node_id ) )
+                     {
+                        wlog( "${id} is not in the unique node list", ("id",node_id) );
+                        c.close();
+                     }
+                     c.set_remote_id( node_id );
                   }
                   else if( m.type == message_type::blob_msg )
                   {
                      auto blob = m.as<blob_message>();
-                     ilog( "recv: ${m}", ("m",blob) );
-
+                     FC_ASSERT( c.get_remote_id() != bts::address() );
+                     auto blob_id = fc::ripemd160::hash( blob.blob.data(), blob.blob.size() );
+                     ilog( "recv blob: ${m} size: ${s}", ("m",blob_id)("s",blob.blob.size()) );
+                     c.set_knows_blob( blob_id );
+                     add_blob( blob.blob );
                      // if this is a new message for us, broadcast it to all
                      // connections... else drop it
 
@@ -125,13 +264,30 @@ namespace unity
                   }
                   else if( m.type == message_type::proposal_msg )
                   {
+                     FC_ASSERT( c.get_remote_id() != bts::address() );
                      auto prop = m.as<proposal_message>();
                      ilog( "recv: ${m}", ("m",prop) );
-                     // process proposal...
-
+                     handle_proposal( c, prop.signed_prop );
                      // if output proposal message changed... broadcast it
                   }
+                  else
+                  {
+                     wlog( "unknown message type ${m}", ("m",m.type) );
+                     c.close();
+                  }
              }
+             void handle_proposal( connection& c, const signed_proposal& p )
+             {
+                 ilog( "handle proposal ${p}", ("p",p) );
+                 if( _node.process_proposal( p ) )
+                 {
+                    auto cur = _node.get_current_proposal();
+                    ilog( "broadcast counter proposal ${p}", ("p",cur) );
+                    broadcast( mail::message( proposal_message( cur ) ) );
+                 }
+             }
+
+
              virtual void on_connection_disconnected( connection& c )
              {
                try {
@@ -204,7 +360,24 @@ void server::configure( const server::config& cfg )
 { try {
     my->_config = cfg;
     my->_tcp_serv.listen( cfg.unity_port );
-    my->_accept_loop_complete = fc::async( [=](){ my->accept_loop(); } );
+    
+    auto node_cfg = cfg.node_config;
+    for( auto itr = cfg.hosts.begin(); itr != cfg.hosts.end(); ++itr )
+    {
+       node_cfg.unique_node_list.insert(itr->first);
+    }
+    my->_node.configure(node_cfg);
+
+
+    my->_accept_loop_complete  = fc::async( [=](){ my->accept_loop();  } );
+    my->_connect_loop_complete = fc::async( [=](){ my->connect_loop(); } );
 } FC_RETHROW_EXCEPTIONS( warn, "", ("config",cfg) ) }
+
+void server::add_blob( std::vector<char> blob )
+{
+    my->add_blob( std::move(blob) );
+}
+
+
 
 } // namespace untiy

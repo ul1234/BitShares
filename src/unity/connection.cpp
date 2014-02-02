@@ -54,13 +54,14 @@ namespace unity {
           fc::ip::endpoint     remote_ep;
           connection_delegate* con_del;
 
+          std::unordered_set<fc::ripemd160> _blobs;
+
           /** used to ensure that messages are written completely */
           fc::mutex              write_lock;
 
 
-          fc::future<void>       read_loop_complete;
-          fc::future<void>       exec_sync_loop_complete;
-          id_type                _id;
+          fc::future<void>       _read_loop_complete;
+          bts::address           _id;
 
           void read_loop()
           {
@@ -68,7 +69,7 @@ namespace unity {
             const int LEFTOVER = BUFFER_SIZE - sizeof(message_header);
             try {
                message m;
-               while( !read_loop_complete.canceled() )
+               while( !_read_loop_complete.canceled() )
                {
                   char tmp[BUFFER_SIZE];
                   sock->read( tmp, BUFFER_SIZE );
@@ -152,7 +153,7 @@ namespace unity {
     my->sock = c;
     my->con_del = d;
     my->remote_ep = remote_endpoint();
-    my->read_loop_complete = fc::async( [=](){ my->read_loop(); } );
+    my->_read_loop_complete = fc::async( [=](){ my->read_loop(); } );
   }
 
   connection::connection( connection_delegate* d )
@@ -172,14 +173,9 @@ namespace unity {
         my->con_del = nullptr; 
 
         close();
-        if( my->read_loop_complete.valid() )
+        if( my->_read_loop_complete.valid() )
         {
-          my->read_loop_complete.wait();
-        }
-        if( my->exec_sync_loop_complete.valid() )
-        {
-          my->exec_sync_loop_complete.cancel();
-          my->exec_sync_loop_complete.wait();
+          my->_read_loop_complete.wait();
         }
     } 
     catch ( const fc::canceled_exception& e )
@@ -206,12 +202,12 @@ namespace unity {
          if( my->sock )
          {
            my->sock->close();
-           if( my->read_loop_complete.valid() )
+           if( my->_read_loop_complete.valid() )
            {
               wlog( "waiting for socket to close" );
-              my->read_loop_complete.cancel();
+              my->_read_loop_complete.cancel();
               try {
-                 my->read_loop_complete.wait();
+                 my->_read_loop_complete.wait();
               } catch ( const fc::exception& e )
               {
                  wlog( "${w}", ("w",e.to_detail_string()) );
@@ -229,7 +225,7 @@ namespace unity {
        my->sock->connect_to(ep); 
        my->remote_ep = remote_endpoint();
        ilog( "    connected to ${ep}", ("ep", ep) );
-       my->read_loop_complete = fc::async( [=](){ my->read_loop(); } );
+       my->_read_loop_complete = fc::async( [=](){ my->read_loop(); } );
      } FC_RETHROW_EXCEPTIONS( warn, "error connecting to ${ep}", ("ep",ep) );
   }
 
@@ -278,6 +274,9 @@ namespace unity {
      return my->remote_ep;
   }
 
-  id_type  connection::get_remote_id()const               { return my->_id; }
-  void     connection::set_remote_id( const id_type& id ) { my->_id = id;   }
+  bts::address  connection::get_remote_id()const               { return my->_id; }
+  void          connection::set_remote_id( const bts::address& id ) { my->_id = id;   }
+  void          connection::set_knows_blob( const fc::ripemd160& blob_id ) { my->_blobs.insert(blob_id); }
+  void          connection::clear_knows_blob( const fc::ripemd160& blob_id ) { my->_blobs.erase(blob_id); }
+  bool          connection::knows_blob( const fc::ripemd160& blob_id ) { return my->_blobs.find(blob_id) != my->_blobs.end(); }
 } // namespace unity

@@ -1,4 +1,5 @@
 #pragma once
+#include <unity/node.hpp>
 #include <fc/reflect/reflect.hpp>
 #include <fc/crypto/elliptic.hpp>
 #include <set>
@@ -28,6 +29,8 @@ namespace unity
    struct blob_message
    {
       static const message_type type;
+      blob_message(){}
+      blob_message( std::vector<char> data ):blob( std::move(data) ){}
       std::vector<char>         blob;
    };
 

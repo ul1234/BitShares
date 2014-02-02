@@ -74,6 +74,8 @@ ELSE(WIN32)
   #SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wall -Wno-unused-local-typedefs" )
   SET(Boost_USE_STATIC_LIBS ON)
   FIND_PACKAGE(Boost 1.53 REQUIRED COMPONENTS thread date_time system filesystem program_options signals serialization chrono unit_test_framework context coroutine) 
+  FIND_PACKAGE( ZLIB REQUIRED )
+  include_directories( ${ZLIB_INCLUDE_DIRS} )
 
  IF( NOT APPLE )
       SET( pthread pthread )
@@ -183,6 +185,10 @@ list(APPEND sources "${CMAKE_CURRENT_BINARY_DIR}/GitSHA2.cpp" GitSHA2.h)
 
 add_library( bshare ${sources} )
 target_link_libraries(bshare ${BDB_LIBRARIES} )
+
+IF( UNIX ) 
+  target_link_libraries(bshare ${ZLIB_LIBRARIES} )
+ENDIF()
 
 add_subdirectory( sancho )
 #add_subdirectory( server )

@@ -1,6 +1,7 @@
 #include <bts/profile.hpp>
 #include <bts/keychain.hpp>
 #include <bts/addressbook/addressbook.hpp>
+#include <bts/bitname/bitname_hash.hpp>
 #include <bts/addressbook/contact.hpp>
 #include <bts/db/level_map.hpp>
 #include <bts/db/level_pod_map.hpp>
@@ -165,6 +166,12 @@ namespace bts {
 
   addressbook::wallet_identity    profile::get_identity( const std::string& dac_id_string )const
   { try {
+      auto hash_value =  bitname::name_hash(dac_id_string);
+      auto idents = profile::identities();
+      for ( auto &it : idents ) {
+        if (hash_value == bitname::name_hash(it.dac_id_string))
+            return it;
+      }
       return my->_idents.fetch( dac_id_string ); 
   } FC_RETHROW_EXCEPTIONS( warn, "", ("dac_id",dac_id_string) ) }
   

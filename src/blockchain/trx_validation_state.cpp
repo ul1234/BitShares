@@ -273,6 +273,10 @@ void trx_validation_state::validate_signature( const meta_trx_input& in )
           {
              total_cdd += in.output.amount.get_rounded_amount() * (ref_head-in.source.block_num);
           }
+          else
+          {
+             wlog( "stake ${s} != ${a} || ${b}", ("s",trx.stake)("a",prev_block_id1)("b",prev_block_id2) );
+          }
        }
    } FC_RETHROW_EXCEPTIONS( warn, "validating signature input ${i}", ("i",in) );
 }

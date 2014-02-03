@@ -172,7 +172,9 @@ namespace bts { namespace blockchain {
                address                              ask_payout_address;
 
                signed_transaction market_trx;
-               market_trx.timestamp = fc::time_point::now();
+               // don't put a timestamp on the order matching, it should be 0 because it is implied
+               // that it is part of the block generation
+               //market_trx.timestamp = fc::time_point::now();
                ilog( "." );
 
                const uint64_t zero = 0ull;
@@ -663,10 +665,10 @@ namespace bts { namespace blockchain {
               else
               {
                  e.fees = vstate.balance_sheet[asset::bts].in - vstate.balance_sheet[asset::bts].out;
-                 e.coindays_destroyed = vstate.total_cdd;
               }
            }
            e.total_spent += vstate.balance_sheet[asset::bts].in.get_rounded_amount() + vstate.balance_sheet[asset::bts].collat_in.get_rounded_amount();
+           e.coindays_destroyed = vstate.total_cdd;
            return e;
        } FC_RETHROW_EXCEPTIONS( warn, "error evaluating transaction ${t}", ("t", trx) );
     }
@@ -727,6 +729,15 @@ namespace bts { namespace blockchain {
         //validate_issuance( b, my->head_block /*aka new prev*/ );
         validate_unique_inputs( b.trxs );
 
+        // the order matching must be deterministic and the first set of transactions in 
+        // every block.
+        std::vector<signed_transaction> matched = match_orders();
+        FC_ASSERT( matched.size() <= b.trxs.size() );
+        for( uint32_t i = 0; i < matched.size(); ++i )
+        {
+           FC_ASSERT( matched[i].id() == b.trxs[i].id(), "", ("i",i)("matched",matched) );
+        }
+
         // evaluate all trx and sum the results
         trx_eval total_eval = evaluate_signed_transactions( b.trxs );
         
@@ -779,22 +790,22 @@ namespace bts { namespace blockchain {
     {
       try {
          std::vector<signed_transaction> trxs = match_orders();
-         trxs.insert( trxs.end(), in_trxs.begin(), in_trxs.end() );
 
          std::vector<trx_stat>  stats;
-         stats.reserve(trxs.size());
+         stats.reserve(in_trxs.size());
          for( uint32_t i = 0; i < in_trxs.size(); ++i )
          {
             ilog( "trx: ${t} signed by ${s}", ( "t",in_trxs[i])("s",in_trxs[i].get_signed_addresses() ) );
          }
          
          // filter out all trx that generate coins from nothing or don't pay fees
-         for( uint32_t i = 0; i < trxs.size(); ++i )
+         for( uint32_t i = 0; i < in_trxs.size(); ++i )
          {
             try 
             {
                 trx_stat s;
-                s.eval = evaluate_signed_transaction( trxs[i] );
+                s.eval = evaluate_signed_transaction( in_trxs[i] );
+                ilog( "eval: ${eval}", ("eval",s.eval) );
 
                // TODO: enforce fees
                // if( s.eval.fees.amount == fc::uint128_t(0) )
@@ -803,22 +814,23 @@ namespace bts { namespace blockchain {
                //         ("trx",trxs[i])("s",s.eval) );
                //   continue;
                // }
-                s.trx_idx = i;
+                s.trx_idx = i + trxs.size(); // market trx will go first...
                 stats.push_back( s );
             } 
             catch ( const fc::exception& e )
             {
-               wlog( "unable to use trx ${t}\n ${e}", ("t", trxs[i] )("e",e.to_detail_string()) );
+               wlog( "unable to use trx ${t}\n ${e}", ("t", in_trxs[i] )("e",e.to_detail_string()) );
             }
          }
 
-         // order the trx by fees
+         // order the trx by fees (don't sort the market orders which)
          std::sort( stats.begin(), stats.end() ); 
          for( uint32_t i = 0; i < stats.size(); ++i )
          {
            ilog( "sort ${i} => ${n}", ("i", i)("n",stats[i]) );
          }
 
+         trxs.insert( trxs.end(), in_trxs.begin(), in_trxs.end() );
 
          // calculate the block size as we go
          fc::datastream<size_t>  block_size;
@@ -854,9 +866,11 @@ namespace bts { namespace blockchain {
                   break;
                }
                FC_ASSERT( i < stats.size() );
-               ilog( "total fees ${tf} += ${fees}", 
+               ilog( "total fees ${tf} += ${fees},  total cdd ${tcdd} += ${cdd}", 
                      ("tf", total_fees)
-                     ("fees",stats[i].eval.fees) );
+                     ("fees",stats[i].eval.fees)
+                     ("tcdd",total_cdd)
+                     ("cdd",stats[i].eval.coindays_destroyed) );
                total_fees   += stats[i].eval.fees;
                total_cdd    += stats[i].eval.coindays_destroyed;
                total_spent  += stats[i].eval.total_spent;

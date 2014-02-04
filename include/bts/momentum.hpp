@@ -5,7 +5,8 @@
 #include <fc/reflect/reflect.hpp>
 #include <fc/crypto/sha256.hpp>
 
-#define MAX_MOMENTUM_NONCE  (1<<26)
+#define MOMENTUM_NONCE_BITS 26
+#define MAX_MOMENTUM_NONCE  (1<<MOMENTUM_NONCE_BITS)
 
 namespace bts 
 {

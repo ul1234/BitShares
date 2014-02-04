@@ -32,6 +32,7 @@ namespace bts {
      virtual void connection_count_changed( int count ){}
      virtual void received_text( const bitchat::decrypted_message& msg) {}
      virtual void received_email( const bitchat::decrypted_message& msg) {}
+     virtual void received_request( const bitchat::decrypted_message& msg) {}
   };
   
 

@@ -180,6 +180,13 @@ namespace bts {
                    if( _delegate ) _delegate->received_email( msg );//, *m.from_key, m.decrypt_key->get_public_key() );
                    break;
                  }
+                 case bitchat::private_message_type::contact_request_msg:
+                  {
+                    auto request = msg.as<bitchat::private_contact_request_message>();
+                    ilog( "request message ${msg}", ("msg", request) );
+                    if( _delegate ) _delegate->received_request( msg );
+                    break;
+                  }
               }
           }
 

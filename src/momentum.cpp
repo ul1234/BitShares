@@ -119,8 +119,8 @@ namespace bts
 
    void generate_hashes(pow_seed_type head, uint64_t *hashStore, uint32_t *hashCounts)
    {
+      fc::sha512::encoder enc;
       for ( uint32_t n = 0; n < MAX_MOMENTUM_NONCE; n += (BIRTHDAYS_PER_HASH)) {
-	 fc::sha512::encoder enc;
          enc.write( (char*)&n, sizeof(n));
          enc.write( (char *)&head, sizeof(head));
 	 auto result = enc.result();
@@ -128,6 +128,7 @@ namespace bts
 	 for (uint32_t i = 0; i < BIRTHDAYS_PER_HASH; i++) {
 	    put_hash_in_bucket((result._hash[i] >> (64 - SEARCH_SPACE_BITS)), hashStore, hashCounts, n+i);
 	 }
+	 enc.reset();
       }
    }
 

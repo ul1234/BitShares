@@ -13,6 +13,7 @@ namespace bts { namespace blockchain {
         public:
            db::level_pod_map<market_order,uint32_t> _bids;
            db::level_pod_map<market_order,uint32_t> _asks;
+           db::level_pod_map<margin_call,uint32_t>  _calls;
      };
 
   } // namespace detail
@@ -44,6 +45,24 @@ namespace bts { namespace blockchain {
      return a.location < b.location;
   }
 
+
+  bool operator < ( const margin_call& a, const margin_call& b )
+  {
+     if( a.call_price.quote_unit == b.call_price.quote_unit )
+     {
+        if( a.call_price == b.call_price )
+        {
+           return a.location < b.location;
+        }
+        return b.call_price < a.call_price; // sort from high to low
+     }
+     return a.call_price.quote_unit < b.call_price.quote_unit;
+  }
+  bool operator == ( const margin_call& a, const margin_call& b )
+  {
+     return a.call_price.ratio == b.call_price.ratio && a.call_price.quote_unit == b.call_price.quote_unit && b.location == a.location;
+  }
+
   market_db::market_db()
   :my( new detail::market_db_impl() )
   {
@@ -54,13 +73,13 @@ namespace bts { namespace blockchain {
 
   void market_db::open( const fc::path& db_dir )
   { try {
-
      fc::create_directories( db_dir / "bids" );
      fc::create_directories( db_dir / "asks" );
+     fc::create_directories( db_dir / "calls" );
 
      my->_bids.open( db_dir / "bids" );
      my->_asks.open( db_dir / "asks" );
-
+     my->_calls.open( db_dir / "calls" );
   } FC_RETHROW_EXCEPTIONS( warn, "unable to open market db ${dir}", ("dir",db_dir) ) }
 
   void market_db::insert_bid( const market_order& m )
@@ -78,6 +97,14 @@ namespace bts { namespace blockchain {
   void market_db::remove_ask( const market_order& m )
   {
      my->_asks.remove(m);
+  }
+  void market_db::insert_call( const margin_call& c )
+  {
+     my->_calls.store( c, 0 );
+  }
+  void market_db::remove_call( const margin_call& c )
+  {
+     my->_calls.remove( c );
   }
 
   /** @pre quote > base  */
@@ -120,6 +147,27 @@ namespace bts { namespace blockchain {
      ilog( "order_itr is not valid!" );
      return orders;
   }
+
+  std::vector<margin_call>  market_db::get_calls( price call_price )const
+  {
+     ilog( "get_calls price: ${p}", ("p",call_price) );
+     std::vector<margin_call> calls;
+
+     auto order_itr  = my->_calls.begin();//lower_bound( margin_call( call_price, output_reference() ) );
+     while( order_itr.valid() )
+     {
+        auto call = order_itr.key();
+        ilog( "call ${c}", ("c",call) );
+        if( call.call_price.quote_unit != call_price.quote_unit )
+           return calls;
+        if( call.call_price < call_price )
+           return calls;
+        calls.push_back(call);
+        ++order_itr;
+     }
+     return calls;
+  }
+
   std::vector<market_order> market_db::get_asks( asset::type quote_unit, asset::type base_unit )const
   {
      FC_ASSERT( quote_unit > base_unit );

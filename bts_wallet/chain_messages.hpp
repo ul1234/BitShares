@@ -25,6 +25,10 @@ FC_REFLECT( subscribe_message, (version)(last_block) )
 struct block_message
 {
    static const chain_message_type type;
+   block_message(){}
+   block_message( const bts::blockchain::trx_block& blk )
+   :block_data(blk){}
+
    bts::blockchain::trx_block             block_data;
    std::set<fc::ecc::compact_signature>   sigs;
 };

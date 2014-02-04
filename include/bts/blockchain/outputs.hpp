@@ -141,19 +141,15 @@ struct claim_by_cover_output
 {
    static const claim_type_enum type;
 
-   claim_by_cover_output( const asset& payoff, const address& own )
-   :payoff_unit(payoff.unit),
-    payoff_amount(payoff.get_rounded_amount()),
-    owner(own){}
+   claim_by_cover_output( const asset& pay, const address& own )
+   :payoff(pay), owner(own){}
 
-   claim_by_cover_output()
-   :payoff_amount(0){}
+   claim_by_cover_output(){}
 
-   asset get_payoff_amount()const { return asset( payoff_amount, payoff_unit); }
+   price get_call_price( asset collat )const;
    bool operator == ( const claim_by_cover_output& other )const;
 
-   asset_type      payoff_unit;
-   uint64_t        payoff_amount;
+   asset           payoff;
    bts::address    owner;
 };
 
@@ -324,7 +320,7 @@ FC_REFLECT( bts::blockchain::claim_by_signature_output, (owner) )
 FC_REFLECT( bts::blockchain::claim_by_pts_output, (owner) )
 FC_REFLECT( bts::blockchain::claim_by_bid_output, (pay_address)(ask_price) )
 FC_REFLECT( bts::blockchain::claim_by_long_output, (pay_address)(ask_price) )
-FC_REFLECT( bts::blockchain::claim_by_cover_output, (payoff_unit)(payoff_amount)(owner) )
+FC_REFLECT( bts::blockchain::claim_by_cover_output, (payoff)(owner) )
 FC_REFLECT( bts::blockchain::claim_by_opt_execute_output, (optionor)(expire_time)(strike_unit)(strike_amount)(optionee) )
 FC_REFLECT( bts::blockchain::claim_by_escrow_output, (agreement)(agent_terms)(agent)(payee)(payor) )
 FC_REFLECT( bts::blockchain::claim_by_multi_sig_output, (required)(addresses) )

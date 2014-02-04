@@ -23,7 +23,7 @@ namespace bts
       }
    }
 
-   pts_address::pts_address( const fc::ecc::public_key& pub, bool compressed )
+   pts_address::pts_address( const fc::ecc::public_key& pub, bool compressed, uint8_t version )
    {
        fc::sha256 sha2;
        if( compressed )
@@ -37,7 +37,7 @@ namespace bts
            sha2     = fc::sha256::hash(dat.data, sizeof(dat) );
        }
        auto rep      = fc::ripemd160::hash((char*)&sha2,sizeof(sha2));
-       addr.data[0]  = 56;
+       addr.data[0]  = version;
        memcpy( addr.data+1, (char*)&rep, sizeof(rep) );
        auto check    = fc::sha256::hash( addr.data, sizeof(rep)+1 );
        check = fc::sha256::hash(check); // double
@@ -46,11 +46,11 @@ namespace bts
 
    /**
     *  Checks the address to verify it has a 
-    *  valid checksum and prefix.
+    *  valid checksum
     */
    bool pts_address::is_valid()const
    {
-       if( addr.data[0]  != 56 ) return false;
+//       if( addr.data[0]  != 56 ) return false;
        auto check    = fc::sha256::hash( addr.data, sizeof(fc::ripemd160)+1 );
        check = fc::sha256::hash(check); // double
        return memcmp( addr.data+1+sizeof(fc::ripemd160), (char*)&check, 4 ) == 0;

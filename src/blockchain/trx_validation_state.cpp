@@ -9,7 +9,7 @@
 namespace bts  { namespace blockchain { 
 
 trx_validation_state::trx_validation_state( const signed_transaction& t, blockchain_db* d, bool enf, uint32_t h )
-:trx(t),balance_sheet( asset::count ),db(d),enforce_unspent(enf),ref_head(h)
+:prev_block_id1(0),prev_block_id2(0),trx(t),total_cdd(0),uncounted_cdd(0),balance_sheet( asset::count ),db(d),enforce_unspent(enf),ref_head(h)
 { 
   inputs  = d->fetch_inputs( t.inputs, ref_head );
   if( ref_head == std::numeric_limits<uint32_t>::max()  )
@@ -213,16 +213,16 @@ void trx_validation_state::validate_cover( const trx_output& o )
 { 
    auto cover_claim = o.as<claim_by_cover_output>();
    try {
-   auto payoff_unit = (asset::type)cover_claim.payoff_unit;
+   auto payoff_unit = (asset::type)cover_claim.payoff.unit;
    balance_sheet[(asset::type)o.amount.unit].out += o.amount;
-   balance_sheet[payoff_unit].neg_out += cover_claim.get_payoff_amount();
-   if( balance_sheet[(asset::type)cover_claim.payoff_unit].collat_in != asset() )
+   balance_sheet[payoff_unit].neg_out += cover_claim.payoff;
+   if( balance_sheet[payoff_unit].collat_in != asset() )
    {
       auto req_price =  balance_sheet[payoff_unit].collat_in / balance_sheet[payoff_unit].neg_in;
       // TODO: verify this should be <= instead of >=
-      FC_ASSERT( req_price >= o.amount / cover_claim.get_payoff_amount(), "",
-                 ("req_price",req_price)( "amnt", o.amount )( "payoff", cover_claim.get_payoff_amount())("new_price", 
-                                                                                                               o.amount / cover_claim.get_payoff_amount() ));
+      FC_ASSERT( req_price >= o.amount / cover_claim.payoff, "",
+                 ("req_price",req_price)( "amnt", o.amount )( "payoff", cover_claim.payoff)("new_price", 
+                                                                                                               o.amount / cover_claim.payoff ));
    }
 } FC_RETHROW_EXCEPTIONS( warn, "${cover}", ("cover",cover_claim) ) }
 
@@ -266,7 +266,19 @@ void trx_validation_state::validate_signature( const meta_trx_input& in )
        required_sigs.insert( cbs.owner );
 
        balance_sheet[(asset::type)in.output.amount.unit].in += in.output.amount; //output_bal;
-   
+       if( in.output.amount.unit == asset::bts )
+       {
+          //  only count if trx proof of stake prev == one of the last two blocks
+          if( trx.stake == prev_block_id1 || trx.stake == prev_block_id2 )
+          {
+             total_cdd += in.output.amount.get_rounded_amount() * (ref_head-in.source.block_num);
+          }
+          else
+          {
+             uncounted_cdd += in.output.amount.get_rounded_amount() * (ref_head-in.source.block_num);
+             wlog( "stake ${s} != ${a} || ${b}", ("s",trx.stake)("a",prev_block_id1)("b",prev_block_id2) );
+          }
+       }
    } FC_RETHROW_EXCEPTIONS( warn, "validating signature input ${i}", ("i",in) );
 }
 
@@ -403,9 +415,18 @@ void trx_validation_state::validate_cover( const meta_trx_input& in )
    auto cover_in = in.output.as<claim_by_cover_output>();
     
    balance_sheet[(asset::type)in.output.amount.unit].in += in.output.amount;
-   balance_sheet[(asset::type)cover_in.payoff_unit].neg_in += cover_in.get_payoff_amount();
+   balance_sheet[(asset::type)cover_in.payoff.unit].neg_in += cover_in.payoff;
    // track collateral for payoff unit
-   balance_sheet[(asset::type)cover_in.payoff_unit].collat_in += in.output.amount;
+   balance_sheet[(asset::type)cover_in.payoff.unit].collat_in += in.output.amount;
+
+   if( trx.stake == prev_block_id1 || trx.stake == prev_block_id2 )
+   {
+      total_cdd += in.output.amount.get_rounded_amount() * (ref_head-in.source.block_num);
+   }
+   else
+   {
+      uncounted_cdd += in.output.amount.get_rounded_amount() * (ref_head-in.source.block_num);
+   }
 }
 
 void trx_validation_state::validate_opt( const meta_trx_input& in )

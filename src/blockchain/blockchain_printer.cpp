@@ -43,7 +43,7 @@ namespace bts { namespace blockchain {
           {
              claim_by_cover_output cover = o.as<claim_by_cover_output>();
              ss << "owner:   "<<std::string(cover.owner)<<"<br/>\n";
-             ss << "payoff:  "<<std::string(cover.get_payoff_amount())<<"<br/>\n";
+             ss << "payoff:  "<<std::string(cover.payoff)<<"<br/>\n";
             break;
           }
       }
@@ -176,7 +176,7 @@ namespace bts { namespace blockchain {
      ss << "    <td>" << std::string( b.id() ).substr(0,8)                      <<"</td>\n";
      ss << "    <td>" << std::string( b.prev ).substr(0,8)                      <<"</td>\n";
      ss << "    <td align=right cellpadding=5>" << b.total_shares               <<"</td>\n";
-     ss << "    <td cellpadding=5>" << b.total_coindays_destroyed <<"</td>\n";
+     ss << "    <td cellpadding=5>" << b.total_cdd <<"</td>\n";
      ss << "  </tr>\n";
      ss << "</table>\n";
      ss << "</td></tr>\n";

@@ -73,6 +73,7 @@ namespace bts
    {
       hashtable found;
       std::vector< std::pair<uint32_t,uint32_t> > results;
+      ilog( "seed: ${h}", ("h",head) );
 
       for( uint32_t i = 0; i < MAX_MOMENTUM_NONCE;  )
       {

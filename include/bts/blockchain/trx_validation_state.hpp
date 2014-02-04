@@ -73,6 +73,11 @@ namespace bts { namespace blockchain {
             * capture it by reference later.
             */
            const signed_transaction            trx; // TODO make reference?
+           uint64_t total_cdd;
+           uint64_t uncounted_cdd;
+
+           uint32_t prev_block_id1; // block ids that count for CDD
+           uint32_t prev_block_id2; // block ids that count for CDD
            std::vector<meta_trx_input>         inputs;
                                              
            std::vector<asset_balance>          balance_sheet; // validate 0 sum 

@@ -43,7 +43,7 @@ namespace bts { namespace blockchain {
           {
              claim_by_cover_output cover = o.as<claim_by_cover_output>();
              ss << "owner:   "<<std::string(cover.owner)<<"<br/>\n";
-             ss << "payoff:  "<<std::string(cover.get_payoff_amount())<<"<br/>\n";
+             ss << "payoff:  "<<std::string(cover.payoff)<<"<br/>\n";
             break;
           }
       }

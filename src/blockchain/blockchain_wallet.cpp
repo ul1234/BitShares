@@ -118,10 +118,9 @@ namespace bts { namespace blockchain {
                        if( itr->second.claim_func == claim_by_cover )
                        {
                            auto cbc = itr->second.as<claim_by_cover_output>();
-                           if( cbc.payoff_unit == unit )
+                           if( cbc.payoff.unit == unit )
                            {
-                              asset payoff( cbc.payoff_amount, unit );
-                              total_due += payoff;
+                              total_due += cbc.payoff; 
                               total_collat += itr->second.amount;
                            }
                        }
@@ -143,10 +142,10 @@ namespace bts { namespace blockchain {
                        if( itr->second.claim_func == claim_by_cover )
                        {
                            auto cbc = itr->second.as<claim_by_cover_output>();
-                           if( cbc.payoff_unit == min_amnt.unit )
+                           if( cbc.payoff.unit == min_amnt.unit )
                            {
-                              asset payoff( cbc.payoff_amount, min_amnt.unit );
-                              inputs.insert( std::pair<price,trx_input>( payoff / itr->second.amount, trx_input( _output_index_to_ref[itr->first] )  ) );
+                              //asset payoff( cbc.payoff_amount, min_amnt.unit );
+                              inputs.insert( std::pair<price,trx_input>( cbc.payoff / itr->second.amount, trx_input( _output_index_to_ref[itr->first] )  ) );
 
                            }
                        }
@@ -157,7 +156,7 @@ namespace bts { namespace blockchain {
                    {
                        auto out = get_cover_output( ritr->second.output_ref ); 
                        auto cover_out = out.as<claim_by_cover_output>();
-                       asset payoff( cover_out.payoff_amount, cover_out.payoff_unit );
+                       asset payoff = cover_out.payoff;//( cover_out.payoff_amount, cover_out.payoff_unit );
 
                        total_payoff += payoff;
                        total_collat += out.amount;
@@ -557,7 +556,7 @@ namespace bts { namespace blockchain {
           auto txout = my->get_cover_output( itr->output_ref );
           auto cover_out = txout.as<claim_by_cover_output>();
 
-          asset payoff( cover_out.payoff_amount, cover_out.payoff_unit );
+          asset payoff = cover_out.payoff;//( cover_out.payoff_amount, cover_out.payoff_unit );
 
           wlog( "Payoff ${amnt}  Collateral ${c}", ("amnt",amnt)("c",txout.amount) );
 
@@ -916,13 +915,13 @@ namespace bts { namespace blockchain {
                  std::cerr<<fc::variant(itr->second.claim_func).as_string()<<" ";
 
                  auto cover = itr->second.as<claim_by_cover_output>();
-                 auto payoff = asset(cover.payoff_amount,cover.payoff_unit);
-                 auto payoff_threshold = asset(uint64_t(cover.payoff_amount*double(1.5)*COIN),cover.payoff_unit);
+                 auto payoff = cover.payoff;//asset(cover.payoff_amount,cover.payoff_unit);
+                 auto payoff_threshold = cover.get_call_price( itr->second.amount ); //asset(uint64_t(cover.payoff_amount*double(1.5)*COIN),cover.payoff_unit);
                  std::cerr<< std::string(payoff);
                  std::cerr<< " owner: ";
                  std::cerr<< std::string(itr->second.as<claim_by_cover_output>().owner);
                  // this is the break even price... we actually need to cover at half the price?
-                 std::cerr<< " price: " << std::string(payoff_threshold / itr->second.amount);
+                 std::cerr<< " price: " << std::string(payoff_threshold);
                  std::cerr<<"\n";
                  break;
               }

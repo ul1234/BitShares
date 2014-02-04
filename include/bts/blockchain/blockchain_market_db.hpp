@@ -29,6 +29,16 @@ namespace bts { namespace blockchain {
   };
   bool operator < ( const market_order& a, const market_order& b );
   bool operator == ( const market_order& a, const market_order& b );
+
+  struct margin_call
+  {
+     margin_call( const price& callp, const output_reference& loc ):call_price(callp),location(loc){}
+
+     price            call_price;
+     output_reference location;
+  };
+  bool operator < ( const margin_call& a, const margin_call& b );
+  bool operator == ( const margin_call& a, const margin_call& b );
   
   /**
    *  Manages the current state of the market to enable effecient
@@ -43,11 +53,15 @@ namespace bts { namespace blockchain {
        void open( const fc::path& db_dir );
        std::vector<market_order> get_bids( asset::type quote_unit, asset::type base_unit )const;
        std::vector<market_order> get_asks( asset::type quote_unit, asset::type base_unit )const;
+       std::vector<margin_call>  get_calls( price call_price )const;
+
 
        void insert_bid( const market_order& m );
        void insert_ask( const market_order& m );
        void remove_bid( const market_order& m );
        void remove_ask( const market_order& m );
+       void insert_call( const margin_call& c );
+       void remove_call( const margin_call& c );
 
        /** @pre quote > base  */
        fc::optional<market_order> get_highest_bid( asset::type quote, asset::type base );
@@ -61,3 +75,4 @@ namespace bts { namespace blockchain {
 } }  // bts::blockchain
 
 FC_REFLECT( bts::blockchain::market_order, (base_unit)(quote_unit)(ratio)(location) );
+FC_REFLECT( bts::blockchain::margin_call, (call_price)(location) )

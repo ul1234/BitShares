@@ -143,23 +143,23 @@ namespace bts
        * sufficient to eliminate nearly all false duplicates. */
      for (int pass = 0; pass < 3; pass++) {
         uint32_t shiftby = 0;
-	if (pass == 1) shiftby = 19;
-	if (pass == 2) shiftby = 9;
+        if (pass == 1) shiftby = 19;
+        if (pass == 2) shiftby = 9;
 
-	reset_filter(filter);
-	for (uint32_t i = 0; i < count; i++) {
-	   add_to_filter(filter, hashStore[i] >> shiftby);
-	}
-    
-	uint32_t valid_entries = 0;
+        reset_filter(filter);
+        for (uint32_t i = 0; i < count; i++) {
+           add_to_filter(filter, hashStore[i] >> shiftby);
+        }
+          
+        uint32_t valid_entries = 0;
 
-	for (uint32_t i = 0; i < count; i++) {
-	   if (is_in_filter_twice(filter, hashStore[i] >> shiftby)) {
-	      hashStore[valid_entries] = hashStore[i];
-	      valid_entries++;
-	   }
-	}
-	count = valid_entries;
+        for (uint32_t i = 0; i < count; i++) {
+           if (is_in_filter_twice(filter, hashStore[i] >> shiftby)) {
+              hashStore[valid_entries] = hashStore[i];
+              valid_entries++;
+           }
+        }
+        count = valid_entries;
      }
 
      /* At this point, there are typically 0 - but sometimes 2, 4, or 6 - items
@@ -168,17 +168,17 @@ namespace bts
       * number of items is so small it doesn't matter. */
      for (uint32_t i = 0; i < count; i++) {
         if (hashStore[i] == 0) { continue; }
-	for (uint32_t j = i+1; j < count; j++) {
-	   if ((hashStore[i] & HASH_MASK) == (hashStore[j] & HASH_MASK)) {
-	      uint32_t nonce1 = hashStore[i] >> (64 - MOMENTUM_NONCE_BITS);
-	      uint32_t nonce2 = hashStore[j] >> (64 - MOMENTUM_NONCE_BITS);
-	      if (momentum_verify(head, nonce1, nonce2)) {
-		 /* Collisions can be used in both directions */
-	         results.push_back( std::make_pair( nonce1, nonce2 ) );
-		 results.push_back( std::make_pair( nonce2, nonce1 ) );
-	      }
-	   }
-	}
+        for (uint32_t j = i+1; j < count; j++) {
+           if ((hashStore[i] & HASH_MASK) == (hashStore[j] & HASH_MASK)) {
+              uint32_t nonce1 = hashStore[i] >> (64 - MOMENTUM_NONCE_BITS);
+              uint32_t nonce2 = hashStore[j] >> (64 - MOMENTUM_NONCE_BITS);
+              if (momentum_verify(head, nonce1, nonce2)) {
+           /* Collisions can be used in both directions */
+                 results.push_back( std::make_pair( nonce1, nonce2 ) );
+                 results.push_back( std::make_pair( nonce2, nonce1 ) );
+              }
+			   }
+			   }
      }
    }
 

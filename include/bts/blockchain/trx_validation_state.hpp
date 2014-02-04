@@ -74,6 +74,7 @@ namespace bts { namespace blockchain {
             */
            const signed_transaction            trx; // TODO make reference?
            uint64_t total_cdd;
+           uint64_t uncounted_cdd;
 
            uint32_t prev_block_id1; // block ids that count for CDD
            uint32_t prev_block_id2; // block ids that count for CDD

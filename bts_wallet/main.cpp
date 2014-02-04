@@ -359,6 +359,10 @@ class client : public chain_connection_delegate
          {
             auto blkmsg = m.as<block_message>();
             chain.push_block( blkmsg.block_data );
+            for( auto itr = blkmsg.block_data.trxs.begin(); itr != blkmsg.block_data.trxs.end(); ++itr )
+            {
+               pending.erase( itr->id() );
+            }
             _wallet.set_stake( chain.get_stake() );
             if( _wallet.scan_chain( chain, blkmsg.block_data.block_num ) )
             {
@@ -677,7 +681,7 @@ class client : public chain_connection_delegate
 
       void mine()
       {
-         ilog( "mine" );
+          ilog( "mine" );
           auto new_trxs = chain.match_orders();
           for( auto itr = pending.begin(); itr != pending.end(); ++itr )
           {

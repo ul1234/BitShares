@@ -213,18 +213,19 @@ void trx_validation_state::validate_cover( const trx_output& o )
 { 
    auto cover_claim = o.as<claim_by_cover_output>();
    try {
-   auto payoff_unit = (asset::type)cover_claim.payoff.unit;
-   balance_sheet[(asset::type)o.amount.unit].out += o.amount;
-   balance_sheet[payoff_unit].neg_out += cover_claim.payoff;
-   if( balance_sheet[payoff_unit].collat_in != asset() )
-   {
-      auto req_price =  balance_sheet[payoff_unit].collat_in / balance_sheet[payoff_unit].neg_in;
-      // TODO: verify this should be <= instead of >=
-      FC_ASSERT( req_price >= o.amount / cover_claim.payoff, "",
-                 ("req_price",req_price)( "amnt", o.amount )( "payoff", cover_claim.payoff)("new_price", 
-                                                                                                               o.amount / cover_claim.payoff ));
-   }
-} FC_RETHROW_EXCEPTIONS( warn, "${cover}", ("cover",cover_claim) ) }
+      auto payoff_unit = (asset::type)cover_claim.payoff.unit;
+      balance_sheet[(asset::type)o.amount.unit].out += o.amount;
+      balance_sheet[payoff_unit].neg_out += cover_claim.payoff;
+      if( balance_sheet[payoff_unit].collat_in != asset() )
+      {
+         auto req_price =  balance_sheet[payoff_unit].collat_in / balance_sheet[payoff_unit].neg_in;
+         // TODO: verify this should be <= instead of >=
+         FC_ASSERT( req_price >= o.amount / cover_claim.payoff, "",
+                    ("req_price",req_price)( "amnt", o.amount )( "payoff", cover_claim.payoff)("new_price", 
+                                                                                                                  o.amount / cover_claim.payoff ));
+      }
+   } FC_RETHROW_EXCEPTIONS( warn, "${cover}", ("cover",cover_claim) ) 
+}
 
 void trx_validation_state::validate_opt( const trx_output& o )
 {

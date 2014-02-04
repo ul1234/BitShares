@@ -440,6 +440,7 @@ namespace bts { namespace blockchain {
                   
                   // all of these margin positions must accept the highest bid
                   auto margin_positions = _market_db.get_calls( call_price );
+                  ilog( "\n\nMARGIN POSITIONS:\n${p}\n\n", ("p", margin_positions ) );
 
                   trx_output            working_call;
                   claim_by_cover_output cover;
@@ -471,8 +472,8 @@ namespace bts { namespace blockchain {
                                market_trx.outputs.push_back( trx_output( claim_by_signature_output( cover.owner ), 
                                                              working_call.amount - consumed_margin ) );
 
-                               working_bid.amount -= consumed_margin;
-                               pay_bidder         += consumed_margin * bid_out.ask_price;
+                               working_bid.amount -= consumed_margin * bid_out.ask_price;
+                               pay_bidder         += consumed_margin;
                             }
                             else // we have run out of collateral... there is no change to the short
                             {
@@ -595,11 +596,12 @@ namespace bts { namespace blockchain {
                
 
 
-
+               ilog( "has change ${C}  working_bid ${b}", ("C",has_change)( "b",working_bid ) );
 
                if( has_change && working_bid.amount.get_rounded_amount() > 0 )
                {
                   FC_ASSERT( bid_itr != bids.rend() );
+                  ilog( "collateral_amount ${c}", ("c", collateral_amount ) );
                   if( collateral_amount.get_rounded_amount() > 0 )
                   {
                      market_trx.inputs.push_back( bid_itr->location );
@@ -608,12 +610,17 @@ namespace bts { namespace blockchain {
                   }
                   else if( working_bid.claim_func == claim_by_bid )
                   {
+                     ilog( "pay bidder ${b}", ("b",pay_bidder) );
                      if( pay_bidder.get_rounded_amount() > 0 )
                      {
                         market_trx.inputs.push_back( bid_itr->location );
                         market_trx.outputs.push_back( working_bid );
                         market_trx.outputs.push_back( trx_output( claim_by_signature_output( bid_payout_address ), pay_bidder ) );
                      }
+                  }
+                  else
+                  {
+                     ilog( "\n\n             SOMETHING WENT WRONG                \n\n" );
                   }
                }
               

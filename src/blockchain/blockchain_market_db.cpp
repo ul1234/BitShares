@@ -150,17 +150,20 @@ namespace bts { namespace blockchain {
 
   std::vector<margin_call>  market_db::get_calls( price call_price )const
   {
+     ilog( "get_calls price: ${p}", ("p",call_price) );
      std::vector<margin_call> calls;
 
-     auto order_itr  = my->_calls.lower_bound( margin_call( call_price, output_reference() ) );
+     auto order_itr  = my->_calls.begin();//lower_bound( margin_call( call_price, output_reference() ) );
      while( order_itr.valid() )
      {
         auto call = order_itr.key();
+        ilog( "call ${c}", ("c",call) );
         if( call.call_price.quote_unit != call_price.quote_unit )
            return calls;
         if( call.call_price < call_price )
            return calls;
         calls.push_back(call);
+        ++order_itr;
      }
      return calls;
   }

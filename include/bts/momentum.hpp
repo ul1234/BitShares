@@ -3,10 +3,8 @@
 #include <fc/io/varint.hpp>
 #include <fc/crypto/ripemd160.hpp>
 #include <fc/reflect/reflect.hpp>
-#include <fc/crypto/sha256.hpp>
 
-#define MOMENTUM_NONCE_BITS 26
-#define MAX_MOMENTUM_NONCE  (1<<MOMENTUM_NONCE_BITS)
+#define MAX_MOMENTUM_NONCE  (1<<26)
 
 namespace bts 
 {

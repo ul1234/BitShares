@@ -46,8 +46,14 @@ namespace bts { namespace blockchain {
    bool claim_by_cover_output::operator == ( const claim_by_cover_output& other )const
    {
       return  (other.owner         == owner) &&
-              (other.payoff_unit   == payoff_unit)   &&
-              abs( (int64_t(other.payoff_amount) - int64_t(payoff_amount)) ) <= 1000;
+              (other.payoff.unit   == payoff.unit)   &&
+              (other.payoff.get_rounded_amount() == payoff.get_rounded_amount() );
    }
 
+   price claim_by_cover_output::get_call_price( asset collat )const
+   {
+       collat.amount *= 3;
+       collat.amount /= 4;
+       return payoff / collat;
+   }
 } } // bts::blockchain

@@ -8,6 +8,9 @@ else (WIN32)
 endif(WIN32)
 
 
+add_executable( market_db_test market_db_test.cpp )
+target_link_libraries( market_db_test ${rt_library} ${pthread_library} bshare fc leveldb ${BOOST_LIBRARIES} ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY} ${PLATFORM_SPECIFIC_LIBS} ${rt_library} ${pthread_library} ${CMAKE_DL_LIBS} )
+   
 add_executable( bitshares_test bitshares_test.cpp )
 target_link_libraries( bitshares_test ${rt_library} ${pthread_library} bshare fc leveldb ${BOOST_LIBRARIES} ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY} ${PLATFORM_SPECIFIC_LIBS} ${rt_library} ${pthread_library} ${CMAKE_DL_LIBS} )
 

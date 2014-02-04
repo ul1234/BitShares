@@ -1,8 +1,9 @@
 #include <bts/blockchain/blockchain_market_db.hpp>
 #include <bts/db/level_pod_map.hpp>
 #include <fc/reflect/variant.hpp>
-
 #include <fc/log/logger.hpp>
+
+#include <algorithm>
 
 namespace bts { namespace blockchain {
 
@@ -50,8 +51,8 @@ namespace bts { namespace blockchain {
   {
      if( a.call_price.quote_unit < b.call_price.quote_unit ) return true;
      if( a.call_price.quote_unit > b.call_price.quote_unit ) return false;
-     if( a.call_price.ratio > b.call_price.ratio ) return true;
-     if( a.call_price.ratio < b.call_price.ratio ) return false;
+     if( a.call_price.ratio < b.call_price.ratio ) return true;
+     if( a.call_price.ratio > b.call_price.ratio ) return false;
      return a.location < b.location;
   }
   bool operator == ( const margin_call& a, const margin_call& b )
@@ -149,18 +150,19 @@ namespace bts { namespace blockchain {
      ilog( "get_calls price: ${p}", ("p",call_price) );
      std::vector<margin_call> calls;
 
-     auto order_itr  = my->_calls.begin();//lower_bound( margin_call( call_price, output_reference() ) );
+     auto order_itr  = my->_calls.lower_bound( margin_call( call_price, output_reference() ) );
      while( order_itr.valid() )
      {
         auto call = order_itr.key();
         ilog( "call ${c}", ("c",call) );
         if( call.call_price.quote_unit != call_price.quote_unit )
-           return calls;
+           break;
         if( call.call_price < call_price )
-           return calls;
+           break;
         calls.push_back(call);
         ++order_itr;
      }
+     std::reverse( calls.begin(), calls.end() );
      return calls;
   }
 

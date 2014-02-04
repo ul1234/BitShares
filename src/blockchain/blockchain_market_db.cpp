@@ -48,15 +48,11 @@ namespace bts { namespace blockchain {
 
   bool operator < ( const margin_call& a, const margin_call& b )
   {
-     if( a.call_price.quote_unit == b.call_price.quote_unit )
-     {
-        if( a.call_price == b.call_price )
-        {
-           return a.location < b.location;
-        }
-        return b.call_price < a.call_price; // sort from high to low
-     }
-     return a.call_price.quote_unit < b.call_price.quote_unit;
+     if( a.call_price.quote_unit < b.call_price.quote_unit ) return true;
+     if( a.call_price.quote_unit > b.call_price.quote_unit ) return false;
+     if( a.call_price.ratio > b.call_price.ratio ) return true;
+     if( a.call_price.ratio < b.call_price.ratio ) return false;
+     return a.location < b.location;
   }
   bool operator == ( const margin_call& a, const margin_call& b )
   {

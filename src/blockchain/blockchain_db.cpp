@@ -245,7 +245,7 @@ namespace bts { namespace blockchain {
                      auto long_claim = working_bid.as<claim_by_long_output>();
                      if( long_claim.ask_price < ask_claim.ask_price )
                      {
-                        ilog( "\n\n                                  BID ${BID}  >>>>   ASK ${ASK}\n\n", ("BID",long_claim.ask_price)("ASK",ask_claim.ask_price) );
+                        ilog( "\n\n  BID ${BID}  >>>>   ASK ${ASK}\n\n", ("BID",long_claim.ask_price)("ASK",ask_claim.ask_price) );
                         break; // exit the while loop, no more trades can occur
                      }
                      has_change = true;
@@ -273,7 +273,8 @@ namespace bts { namespace blockchain {
                          loan_amount       += ask_amount_usd;
                          collateral_amount += ask_amount_bts +  ask_amount_usd * long_claim.ask_price;
                          ilog( "bid amount bts ${bid_bts}  - ${pay_asker} * ${price} = ${result}",
-                               ("bid_bts",bid_amount_bts)("pay_asker",pay_asker)("price",long_claim.ask_price)("result",pay_asker*long_claim.ask_price) );
+                               ("bid_bts",bid_amount_bts)("pay_asker",pay_asker)
+                               ("price",long_claim.ask_price)("result",pay_asker*long_claim.ask_price) );
                          bidder_change     = bid_amount_bts - (ask_amount_usd * long_claim.ask_price);
 
                         // ask_change.reset();
@@ -293,7 +294,8 @@ namespace bts { namespace blockchain {
                          loan_amount       += bid_amount_usd;
                          collateral_amount += bid_amount_bts + (bid_amount_usd * ask_claim.ask_price);
                          ilog( "ask_amount_bts ${bid_bts}  - ${loan_amount} * ${price} = ${result}",
-                               ("bid_bts",ask_amount_bts)("loan_amount",loan_amount)("price",ask_claim.ask_price)("result",loan_amount*ask_claim.ask_price) );
+                               ("bid_bts",ask_amount_bts)("loan_amount",loan_amount)
+                               ("price",ask_claim.ask_price)("result",loan_amount*ask_claim.ask_price) );
                          asker_change       = ask_amount_bts - (bid_amount_usd* ask_claim.ask_price);
 
                          working_bid.amount = asset(ULLCONST(0),working_bid.amount.unit);
@@ -432,6 +434,7 @@ namespace bts { namespace blockchain {
                //===================  START MARGIN CALL SECTION ==========================
                if( base == asset::bts && bid_itr != bids.rend())
                {
+                  ilog( "." );
                   price call_price;
                   if( working_bid.claim_func == claim_by_long )
                      call_price = working_bid.as<claim_by_long_output>().ask_price;
@@ -443,141 +446,176 @@ namespace bts { namespace blockchain {
                   ilog( "\n\nMARGIN POSITIONS:\n${p}\n\n", ("p", margin_positions ) );
 
                   trx_output            working_call;
-                  claim_by_cover_output cover;
+                  claim_by_cover_output cover_claim;
 
                   auto call_itr = margin_positions.begin();
                   if( call_itr != margin_positions.end() )
                   {
                      working_call = get_output( call_itr->location );
-                     cover        = working_call.as<claim_by_cover_output>();
+                     cover_claim  = working_call.as<claim_by_cover_output>();
                   }
 
                   while(  call_itr != margin_positions.end() && 
                           bid_itr  != bids.rend()                   )
                   {
-                     has_change = true;
-                     if( working_bid.claim_func == claim_by_bid_output::type )
-                     {
-                        auto bid_out             = working_bid.as<claim_by_bid_output>();
-                        auto max_collat_purchase = working_call.amount * bid_out.ask_price;
-                        bid_payout_address = bid_out.pay_address;
-                        if( working_bid.amount.get_rounded_amount() >= cover.payoff.get_rounded_amount() )
-                        {
-                            // then the bid has enough USD... but is there enough collateral to purchase it
-                            auto consumed_margin     =  cover.payoff * bid_out.ask_price;
-                            if( max_collat_purchase.get_rounded_amount() > working_bid.amount.get_rounded_amount() )
-                            { // we have fully covered the collateral position and can pay off the change
+                      if( working_bid.claim_func == claim_by_long_output::type )
+                      {
+                         auto long_claim = working_bid.as<claim_by_long_output>();
+                         call_price         = long_claim.ask_price;
+                         bid_payout_address = long_claim.pay_address;
 
-                               // TODO: charge a 5% fee..
-                               market_trx.outputs.push_back( trx_output( claim_by_signature_output( cover.owner ), 
-                                                             working_call.amount - consumed_margin ) );
+                         auto bid_usd = working_bid.amount * call_price;
+                         auto payoff  = working_call.amount * call_price;
+                         if( payoff > cover_claim.payoff ) payoff = cover_claim.payoff;
 
-                               working_bid.amount -= consumed_margin * bid_out.ask_price;
-                               pay_bidder         += consumed_margin;
-                            }
-                            else // we have run out of collateral... there is no change to the short
-                            {
-                               working_bid.amount -= max_collat_purchase;
-                               pay_bidder         += max_collat_purchase * bid_out.ask_price;
-                            }
+                         if( payoff > bid_usd )
+                         { // consume the full bid, leaving a balance on the call
+                            loan_amount         += bid_usd;
+                            collateral_amount   += bid_usd * call_price;
+
+                            working_call.amount -= bid_usd * call_price;
+                            cover_claim.payoff  -= bid_usd;
+
+                            // add bid as input, and give the bidder their new cover position
+                            market_trx.inputs.push_back( bid_itr->location );
+                            market_trx.outputs.push_back( 
+                                       trx_output( claim_by_cover_output(loan_amount, bid_payout_address), collateral_amount) );
+                            collateral_amount = asset();
+                            loan_amount = asset( 0.0, quote );
+
+                            // goto next bid
+                            ++bid_itr;
+                            if( bid_itr != bids.rend() ) working_bid = get_output( bid_itr->location );
+                         }
+                         else if( payoff < bid_usd )
+                         { // consume the full call, leave change in the bid
+                            auto cover_amount = payoff * call_price;
+                            working_call.amount -= cover_amount;
+                            loan_amount         += payoff; 
+                            collateral_amount   += cover_amount + cover_amount;
+                            working_bid.amount  -= cover_amount;
 
                             market_trx.inputs.push_back( call_itr->location );
+                            if( working_call.amount.get_rounded_amount() > 0 )
+                            {
+                               // TODO.. charge a 5% fee
+                               market_trx.outputs.push_back( 
+                                                   trx_output( claim_by_signature_output( cover_claim.owner ), working_call.amount ) );
+                            }
                             ++call_itr;
                             if( call_itr != margin_positions.end() )
                             {
                                working_call = get_output( call_itr->location );
-                               cover        = working_call.as<claim_by_cover_output>();
+                               cover_claim  = working_call.as<claim_by_cover_output>();
                             }
-                            continue;
-                        }
-                        else // consume all of the bid, leave margin position as change
-                        {
-                            if( max_collat_purchase >= working_bid.amount )
+                         }
+                         else // payoff == bidusd 
+                         { // consume full call and bid..
+                            auto cover_amount    = bid_usd * call_price;
+                            loan_amount         += bid_usd;
+                            collateral_amount   += cover_amount + cover_amount; // collat from bid+cover
+                            working_call.amount -= cover_amount;
+
+                            market_trx.outputs.push_back( 
+                                       trx_output( claim_by_cover_output( loan_amount, bid_payout_address ), collateral_amount) );
+
+                           
+                            if( working_call.amount.get_rounded_amount() > 0 )
                             {
-                               pay_bidder           += working_bid.amount * bid_out.ask_price;
-                               cover.payoff         -= working_bid.amount;
-                               working_call.amount  -= working_bid.amount * bid_out.ask_price;
-
-                               market_trx.inputs.push_back( bid_itr->location );
-                               market_trx.outputs.push_back( trx_output( claim_by_signature_output( bid_out.pay_address ), 
-                                                                         pay_bidder) );
-
-                               ++bid_itr;
-                               if( bid_itr != bids.rend() ) working_bid = get_output( bid_itr->location );
-                            }
-                            else // we lack sufficient collateral... I guess we only consume part of the bid
-                            {
-                               pay_bidder               += max_collat_purchase * bid_out.ask_price;
-                               working_bid.amount       -= max_collat_purchase;
-                               market_trx.inputs.push_back( call_itr->location );
-                               ++call_itr;
-                               if( call_itr != margin_positions.end() )
-                               {
-                                  working_call = get_output( call_itr->location );
-                                  cover        = working_call.as<claim_by_cover_output>();
-                               }
-                            }
-                        }
-                     }
-                     else  // claim_func == claim_by_long...
-                     {
-                        auto long_claim          = working_bid.as<claim_by_long_output>();
-                        auto max_collat_purchase = working_call.amount * long_claim.ask_price;
-                        auto avail_usd           = working_bid.amount  * long_claim.ask_price;
-                        bid_payout_address = long_claim.pay_address;
-                        if( avail_usd.get_rounded_amount() >= cover.payoff.get_rounded_amount() )
-                        { // then the bid has enough USD... but is there enough collateral to purchase it
-                            if( max_collat_purchase.get_rounded_amount() >= avail_usd.get_rounded_amount() ) 
-                            { // then we have enough collateral to accept the full bid
-                               loan_amount         += avail_usd;
-                               collateral_amount   += working_bid.amount + working_bid.amount;
-                               working_call.amount -= working_bid.amount;
-                               cover.payoff        -= avail_usd;
-
-                               market_trx.inputs.push_back( bid_itr->location );
+                               // TODO.. charge a 5% fee
                                market_trx.outputs.push_back( 
-                                       trx_output( claim_by_cover_output( loan_amount, long_claim.pay_address ), collateral_amount) );
-
-                               loan_amount       = asset(ULLCONST(0),loan_amount.unit);
-                               collateral_amount = asset();
-                               ++bid_itr;
-                               if( bid_itr != bids.rend() ) working_bid = get_output( bid_itr->location );
+                                       trx_output( claim_by_signature_output( cover_claim.owner ), working_call.amount ) );
                             }
-                            else // we don't actually have enough collateral to accept the full bid
+
+                            market_trx.inputs.push_back( call_itr->location );
+                            market_trx.inputs.push_back( bid_itr->location );
+
+                            ++bid_itr;
+                            if( bid_itr != bids.rend() ) working_bid = get_output( bid_itr->location );
+
+                            ++call_itr;
+                            if( call_itr != margin_positions.end() )
                             {
-                               // consume all of the collateral... leaving what is left of the bid
-                               loan_amount        += max_collat_purchase;
-                               collateral_amount  += working_call.amount + working_call.amount;
-                               working_bid.amount -= working_call.amount;
-
-                               ++call_itr;
-                               if( call_itr != margin_positions.end() )
-                               {
-                                  working_call = get_output( call_itr->location );
-                                  cover        = working_call.as<claim_by_cover_output>();
-                               }
+                               working_call = get_output( call_itr->location );
+                               cover_claim  = working_call.as<claim_by_cover_output>();
                             }
-                        }
-                        else // consume all of the margin... 
-                        {
-                           cover.payoff        -= avail_usd;
-                           working_call.amount -= working_bid.amount;
+                         }
+                      }
+                      else // claim by bid
+                      {
+                         auto bid_claim     = working_bid.as<claim_by_bid_output>();
+                         call_price         = bid_claim.ask_price;
+                         bid_payout_address = bid_claim.pay_address;
 
-                           loan_amount              += avail_usd;
-                           working_bid.amount       -= working_bid.amount;
+                         auto bid_usd = working_bid.amount;
+                         auto payoff = working_call.amount * call_price;
+                         if( payoff > cover_claim.payoff ) payoff = cover_claim.payoff;
 
-                           market_trx.inputs.push_back( call_itr->location );
-                           // TODO: charge a 5% fee..
-                           market_trx.outputs.push_back( trx_output( claim_by_signature_output( cover.owner ), 
-                                                                     working_call.amount ) );
-                           ++call_itr;
-                           if( call_itr != margin_positions.end() )
-                           {
-                              working_call = get_output( call_itr->location );
-                              cover        = working_call.as<claim_by_cover_output>();
-                           }
-                        }
-                     }
+                         if( payoff > bid_usd )
+                         { // pay the full bid, leaving change in the cover
+                            working_call.amount -= bid_usd * call_price;
+                            cover_claim.payoff  -= bid_usd;
+                            pay_bidder          += bid_usd * call_price;
+
+                            market_trx.outputs.push_back( 
+                                   trx_output( claim_by_signature_output( bid_payout_address ), pay_bidder ) );
+
+                            // goto next bid
+                            ++bid_itr;
+                            if( bid_itr != bids.rend() ) working_bid = get_output( bid_itr->location );
+                            pay_bidder = asset( 0.0, quote );
+                         }
+                         else if( payoff < bid_usd )
+                         { // pay the full cover, leaving change in the bid
+                            pay_bidder          += payoff * call_price;
+                            working_call.amount -= payoff * call_price;
+
+                            market_trx.inputs.push_back( call_itr->location );
+                            if( working_call.amount.get_rounded_amount() > 0 )
+                            {
+                               // TODO.. charge a 5% fee
+                               market_trx.outputs.push_back( 
+                                                   trx_output( claim_by_signature_output( cover_claim.owner ), working_call.amount ) );
+                            }
+                            ++call_itr;
+                            if( call_itr != margin_positions.end() )
+                            {
+                               working_call = get_output( call_itr->location );
+                               cover_claim  = working_call.as<claim_by_cover_output>();
+                            }
+                         }
+                         else // payoff == bid_usd
+                         { // pay them both... 
+                            working_call.amount -= bid_usd * call_price;
+                            cover_claim.payoff  -= bid_usd;
+                            pay_bidder          += bid_usd * call_price;
+                            working_bid.amount  -= bid_usd; 
+
+                            market_trx.outputs.push_back( 
+                                   trx_output( claim_by_signature_output( bid_payout_address ), pay_bidder ) );
+
+                            if( working_call.amount.get_rounded_amount() > 0 )
+                            {
+                               // TODO... charge a 5% fee
+                               market_trx.outputs.push_back( 
+                                       trx_output( claim_by_signature_output( cover_claim.owner ), working_call.amount ) );
+                            }
+
+                            market_trx.inputs.push_back( call_itr->location );
+                            market_trx.inputs.push_back( bid_itr->location );
+
+                            ++bid_itr;
+                            if( bid_itr != bids.rend() ) working_bid = get_output( bid_itr->location );
+                            pay_bidder = asset( 0.0, quote );
+
+                            ++call_itr;
+                            if( call_itr != margin_positions.end() )
+                            {
+                               working_call = get_output( call_itr->location );
+                               cover_claim  = working_call.as<claim_by_cover_output>();
+                            }
+                         }
+                      }
                   } // loop over margin positions..
 
                   if( margin_positions.end() != call_itr ) // 
@@ -588,7 +626,7 @@ namespace bts { namespace blockchain {
                         // then we have some change in the margin call... apparently there
                         // were not enough bids... 
                         market_trx.inputs.push_back( call_itr->location );
-                        market_trx.outputs.push_back( trx_output( cover,  working_call.amount ) );
+                        market_trx.outputs.push_back( trx_output( cover_claim,  working_call.amount ) );
                      }
                   }
                }
@@ -596,7 +634,7 @@ namespace bts { namespace blockchain {
                
 
 
-               ilog( "has change ${C}  working_bid ${b}", ("C",has_change)( "b",working_bid ) );
+               //ilog( "has change ${C}  working_bid ${b}", ("C",has_change)( "b",working_bid ) );
 
                if( has_change && working_bid.amount.get_rounded_amount() > 0 )
                {

@@ -226,3 +226,5 @@ FC_REFLECT( bts::bitchat::decrypted_message, (msg_type)(data)(sig_time)(from_sig
 FC_REFLECT( bts::bitchat::private_text_message, (msg) )
 FC_REFLECT( bts::bitchat::private_email_message, (from_keyhotee_id)(to_list)(cc_list)(subject)(body)(attachments)(bcc_list) )
 FC_REFLECT( bts::bitchat::private_status_message, (status)(status_message) )
+FC_REFLECT( bts::bitchat::private_contact_request_message, (from_name)(greeting_message)(from_channel) )
+

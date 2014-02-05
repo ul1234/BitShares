@@ -689,11 +689,18 @@ class client : public chain_connection_delegate
           }
           auto block_template = chain.generate_next_block( new_trxs );
           std::cout<<"block template\n" << fc::json::to_pretty_string(block_template)<<"\n";
+          auto req = block_template.get_required_difficulty( chain.current_difficulty(), chain.available_coindays() );
           if( block_template.trxs.size() == 0 )
           {
              std::cerr<<"no transactions to mine\n";
              return;
           }
+          if( req > block_template.next_difficulty*2 )
+          {
+             std::cerr<<"not enough coindays to mine block"; 
+             return;
+          }
+          block_template.next_fee = block_header::calculate_next_fee( chain.current_fee(), block_template.block_size() );
           while( true )
           {
               block_template.timestamp = fc::time_point::now();

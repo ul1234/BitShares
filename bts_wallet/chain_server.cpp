@@ -35,6 +35,7 @@ bts::blockchain::trx_block create_test_genesis_block()
    b.block_num    = 0;
    b.total_shares = 100*COIN;
    b.timestamp    = fc::time_point::from_iso_string("20131201T054434");
+   b.next_fee     = bts::blockchain::block_header::min_fee();
 
    bts::blockchain::signed_transaction coinbase;
    coinbase.version = 0;

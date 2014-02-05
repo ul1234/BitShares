@@ -95,6 +95,19 @@ namespace bts { namespace blockchain  {
      return bts::difficulty(id());
   }
 
+  uint64_t block_header::min_fee()
+  {
+     return (4000000*COIN/200)/144*365*512*1024;
+  }
+
+  uint64_t block_header::calculate_next_fee( uint64_t prev_fee, uint64_t block_size )
+  {
+     // 0.5% of 4 Million coins divided among 144 blocks per day for 365 blocks per year at 512KB per block
+     // yields the min fee per byte.  
+     uint64_t next_fee_base = block_size * prev_fee / (512*1024);
+     uint64_t next_fee = (99*prev_fee + next_fee_base) / 100;
+     return std::max<uint64_t>(next_fee,min_fee());
+  }
 
   bool    block_header::validate_work()const
   {
@@ -104,6 +117,12 @@ namespace bts { namespace blockchain  {
      auto tmp_id = tmp.id();
      auto seed = fc::sha256::hash( (char*)&tmp_id, sizeof(tmp_id) );
      return momentum_verify( seed, noncea, nonceb );
+  }
+  size_t trx_block::block_size()const
+  {
+     fc::datastream<size_t> ds;
+     fc::raw::pack( ds, *this );
+     return ds.tellp();
   }
 
   /**

@@ -127,6 +127,7 @@ struct signed_transaction : public transaction
     std::unordered_set<address>      get_signed_addresses()const;
     transaction_id_type              id()const;
     void                             sign( const fc::ecc::private_key& k );
+    size_t                           size()const;
 
     std::set<fc::ecc::compact_signature> sigs;
 };

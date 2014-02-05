@@ -166,6 +166,7 @@ namespace bts { namespace blockchain {
           uint64_t      get_stake2(); // head - 2 
           asset         get_fee_rate()const;
           uint64_t      current_difficulty()const;
+          uint64_t      current_fee()const;
           uint64_t      available_coindays()const;
 
          /**
@@ -178,8 +179,8 @@ namespace bts { namespace blockchain {
           *
           *  @throw exception if trx can not be applied to the current chain state.
           */
-         trx_eval   evaluate_signed_transaction( const signed_transaction& trx );       
-         trx_eval   evaluate_signed_transactions( const std::vector<signed_transaction>& trxs );
+         trx_eval   evaluate_signed_transaction( const signed_transaction& trx, bool ignore_fees = false );       
+         trx_eval   evaluate_signed_transactions( const std::vector<signed_transaction>& trxs, uint64_t ignore_first_n = 0 );
 
          std::vector<signed_transaction> match_orders();
          trx_block  generate_next_block( const std::vector<signed_transaction>& trx );

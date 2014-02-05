@@ -24,20 +24,26 @@ namespace bts { namespace blockchain {
        return r;
    }
 
-   uint160                                 signed_transaction::id()const
+   uint160 signed_transaction::id()const
    {
       fc::sha512::encoder enc;
       fc::raw::pack( enc, *this );
       return small_hash( enc.result() );
    }
 
-   void                                    signed_transaction::sign( const fc::ecc::private_key& k )
+   void    signed_transaction::sign( const fc::ecc::private_key& k )
    {
     try {
       sigs.insert( k.sign_compact( digest() ) );  
      } FC_RETHROW_EXCEPTIONS( warn, "error signing transaction", ("trx", *this ) );
    }
 
+   size_t signed_transaction::size()const
+   {
+      fc::datastream<size_t> ds;
+      fc::raw::pack(ds,*this);
+      return ds.tellp();
+   }
 
 } }
 namespace fc {

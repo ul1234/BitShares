@@ -854,7 +854,7 @@ namespace bts { namespace blockchain {
      *
      *  @throw exception if trx can not be applied to the current chain state.
      */
-    trx_eval blockchain_db::evaluate_signed_transaction( const signed_transaction& trx )       
+    trx_eval blockchain_db::evaluate_signed_transaction( const signed_transaction& trx, bool ignore_fees  )       
     {
        try {
            FC_ASSERT( trx.inputs.size() || trx.outputs.size() );
@@ -880,7 +880,7 @@ namespace bts { namespace blockchain {
               // all transactions must pay at least some fee 
               if( vstate.balance_sheet[asset::bts].out >= vstate.balance_sheet[asset::bts].in )
               {
-                 // TODO: verify minimum fee
+                
                  FC_ASSERT( vstate.balance_sheet[asset::bts].out <= vstate.balance_sheet[asset::bts].in, 
                             "All transactions must pay some fee",
                  ("out", vstate.balance_sheet[asset::bts].out)("in",vstate.balance_sheet[asset::bts].in )
@@ -889,6 +889,10 @@ namespace bts { namespace blockchain {
               else
               {
                  e.fees = vstate.balance_sheet[asset::bts].in - vstate.balance_sheet[asset::bts].out;
+                 if( !ignore_fees )
+                 {
+                    FC_ASSERT( e.fees.get_rounded_amount() >= current_fee() * trx.size() );
+                 }
               }
            }
            e.total_spent += vstate.balance_sheet[asset::bts].in.get_rounded_amount() + vstate.balance_sheet[asset::bts].collat_in.get_rounded_amount();
@@ -900,13 +904,15 @@ namespace bts { namespace blockchain {
 
 
 
-    trx_eval blockchain_db::evaluate_signed_transactions( const std::vector<signed_transaction>& trxs )
+    trx_eval blockchain_db::evaluate_signed_transactions( const std::vector<signed_transaction>& trxs, uint64_t ignore_first_n_fees )
     {
       try {
         trx_eval total_eval;
-        for( auto itr = trxs.begin(); itr != trxs.end(); ++itr )
+        for( uint32_t i = 0; i < trxs.size(); ++i )
         {
-            total_eval += evaluate_signed_transaction( *itr );
+            // ignore fees for the market trxs and for the mining transaction
+            total_eval += evaluate_signed_transaction( trxs[i], 
+                                 (i == trxs.size()-1) || (i < ignore_first_n_fees) );
         }
         ilog( "summary: ${totals}", ("totals",total_eval) );
         return total_eval;
@@ -941,6 +947,8 @@ namespace bts { namespace blockchain {
         FC_ASSERT( b.prev         == my->head_block_id                                         );
         FC_ASSERT( b.trx_mroot    == b.calculate_merkle_root()                                 );
         FC_ASSERT( b.timestamp    < (fc::time_point::now() + fc::seconds(60))                  );
+        FC_ASSERT( b.next_fee     == b.calculate_next_fee( current_fee(), b.block_size() )     );
+
         if( b.block_num >= 1 )
         {
            FC_ASSERT( b.timestamp    > fc::time_point(my->head_block.timestamp) + fc::seconds(30) );
@@ -964,7 +972,7 @@ namespace bts { namespace blockchain {
         }
 
         // evaluate all trx and sum the results
-        trx_eval total_eval = evaluate_signed_transactions( b.trxs );
+        trx_eval total_eval = evaluate_signed_transactions( b.trxs, matched.size() );
         
         wlog( "total_fees: ${tf}", ("tf", total_eval.fees ) );
 
@@ -1033,12 +1041,12 @@ namespace bts { namespace blockchain {
                 ilog( "eval: ${eval}", ("eval",s.eval) );
 
                // TODO: enforce fees
-               // if( s.eval.fees.amount == fc::uint128_t(0) )
-               // {
-               //   wlog( "ignoring transaction ${trx} because it doesn't pay fees\n\n state: ${s}", 
-               //         ("trx",trxs[i])("s",s.eval) );
-               //   continue;
-               // }
+                if( s.eval.fees.get_rounded_amount() < current_fee() * in_trxs[i].size() )
+                {
+                  wlog( "ignoring transaction ${trx} because it doesn't pay fees\n\n state: ${s}", 
+                        ("trx",trxs[i])("s",s.eval) );
+                  continue;
+                }
                 s.trx_idx = i + trxs.size(); // market trx will go first...
                 stats.push_back( s );
             } 
@@ -1226,6 +1234,10 @@ namespace bts { namespace blockchain {
     uint64_t blockchain_db::current_difficulty()const
     {
        return my->head_block.next_difficulty;
+    }
+    uint64_t blockchain_db::current_fee()const
+    {
+       return my->head_block.next_fee;
     }
     uint64_t blockchain_db::available_coindays()const
     {

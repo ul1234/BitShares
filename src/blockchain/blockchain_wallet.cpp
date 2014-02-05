@@ -492,6 +492,12 @@ namespace bts { namespace blockchain {
        return trx;
    } FC_RETHROW_EXCEPTIONS( warn, "${amnt} @ ${price}", ("amnt",borrow_amnt)("price",ratio) ) }
 
+
+   /******************************************************************
+    *
+    *    CANCEL BID
+    *
+    *****************************************************************/
    signed_transaction    wallet::cancel_bid( const output_reference& bid )
    { try {
        auto bid_idx_itr = my->_output_ref_to_index.find(bid);
@@ -506,18 +512,44 @@ namespace bts { namespace blockchain {
        if( bid_out_itr->second.claim_func == claim_by_bid )
        {
           auto bid_out = bid_out_itr->second.as<claim_by_bid_output>();
-          trx.outputs.push_back( trx_output( claim_by_signature_output( bid_out.pay_address ), 
-                                             bid_out_itr->second.amount ) );
+          asset fee( my->_current_fee_rate * 500 );//, asset::bts );
+          if( bid_out_itr->second.amount.unit == fee.unit )
+          {
+             if( fee < bid_out_itr->second.amount )
+             {
+                trx.outputs.push_back( trx_output( claim_by_signature_output( bid_out.pay_address ), 
+                                                   bid_out_itr->second.amount - fee ) );
+             }
+          }
+          else
+          {
+             // collect inputs for fee here
+             asset  fee_in;
+             fee = fee + fee; // double the fee just to be sure 
+             auto fee_inputs = my->collect_inputs( fee, fee_in, req_sigs );
+             trx.outputs.push_back( trx_output( claim_by_signature_output( bid_out.pay_address ), 
+                                                   fee_in - fee ) );
+
+             trx.outputs.push_back( trx_output( claim_by_signature_output( bid_out.pay_address ), 
+                                                   bid_out_itr->second.amount ) );
+          }
           req_sigs.insert( bid_out.pay_address);
        }
        else if( bid_out_itr->second.claim_func == claim_by_long )
        {
           auto bid_out = bid_out_itr->second.as<claim_by_long_output>();
-          trx.outputs.push_back( trx_output( claim_by_signature_output( bid_out.pay_address ), 
-                                             bid_out_itr->second.amount ) );
+
+          // subtract standard fee from amount..
+          // TODO: assuming 500 is greater than the size of this transaction, over estimate..
+          // we may be able to reduce this 
+          asset fee( my->_current_fee_rate * 500);//, asset::bts );
+          if( bid_out_itr->second.amount > fee )
+          {
+             trx.outputs.push_back( trx_output( claim_by_signature_output( bid_out.pay_address ), 
+                                                bid_out_itr->second.amount - fee ) );
+          }
           req_sigs.insert( bid_out.pay_address);
        }
-       // TODO: collect fee for this transaction
        
 
        my->sign_transaction( trx, req_sigs );
@@ -580,13 +612,17 @@ namespace bts { namespace blockchain {
               wlog( "Leftover Debt  ${price}", ("price",price) );
 
               freed_collateral += txout.amount - leftover_collateral; //remaining * price;
-             // freed_collateral.amount *= 9; // -= asset(COIN / 1000,asset::bts); // TODO: this is a hack to fix rounding errors
 
-              if( leftover_debt.amount.high_bits() > 2 )
+              if( leftover_debt.get_rounded_amount() )
               {
-                 freed_collateral.amount *= 3; // -= asset(COIN / 1000,asset::bts); // TODO: this is a hack to fix rounding errors
-                 freed_collateral.amount /= 4; // -= asset(COIN / 1000,asset::bts); // TODO: this is a hack to fix rounding errors
-                 trx.outputs.push_back( trx_output( claim_by_cover_output( leftover_debt, cover_out.owner ), collat_in - freed_collateral ) );
+                 freed_collateral.amount *= 7; // always increase margin when doing a cover...
+                 freed_collateral.amount /= 8; // always increase margin when doing a cover...
+                 if( freed_collateral > collat_in ) // cannot free more than we have to start
+                 {
+                     freed_collateral = asset(0.0,asset::bts);
+                 }
+                 trx.outputs.push_back( trx_output( claim_by_cover_output( leftover_debt, cover_out.owner ), 
+                                                    collat_in - freed_collateral ) );
               }
               break;
           }
@@ -595,14 +631,22 @@ namespace bts { namespace blockchain {
 
        const fc::uint128_t zero(0);
 
-       if( freed_collateral.amount != zero )
+       if( freed_collateral.get_rounded_amount() != 0 )
           trx.outputs.push_back( trx_output( claim_by_signature_output( change_address ), freed_collateral ) );
-       if( change.amount != zero )
+       if( change.get_rounded_amount() != 0 )
           trx.outputs.push_back( trx_output( claim_by_signature_output( change_address ), change) );
 
-       // TODO: calculate fees... apply them... 
-
        ilog( "req sigs ${sigs}", ("sigs",req_sigs) );
+       my->sign_transaction( trx, req_sigs );
+       auto fees_due = my->_current_fee_rate * trx.size() * 2;
+       trx.sigs.clear();
+
+       // pay fees..
+       asset total_fee_in;
+       auto extra_in = my->collect_inputs( fees_due, total_fee_in, req_sigs );
+       trx.inputs.insert( trx.inputs.end(), extra_in.begin(), extra_in.end() );
+       trx.outputs.push_back( trx_output( claim_by_signature_output( change_address ), total_fee_in - fees_due ) );
+
        my->sign_transaction( trx, req_sigs );
        return trx;
    } FC_RETHROW_EXCEPTIONS( warn, "${asset}", ("asset",amnt) ) }
@@ -629,8 +673,21 @@ namespace bts { namespace blockchain {
        trx.outputs.push_back( trx_output( claim_by_cover_output( cover_in, change_address ), collat_in + collateral_amount ) );
        trx.outputs.push_back( trx_output( claim_by_signature_output( change_address ), change ) );
 
-       // TODO: apply fees 
+       my->sign_transaction( trx, req_sigs );
+       auto trx_fees = my->_current_fee_rate * trx.size();
+       trx.outputs.clear();
 
+       if( change > trx_fees )
+       {
+          trx.outputs.push_back( trx_output( claim_by_signature_output( change_address ), change - trx_fees ) );
+       }
+       else
+       {
+          trx.outputs.push_back( trx_output( claim_by_cover_output( cover_in, change_address ), 
+                                             collat_in + collateral_amount - trx_fees) );
+       }
+
+       trx.sigs.clear();
        my->sign_transaction( trx, req_sigs );
        return trx;
    } FC_RETHROW_EXCEPTIONS( warn, "additional collateral: ${c} for ${u}", ("c",collateral_amount)("u",u) ) }

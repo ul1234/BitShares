@@ -12,6 +12,7 @@
 #include <fc/thread/thread.hpp>
 #include <fc/thread/future.hpp>
 #include <fc/io/raw.hpp>
+#include <fc/io/json.hpp>
 #include <fc/log/logger.hpp>
 
 #include <iostream>
@@ -50,6 +51,7 @@ bts::blockchain::trx_block create_test_genesis_block()
    b.trxs.emplace_back( std::move(coinbase) );
    b.trx_mroot   = b.calculate_merkle_root();
 
+   ilog( "block: \n${b}", ("b", fc::json::to_pretty_string(b) ) );
    return b;
 }
 

@@ -891,7 +891,7 @@ namespace bts { namespace blockchain {
                  e.fees = vstate.balance_sheet[asset::bts].in - vstate.balance_sheet[asset::bts].out;
                  if( !ignore_fees )
                  {
-                    FC_ASSERT( e.fees.get_rounded_amount() >= current_fee() * trx.size() );
+                    FC_ASSERT( e.fees.get_rounded_amount() >= (get_fee_rate() * trx.size()).get_rounded_amount() );
                  }
               }
            }
@@ -947,7 +947,7 @@ namespace bts { namespace blockchain {
         FC_ASSERT( b.prev         == my->head_block_id                                         );
         FC_ASSERT( b.trx_mroot    == b.calculate_merkle_root()                                 );
         FC_ASSERT( b.timestamp    < (fc::time_point::now() + fc::seconds(60))                  );
-        FC_ASSERT( b.next_fee     == b.calculate_next_fee( current_fee(), b.block_size() )     );
+        FC_ASSERT( b.next_fee     == b.calculate_next_fee( get_fee_rate().get_rounded_amount(), b.block_size() )     );
 
         if( b.block_num >= 1 )
         {
@@ -1026,10 +1026,12 @@ namespace bts { namespace blockchain {
 
          std::vector<trx_stat>  stats;
          stats.reserve(in_trxs.size());
+         ilog( "." );
          for( uint32_t i = 0; i < in_trxs.size(); ++i )
          {
             ilog( "trx: ${t} signed by ${s}", ( "t",in_trxs[i])("s",in_trxs[i].get_signed_addresses() ) );
          }
+         ilog( "." );
          
          // filter out all trx that generate coins from nothing or don't pay fees
          for( uint32_t i = 0; i < in_trxs.size(); ++i )
@@ -1041,10 +1043,10 @@ namespace bts { namespace blockchain {
                 ilog( "eval: ${eval}", ("eval",s.eval) );
 
                // TODO: enforce fees
-                if( s.eval.fees.get_rounded_amount() < current_fee() * in_trxs[i].size() )
+                if( s.eval.fees.get_rounded_amount() < (get_fee_rate() * in_trxs[i].size()).get_rounded_amount() )
                 {
-                  wlog( "ignoring transaction ${trx} because it doesn't pay fees\n\n state: ${s}", 
-                        ("trx",trxs[i])("s",s.eval) );
+                  wlog( "ignoring transaction ${trx} because it doesn't pay minimum fee ${f}\n\n state: ${s}", 
+                        ("trx",in_trxs[i])("s",s.eval)("f", get_fee_rate()*in_trxs[i].size()) );
                   continue;
                 }
                 s.trx_idx = i + trxs.size(); // market trx will go first...
@@ -1055,6 +1057,7 @@ namespace bts { namespace blockchain {
                wlog( "unable to use trx ${t}\n ${e}", ("t", in_trxs[i] )("e",e.to_detail_string()) );
             }
          }
+         ilog( "." );
 
          // order the trx by fees (don't sort the market orders which)
          std::sort( stats.begin(), stats.end() ); 
@@ -1062,6 +1065,7 @@ namespace bts { namespace blockchain {
          {
            ilog( "sort ${i} => ${n}", ("i", i)("n",stats[i]) );
          }
+         ilog( "." );
 
          trxs.insert( trxs.end(), in_trxs.begin(), in_trxs.end() );
 
@@ -1074,6 +1078,7 @@ namespace bts { namespace blockchain {
          uint64_t invalid_cdd = 0;
          uint64_t total_spent  = 0;
 
+         ilog( "." );
          std::unordered_set<output_reference> consumed_outputs;
          for( size_t i = 0; i < stats.size(); ++i )
          {
@@ -1111,6 +1116,7 @@ namespace bts { namespace blockchain {
                total_spent  += stats[i].eval.total_spent;
             }
          }
+         ilog( "." );
 
          // at this point we have a list of trxs to include in the block that is sorted by
          // fee and has a set of unique inputs that have all been validated against the
@@ -1151,10 +1157,10 @@ namespace bts { namespace blockchain {
              new_blk.next_difficulty = (cur_tar * 300 /* 300 sec per block */) / avg_sec_per_block;
          }
          new_blk.total_cdd                 = total_cdd; 
+
          new_blk.avail_coindays            = my->head_block.avail_coindays 
                                              - total_cdd 
                                              + my->head_block.total_shares - total_spent
-                                             - total_fees.get_rounded_amount()
                                              - invalid_cdd;
 
          new_blk.trx_mroot = new_blk.calculate_merkle_root();
@@ -1227,21 +1233,19 @@ namespace bts { namespace blockchain {
        if( head_block_num() == uint32_t(-1) ) return 0;
        return fetch_block( head_block_num() - 1 ).id()._hash[0];
     }
-    asset    blockchain_db::get_fee_rate()const
-    {
-       return asset(static_cast<uint64_t>(1000ull), asset::bts);
-    }
     uint64_t blockchain_db::current_difficulty()const
     {
        return my->head_block.next_difficulty;
     }
-    uint64_t blockchain_db::current_fee()const
-    {
-       return my->head_block.next_fee;
-    }
     uint64_t blockchain_db::available_coindays()const
     {
        return my->head_block.avail_coindays;
+    }
+    asset blockchain_db::get_fee_rate()const
+    {
+       ilog( "next fee: ${f}", ("f",my->head_block.next_fee) );
+       ilog( "next fee: ${f}", ("f",asset( uint64_t(my->head_block.next_fee), asset::bts )) );
+       return asset( uint64_t(my->head_block.next_fee), asset::bts );
     }
 
 

@@ -307,6 +307,7 @@ namespace bts { namespace blockchain {
 
        uint64_t trx_bytes = fc::raw::pack( trx ).size();
        asset    fee( my->_current_fee_rate * trx_bytes );
+       ilog( "required fee ${f}", ( "f",fee ) );
 
        if( amnt.unit == asset::bts )
        {

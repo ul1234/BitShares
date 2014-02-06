@@ -1,3 +1,5 @@
+#include <unordered_map>
+#include <fc/crypto/sha224.hpp>
 #include <bts/bitname/bitname_db.hpp>
 #include <bts/difficulty.hpp>
 #include <bts/blockchain/blockchain_time_keeper.hpp>

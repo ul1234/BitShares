@@ -364,6 +364,7 @@ class client : public chain_connection_delegate
                pending.erase( itr->id() );
             }
             _wallet.set_stake( chain.get_stake() );
+            _wallet.set_fee_rate( chain.get_fee_rate() );
             if( _wallet.scan_chain( chain, blkmsg.block_data.block_num ) )
             {
                 std::cout<<"new transactions received\n";
@@ -404,6 +405,7 @@ class client : public chain_connection_delegate
           if( chain.head_block_num() != uint32_t(-1) )
              _wallet.scan_chain( chain );
           _wallet.set_stake( chain.get_stake() );
+          _wallet.set_fee_rate( chain.get_fee_rate() );
 
           // load config, connect to server, and start subscribing to blocks...
           //sim_loop_complete = fc::async( [this]() { server_sim_loop(); } );
@@ -682,7 +684,7 @@ class client : public chain_connection_delegate
       void mine()
       {
           ilog( "mine" );
-          auto new_trxs = chain.match_orders();
+          std::vector<bts::blockchain::signed_transaction> new_trxs;
           for( auto itr = pending.begin(); itr != pending.end(); ++itr )
           {
              new_trxs.push_back(itr->second);
@@ -700,7 +702,8 @@ class client : public chain_connection_delegate
              std::cerr<<"not enough coindays to mine block"; 
              return;
           }
-          block_template.next_fee = block_header::calculate_next_fee( chain.current_fee(), block_template.block_size() );
+          block_template.next_fee = block_header::calculate_next_fee( chain.get_fee_rate().get_rounded_amount(), 
+                                                                      block_template.block_size() );
           while( true )
           {
               block_template.timestamp = fc::time_point::now();

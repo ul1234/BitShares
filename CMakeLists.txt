@@ -160,9 +160,9 @@ set( sources
 
      src/rpc/rpc_server.cpp
 
-     src/unity/node.cpp
-     src/unity/server.cpp
-     src/unity/connection.cpp
+#  src/unity/node.cpp
+#     src/unity/server.cpp
+#     src/unity/connection.cpp
 
      src/application.cpp
      src/difficulty.cpp 

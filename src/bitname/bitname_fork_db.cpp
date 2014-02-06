@@ -1,3 +1,5 @@
+#include <unordered_map>
+#include <fc/crypto/sha224.hpp>
 #include <bts/bitname/bitname_fork_db.hpp>
 #include <bts/db/level_pod_map.hpp>
 #include <bts/difficulty.hpp>
@@ -6,7 +8,6 @@
 
 #include <algorithm>
 
-#include <unordered_set>
 
 #include <fc/log/logger.hpp>
 

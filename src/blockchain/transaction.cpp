@@ -1,3 +1,4 @@
+#include <bts/address.hpp>
 #include <bts/blockchain/transaction.hpp>
 #include <fc/reflect/variant.hpp>
 #include <fc/io/raw.hpp>
@@ -13,7 +14,7 @@ namespace bts { namespace blockchain {
       return enc.result();
    }
 
-   std::unordered_set<address>             signed_transaction::get_signed_addresses()const
+   std::unordered_set<bts::address> signed_transaction::get_signed_addresses()const
    {
        auto dig = digest(); 
        std::unordered_set<address> r;

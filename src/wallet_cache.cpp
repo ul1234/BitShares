@@ -1,3 +1,4 @@
+#include <bts/blockchain/output_reference.hpp>
 #include <bts/wallet_cache.hpp>
 #include <bts/blockchain/blockchain_db.hpp>
 #include <bts/db/level_map.hpp>

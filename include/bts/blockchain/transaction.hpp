@@ -1,41 +1,18 @@
 #pragma once
+#include <bts/blockchain/output_reference.hpp>
+#include <bts/address.hpp>
 #include <bts/blockchain/asset.hpp>
 #include <bts/blockchain/outputs.hpp>
 #include <bts/units.hpp>
-#include <bts/address.hpp>
 #include <bts/proof_of_work.hpp>
 #include <fc/crypto/elliptic.hpp>
 #include <fc/crypto/sha224.hpp>
 #include <fc/io/varint.hpp>
 #include <fc/exception/exception.hpp>
 
+
 namespace bts { namespace blockchain {
 
-/**
- *  A reference to a transaction and output index.
- */
-struct output_reference
-{
-  output_reference():output_idx(0){}
-  output_reference( const uint160& trx, uint8_t idx )
-  :trx_hash(trx),output_idx(idx){}
-  uint160  trx_hash;   // the hash of a transaction, TODO: switch to trx_id_type typedef rather than uint160 directly
-  uint8_t  output_idx; // the output index in the transaction trx_hash
-  
-  friend bool operator==( const output_reference& a, const output_reference& b )
-  {
-     return a.trx_hash == b.trx_hash && a.output_idx == b.output_idx;
-  }
-  friend bool operator!=( const output_reference& a, const output_reference& b )
-  {
-     return !(a==b);
-  }
-  friend bool operator < ( const output_reference& a, const output_reference& b )
-  {
-     return a.trx_hash == b.trx_hash ? a.output_idx < b.output_idx : a.trx_hash < b.trx_hash;
-  }
-};
-//static_assert( sizeof(output_reference) == (sizeof(uint160)+1), "output_reference should pack tightly" );
 
 /**
  *  Defines the source of an input used 
@@ -139,21 +116,6 @@ namespace fc {
    void from_variant( const variant& var,  bts::blockchain::trx_output& vo );
 };
 
-namespace std {
-  /**
-   *  This is implemented to facilitate generation of unique
-   *  sets of inputs.
-   */
-  template<>
-  struct hash<bts::blockchain::output_reference>
-  {
-     size_t operator()( const bts::blockchain::output_reference& e )const
-     {
-        return fc::city_hash64( (char*)&e.trx_hash, sizeof(e.trx_hash) )^e.output_idx;
-     }
-  };
-
-} // std
 
 FC_REFLECT( bts::blockchain::output_reference, (trx_hash)(output_idx) )
 FC_REFLECT( bts::blockchain::trx_input, (output_ref)(input_data) )

@@ -4,7 +4,7 @@ if (WIN32)
 else (WIN32)
   set( PLATFORM_SPECIFIC_LIBS )
 
-  add_subdirectory( unity )
+#  add_subdirectory( unity )
 endif(WIN32)
 
 

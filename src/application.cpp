@@ -221,31 +221,32 @@ namespace bts {
 
     _server = std::make_shared<bts::network::server>();
 
-    try
-    {
-      ilog("calling get_external_ip");
-      auto ext_ip = bts::network::get_external_ip();
-      ilog( "external IP ${ip}", ("ip",ext_ip) );
-      if( cfg.enable_upnp )
-      {
-        ilog("enable_upnp");
-        _upnp.map_port( cfg.network_port );
-        _server->set_external_ip( _upnp.external_ip() );
-      }
-      else
-      {
-        ilog("set_external_ip");
-        _server->set_external_ip( ext_ip );
-      }
-    }
-    catch (fc::exception e)
-    {
-      elog("Failed to connect to external IP address: ${e}", ("e",e.to_detail_string()));
-    }
-    catch (...)
-    {
-      elog("unrecognized exception while setting external ip, but we're ignoring it");
-    }
+////// issue no #280  sometimes startup hangs:: it happens at connect_to of get_external_ip
+//    try
+//    {
+//      ilog("calling get_external_ip");
+//      auto ext_ip = bts::network::get_external_ip();
+//      ilog( "external IP ${ip}", ("ip",ext_ip) );
+//      if( cfg.enable_upnp )
+//      {
+//        ilog("enable_upnp");
+//        _upnp.map_port( cfg.network_port );
+//        _server->set_external_ip( _upnp.external_ip() );
+//      }
+//      else
+//      {
+//        ilog("set_external_ip");
+//        _server->set_external_ip( ext_ip );
+//      }
+//    }
+//    catch (fc::exception e)
+//    {
+//      elog("Failed to connect to external IP address: ${e}", ("e",e.to_detail_string()));
+//    }
+//    catch (...)
+//    {
+//      elog("unrecognized exception while setting external ip, but we're ignoring it");
+//    }
 
     ilog("configuring server");
     bts::network::server::config server_cfg;

@@ -1,3 +1,4 @@
+#include <fc/crypto/ripemd160.hpp>
 #include "chain_server.hpp" 
 #include "chain_connection.hpp"
 #include "chain_messages.hpp"

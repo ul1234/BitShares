@@ -26,6 +26,9 @@ endif(WIN32)
 #add_executable( electrum_wallet_tests electrum_wallet_tests.cpp )
 #target_link_libraries( electrum_wallet_tests bshare fc ${BOOST_LIBRARIES} ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY} ${PLATFORM_SPECIFIC_LIBS} ${rt_library} ${pthread_library} ${CMAKE_DL_LIBS} )
 
+#add_executable( multibit_wallet_tests multibit_wallet_tests.cpp )
+#target_link_libraries( multibit_wallet_tests bshare fc ${BOOST_LIBRARIES} ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY} ${PLATFORM_SPECIFIC_LIBS} ${rt_library} ${pthread_library} ${CMAKE_DL_LIBS} )
+
 #add_executable( timekeeper timekeeper.cpp )
 #target_link_libraries( timekeeper bshare fc ${BOOST_LIBRARIES}  ${PLATFORM_SPECIFIC_LIBS} ${rt_library} ${pthread_library} ${CMAKE_DL_LIBS} )
 

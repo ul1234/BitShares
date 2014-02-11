@@ -215,8 +215,7 @@ struct claim_by_opt_execute_output
 
    address             optionor; // who to pay for this option (also who may cancel this offer)
    fc::time_point_sec  expire_time;   
-   asset_type          strike_unit; 
-   uint64_t            strike_amount; 
+   asset               strike_amount;
    address             optionee; // who owns the right to this option.
 };
 
@@ -321,7 +320,7 @@ FC_REFLECT( bts::blockchain::claim_by_pts_output, (owner) )
 FC_REFLECT( bts::blockchain::claim_by_bid_output, (pay_address)(ask_price) )
 FC_REFLECT( bts::blockchain::claim_by_long_output, (pay_address)(ask_price) )
 FC_REFLECT( bts::blockchain::claim_by_cover_output, (payoff)(owner) )
-FC_REFLECT( bts::blockchain::claim_by_opt_execute_output, (optionor)(expire_time)(strike_unit)(strike_amount)(optionee) )
+FC_REFLECT( bts::blockchain::claim_by_opt_execute_output, (optionor)(expire_time)(strike_amount)(optionee) )
 FC_REFLECT( bts::blockchain::claim_by_escrow_output, (agreement)(agent_terms)(agent)(payee)(payor) )
 FC_REFLECT( bts::blockchain::claim_by_multi_sig_output, (required)(addresses) )
 FC_REFLECT( bts::blockchain::claim_by_password_output, (payer)(payee)(hashed_password) )

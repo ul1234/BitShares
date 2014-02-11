@@ -947,7 +947,8 @@ namespace bts { namespace blockchain {
         FC_ASSERT( b.prev         == my->head_block_id                                         );
         FC_ASSERT( b.trx_mroot    == b.calculate_merkle_root()                                 );
         FC_ASSERT( b.timestamp    < (fc::time_point::now() + fc::seconds(60))                  );
-        FC_ASSERT( b.next_fee     == b.calculate_next_fee( get_fee_rate().get_rounded_amount(), b.block_size() )     );
+        FC_ASSERT( b.next_fee     == b.calculate_next_fee( get_fee_rate().get_rounded_amount(), b.block_size() ), "",
+                   ("b.next_fee",b.next_fee)("b.calculate_next_fee", b.calculate_next_fee( get_fee_rate().get_rounded_amount(), b.block_size())) );
 
         if( b.block_num >= 1 )
         {

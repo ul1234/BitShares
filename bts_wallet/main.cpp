@@ -370,6 +370,8 @@ class client : public chain_connection_delegate
                 std::cout<<"new transactions received\n";
                 print_balances();
             }
+            // reset the mining thread...
+            _new_trx = true;
          }
          else if( m.type == trx_message::type )
          {
@@ -378,6 +380,7 @@ class client : public chain_connection_delegate
             if( pending.insert( std::make_pair(trx_msg.signed_trx.id(),trx_msg.signed_trx) ).second )
             {
                // reset the mining thread...
+               _new_trx = true;
             }
          }
          else if( m.type == trx_err_message::type )
@@ -687,6 +690,89 @@ class client : public chain_connection_delegate
          return trx.id();
       }
 
+      bool         _auto_mine;
+      bool         _new_trx;
+      fc::thread   _mining_thread;
+      void auto_mine( bool start )
+      {
+         _auto_mine = start;
+         _new_trx   = false;
+         ilog( "auto_mine ${s}", ("s",start) );
+         try {
+            while( _auto_mine )
+            {
+                fc::usleep( fc::seconds( 20 ) );
+                ilog( "buliding block..." );
+                std::vector<bts::blockchain::signed_transaction> new_trxs;
+                for( auto itr = pending.begin(); itr != pending.end(); ++itr )
+                {
+                   new_trxs.push_back(itr->second);
+                }
+
+                auto block_template = chain.generate_next_block( new_trxs );
+                if( block_template.trxs.size() == 0 )
+                {
+                   ilog( "no transactions to process" );
+                   continue;
+                }
+                ilog( ".." );
+
+                auto req_dif = block_template.get_required_difficulty( chain.current_difficulty(), chain.available_coindays() );
+
+                if( req_dif > block_template.next_difficulty*2 )
+                {
+                   wlog( "not enough coin days" );
+                   // generate transaction to self with sufficient coin days
+
+                   // if not sufficient coin days... 
+                       continue;
+                }
+
+                block_template.next_fee = block_header::calculate_next_fee( chain.get_fee_rate().get_rounded_amount(), 
+                                                                      block_template.block_size() );
+
+                ilog( "_new_trx ${t} _auto_mine ${a}", ("t",!_new_trx)("a",_auto_mine)  );
+                while( !_new_trx && _auto_mine )
+                {
+                    block_template.timestamp = fc::time_point::now();
+                    auto id = block_template.id();
+                    auto seed = fc::sha256::hash( (char*)&id, sizeof(id) );
+                    ilog( "mining...." );
+                    auto canidates = _mining_thread.async( [=]() { return bts::momentum_search( seed ); } ).wait();
+
+                    ilog( "checking collisions..." );
+                    for( uint32_t i = 0; i < canidates.size(); ++i )
+                    {
+                       block_template.noncea = canidates[i].first;
+                       block_template.nonceb = canidates[i].second;
+                       auto dif = block_template.get_difficulty();
+                       auto req = block_template.get_required_difficulty( chain.current_difficulty(), chain.available_coindays() );
+                    
+                       std::cout<< "difficulty: " << dif <<"    required: " <<  req <<"\n";
+                       if( dif >= req )
+                       {
+                          if( block_template.validate_work() )
+                          {
+                             broadcast_block( block_template );
+                             ilog( "sleep for 60 seconds after broadcasting block" );
+                             fc::usleep( fc::seconds( 60 ) ); // give it a 60 second rest after we find a block
+                             i = canidates.size();
+                          }
+                       }
+                    }
+                    // sleep for 3 seconds after every search so we don't peg
+                    // the CPU.  
+                    ilog( "waiting for 3 seconds between searches" );
+                    fc::usleep( fc::seconds(3) );
+                }
+            }
+            ilog( "exiting auto mine" );
+         } catch( const fc::exception& e )
+         {
+            elog( "error while mining ${e}", ("e",e.to_detail_string() ) );
+         }
+      }
+
       void mine()
       {
           ilog( "mine" );
@@ -795,6 +881,12 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
          else if( command == "mine" )
          {
             main_thread->async( [=](){ c->mine(); } ).wait();
+         }
+         else if( command == "auto_mine" )
+         {
+            std::string stop;
+            ss >> stop;
+            main_thread->async( [=](){ c->auto_mine(stop!="stop"); } );
          }
          else if( command == "html" )
          {

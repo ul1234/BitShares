@@ -1023,6 +1023,7 @@ namespace bts { namespace blockchain {
     {
       try {
          std::vector<signed_transaction> trxs = match_orders();
+         size_t num_orders = trxs.size();
 
          std::vector<trx_stat>  stats;
          stats.reserve(in_trxs.size());
@@ -1059,7 +1060,7 @@ namespace bts { namespace blockchain {
          }
          ilog( "." );
 
-         // order the trx by fees (don't sort the market orders which)
+         // order the trx by fees (don't sort the market orders which are added next)
          std::sort( stats.begin(), stats.end() ); 
          for( uint32_t i = 0; i < stats.size(); ++i )
          {
@@ -1067,7 +1068,18 @@ namespace bts { namespace blockchain {
          }
          ilog( "." );
 
+         // consume the outputs from the market order first
+         std::unordered_set<output_reference> consumed_outputs;
+         for( auto itr = trxs.begin(); itr != trxs.end(); ++itr )
+         {
+            for( uint32_t in = 0; in < itr->inputs.size(); ++in )
+            {
+               FC_ASSERT( consumed_outputs.insert( itr->inputs[in].output_ref).second, 
+                          "output can only be referenced once", ("in",in)("output_ref",itr->inputs[in].output_ref) )
+            }
+         }
          trxs.insert( trxs.end(), in_trxs.begin(), in_trxs.end() );
+         ilog( "trxs: ${t}", ("t",trxs) );
 
          // calculate the block size as we go
          fc::datastream<size_t>  block_size;
@@ -1079,7 +1091,7 @@ namespace bts { namespace blockchain {
          uint64_t total_spent  = 0;
 
          ilog( "." );
-         std::unordered_set<output_reference> consumed_outputs;
+         // insert other transactions
          for( size_t i = 0; i < stats.size(); ++i )
          {
             const signed_transaction& trx = trxs[stats[i].trx_idx]; 
@@ -1128,7 +1140,10 @@ namespace bts { namespace blockchain {
         // wlog( "miner fees: ${t}", ("t", miner_fees) );
 
          trx_block new_blk;
-         new_blk.trxs.reserve( 1 + stats.size() - conflicts ); 
+         new_blk.trxs.reserve( 1 + stats.size() - conflicts + num_orders ); 
+
+         // add all orders first
+         new_blk.trxs.insert( new_blk.trxs.begin(), trxs.begin(), trxs.begin() + num_orders );
 
          // add all other transactions to the block
          for( size_t i = 0; i < stats.size(); ++i )

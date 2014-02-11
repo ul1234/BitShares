@@ -680,6 +680,12 @@ class client : public chain_connection_delegate
          broadcast_transaction( trx );
          return trx.id();
       }
+      std::string cancel_open_bid( const output_index& idx ) //uint32_t b, uint32_t t, uint32_t i );
+      { 
+         auto trx = _wallet.cancel_bid( idx );
+         broadcast_transaction( trx );
+         return trx.id();
+      }
 
       void mine()
       {
@@ -823,9 +829,12 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
          else if( command == "c" || command == "cancel" )
          {
             std::string id;
-            uint32_t idx;
-            ss >> id >> idx;
-            main_thread->async( [=](){ c->cancel_open_bid(id,idx); } ).wait();
+            uint32_t blk_idx;
+            uint32_t trx_idx;
+            uint32_t out_idx;
+            ss >> blk_idx >> trx_idx >> out_idx;
+            //main_thread->async( [=](){ c->cancel_open_bid(id,idx); } ).wait();
+            main_thread->async( [=](){ c->cancel_open_bid( bts::blockchain::output_index(blk_idx,trx_idx,out_idx) ); } ).wait();
          }
          else if( command == "q" || command == "quit" )
          {

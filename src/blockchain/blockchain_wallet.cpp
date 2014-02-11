@@ -499,17 +499,16 @@ namespace bts { namespace blockchain {
     *    CANCEL BID
     *
     *****************************************************************/
-   signed_transaction    wallet::cancel_bid( const output_reference& bid )
-   { try {
-       auto bid_idx_itr = my->_output_ref_to_index.find(bid);
-       FC_ASSERT( bid_idx_itr != my->_output_ref_to_index.end() );
-
+   signed_transaction    wallet::cancel_bid( const output_index& bid_idx )
+   { try { 
        signed_transaction trx; 
        std::unordered_set<bts::address> req_sigs; 
-       auto bid_out_itr = my->_unspent_outputs.find(bid_idx_itr->second);
+       auto bid_out_itr = my->_unspent_outputs.find(bid_idx);
        FC_ASSERT( bid_out_itr != my->_unspent_outputs.end() );
 
-       trx.inputs.push_back( trx_input( bid ) );
+       auto bid_out_ref = my->_output_index_to_ref.find(bid_idx);
+       FC_ASSERT( bid_out_ref != my->_output_index_to_ref.end() );
+       trx.inputs.push_back( trx_input( bid_out_ref->second ) );
        if( bid_out_itr->second.claim_func == claim_by_bid )
        {
           auto bid_out = bid_out_itr->second.as<claim_by_bid_output>();
@@ -556,6 +555,12 @@ namespace bts { namespace blockchain {
        my->sign_transaction( trx, req_sigs );
 
        return trx;
+   } FC_RETHROW_EXCEPTIONS( warn, "unable to find bid", ("bid",bid_idx) ) }
+   signed_transaction    wallet::cancel_bid( const output_reference& bid )
+   { try {
+       auto bid_idx_itr = my->_output_ref_to_index.find(bid);
+       FC_ASSERT( bid_idx_itr != my->_output_ref_to_index.end() );
+       return cancel_bid( bid_idx_itr->second );
    } FC_RETHROW_EXCEPTIONS( warn, "unable to find bid", ("bid",bid) ) }
 
 

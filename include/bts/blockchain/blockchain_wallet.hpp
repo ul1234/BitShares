@@ -67,6 +67,7 @@ namespace bts { namespace blockchain {
            signed_transaction    bid( const asset& amnt, const price& ratio );
            signed_transaction    short_sell( const asset& amnt, const price& ratio );
            signed_transaction    cancel_bid( const output_reference& bid );
+           signed_transaction    cancel_bid( const output_index& bid_idx );
            signed_transaction    cancel_short_sell( const output_reference& bid );
 
            /** returns all transactions issued */

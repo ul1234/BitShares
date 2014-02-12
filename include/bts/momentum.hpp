@@ -4,7 +4,8 @@
 #include <fc/crypto/ripemd160.hpp>
 #include <fc/reflect/reflect.hpp>
 
-#define MAX_MOMENTUM_NONCE  (1<<26)
+#define MOMENTUM_NONCE_BITS 26
+#define MAX_MOMENTUM_NONCE  (1<<MOMENTUM_NONCE_BITS)
 
 namespace bts 
 {

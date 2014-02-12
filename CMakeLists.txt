@@ -63,17 +63,23 @@ IF( WIN32 )
   include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/vendor/leveldb-win/include )
   add_subdirectory( vendor/leveldb-win )
 ELSE(WIN32)
+  MESSAGE(status "Compiling on UNIX")
+  SET(Boost_USE_STATIC_LIBS ON)
+  FIND_PACKAGE(Boost 1.55 REQUIRED COMPONENTS thread date_time system filesystem program_options signals serialization chrono unit_test_framework context coroutine) 
+
   include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/vendor/leveldb-1.12.0/include )
-  include_directories( /opt/local/include )
   add_subdirectory( vendor/leveldb-1.12.0 )
 
-  MESSAGE(status "Compiling on UNIX")
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wall -Wno-unused-local-typedefs -fmax-errors=3 -msse4.2" ) 
-  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wall -Wno-unused-local-typedefs -fmax-errors=3 -msse4.2" )
-  #SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wall -Wno-unused-local-typedefs" ) 
-  #SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wall -Wno-unused-local-typedefs" )
-  SET(Boost_USE_STATIC_LIBS ON)
-  FIND_PACKAGE(Boost 1.53 REQUIRED COMPONENTS thread date_time system filesystem program_options signals serialization chrono unit_test_framework context coroutine) 
+  IF( APPLE )
+     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -stdlib=libc++" ) 
+     SET(CMAKE_CC_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -stdlib=libc++" ) 
+     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wall" )
+  ELSE( NOT APPLE )
+     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wall -Wno-unused-local-typedefs -fmax-errors=3 -msse4.2" ) 
+     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wall -Wno-unused-local-typedefs -fmax-errors=3 -msse4.2" )
+  ENDIF( APPLE )
+
+
   FIND_PACKAGE( ZLIB REQUIRED )
   include_directories( ${ZLIB_INCLUDE_DIRS} )
 
@@ -82,6 +88,7 @@ ELSE(WIN32)
  ENDIF( NOT APPLE )
 ENDIF(WIN32)
 
+set( BOOST_LIBRARIES ${Boost_THREAD_LIBRARY} ${Boost_SYSTEM_LIBRARY} ${Boost_FILESYSTEM_LIBRARY} ${Boost_DATE_TIME_LIBRARY} ${Boost_CHRONO_LIBRARY} ${ALL_OPENSSL_LIBRARIES} ${Boost_COROUTINE_LIBRARY} ${Boost_CONTEXT_LIBRARY} ${pthread})
 
 
 include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/fc/include )
@@ -105,8 +112,6 @@ add_subdirectory( vendor/miniupnp/miniupnpc )
 #ENDIF( APPLE )
 
 #add_subdirectory( vendor/libzerocoin )
-set( BOOST_LIBRARIES ${Boost_THREAD_LIBRARY} ${Boost_SYSTEM_LIBRARY} ${Boost_FILESYSTEM_LIBRARY} ${Boost_DATE_TIME_LIBRARY} ${Boost_CHRONO_LIBRARY} ${ALL_OPENSSL_LIBRARIES} ${Boost_COROUTINE_LIBRARY} ${Boost_CONTEXT_LIBRARY} ${pthread})
-set( BOOST_LIBRARIES ${BOOST_LIBRARIES} PARENT_SCOPE )
 
 set( sources 
      src/momentum.cpp
@@ -192,7 +197,7 @@ IF( UNIX )
   target_link_libraries(bshare ${ZLIB_LIBRARIES} )
 ENDIF()
 
-add_subdirectory( sancho )
+#add_subdirectory( sancho )
 #add_subdirectory( server )
 
 
@@ -213,7 +218,7 @@ add_subdirectory( sancho )
 #target_link_libraries( bitshared bshare fc ${BOOST_LIBRARIES} )
 
 #add_subdirectory( cli_client )
+add_subdirectory( bts_wallet )
 add_subdirectory( tests )
 add_subdirectory( founder_reg_server )
 add_subdirectory( mail_server )
-add_subdirectory( bts_wallet )

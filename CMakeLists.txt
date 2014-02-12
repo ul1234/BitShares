@@ -1,20 +1,20 @@
+# Defines bitshares library target.
+
 project( bitshares )
-cmake_minimum_required( VERSION 2.8.10 )
+cmake_minimum_required( VERSION 2.8.12 )
 
-#set( CMAKE_AUTOMOC ON )
+set( CMAKE_AUTOMOC OFF )
 
-set( CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules" "${CMAKE_SOURCE_DIR}/fc/CMakeModules" ${CMAKE_MODULE_PATH} )
+add_subdirectory( fc )
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/fc/GitVersionGen/")
-include(GetGitRevisionDescription)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/fc/GitVersionGen")
+
+INCLUDE(GetGitRevisionDescription)
+
 get_git_head_revision(GIT_REFSPEC GIT_SHA2)
 
-FIND_PACKAGE( OpenSSL )
-SET( ALL_OPENSSL_LIBRARIES
-       ${OPENSSL_LIBRARIES}
-       ${SSL_EAY_RELEASE}
-       ${LIB_EAY_RELEASE}
-   )
+add_subdirectory( vendor/miniupnp/miniupnpc )
 
 # Set the Berkeley DB version you use
 IF (WIN32)
@@ -22,89 +22,36 @@ IF (WIN32)
   SET(BDB_STATIC_LIBS 1)
 ENDIF()
 
-
 FIND_PACKAGE( BerkeleyDB )
 
 IF (NOT ${BerkeleyDB_FOUND})
   MESSAGE (SEND_ERROR "Missing required BerkeleyDB package")
 ENDIF()
 
-include_directories(${BDB_INCLUDE_DIR})
-
 #include( VersionMacros )
 #include( SetupTargetMacros )
 
-if( UNIX ) 
-  if( NOT APPLE )  
-    set(rt_library rt )
-    set(pthread_library pthread) 
-  endif() 
-endif()
-
 IF( WIN32 )
-  MESSAGE(status "Compiling on WIN32")
-  ADD_DEFINITIONS( -DWIN32 )
-  ADD_DEFINITIONS( -DNOMINMAX )
-  ADD_DEFINITIONS( -D_SCL_SECURE_NO_WARNINGS )
-  ADD_DEFINITIONS( -D_WIN32_WINNT=0x0501 )
-  ADD_DEFINITIONS( -D_CRT_SECURE_NO_WARNINGS )
-  ADD_DEFINITIONS( -DLEVELDB_PLATFORM_WINDOWS )
-  # Activate C++ exception handling
-  IF (NOT CMAKE_CXX_FLAGS MATCHES "/EHsc")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")    
-  ENDIF()
+  MESSAGE(STATUS "Configuring Bitshares on WIN32")
 
-  #openssl
-  #set( OPENSSL_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/openssl" )
-  #set( LIB_EAY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/vendor/openssl/out32dll/libeay32.lib" )
-  #set( SSL_EAY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/vendor/openssl/out32dll/ssleay32.lib" )
-  #include_directories( "${CMAKE_CURRENT_SOURCE_DIR}/vendor/openssl/include" )
+  # Set this variable to empty on windows to simplify target_link_libraries specification
+  SET(ZLIB_LIBRARIES "")
 
-  include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/vendor/leveldb-win/include )
   add_subdirectory( vendor/leveldb-win )
 ELSE(WIN32)
-  MESSAGE(status "Compiling on UNIX")
-  SET(Boost_USE_STATIC_LIBS ON)
-  FIND_PACKAGE(Boost 1.55 REQUIRED COMPONENTS thread date_time system filesystem program_options signals serialization chrono unit_test_framework context coroutine) 
-
-  include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/vendor/leveldb-1.12.0/include )
-  add_subdirectory( vendor/leveldb-1.12.0 )
-
-  IF( APPLE )
-     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -stdlib=libc++" ) 
-     SET(CMAKE_CC_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -stdlib=libc++" ) 
-     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wall" )
-  ELSE( NOT APPLE )
-     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wall -Wno-unused-local-typedefs -fmax-errors=3 -msse4.2" ) 
-     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wall -Wno-unused-local-typedefs -fmax-errors=3 -msse4.2" )
-  ENDIF( APPLE )
-
+  MESSAGE(STATUS "Configuring Bitshares on UNIX/APPLE")
 
   FIND_PACKAGE( ZLIB REQUIRED )
-  include_directories( ${ZLIB_INCLUDE_DIRS} )
 
- IF( NOT APPLE )
-      SET( pthread pthread )
- ENDIF( NOT APPLE )
+  add_subdirectory( vendor/leveldb-1.12.0 )
+
+  # Put here common options for unix & apple platform
+  IF(NOT APPLE)
+    SET(rt_library rt )
+    SET(pthread_library pthread)
+  ENDIF(NOT APPLE)
+
 ENDIF(WIN32)
-
-set( BOOST_LIBRARIES ${Boost_THREAD_LIBRARY} ${Boost_SYSTEM_LIBRARY} ${Boost_FILESYSTEM_LIBRARY} ${Boost_DATE_TIME_LIBRARY} ${Boost_CHRONO_LIBRARY} ${ALL_OPENSSL_LIBRARIES} ${Boost_COROUTINE_LIBRARY} ${Boost_CONTEXT_LIBRARY} ${pthread})
-
-
-include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/fc/include )
-include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/include )
-include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/vendor/SFMT-src-1.4 )
-include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/vendor/miniupnp )
-include_directories( ${Boost_INCLUDE_DIR} )
-#need this for boost::process (not an official boost library yet)
-include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/fc/vendor/boost_1.51/include )
-include_directories( ${BDB_CXX_INCLUDE_DIR} )
-
-   
-#link_directories( ${Boost_LIBRARY_DIRS} )
-
-add_subdirectory( fc )
-add_subdirectory( vendor/miniupnp/miniupnpc )
 
 #IF( APPLE )
 #FIND_LIBRARY (APPKIT_LIBRARY AppKit) 
@@ -188,26 +135,52 @@ set( sources
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/GitSHA2.cpp.in" "${CMAKE_CURRENT_BINARY_DIR}/GitSHA2.cpp" @ONLY)
 list(APPEND sources "${CMAKE_CURRENT_BINARY_DIR}/GitSHA2.cpp" GitSHA2.h)
 
-add_library( bshare ${sources} )
-target_link_libraries(bshare ${BDB_LIBRARIES} )
+file(GLOB_RECURSE bitshares_headers include/ *.hpp *.h)
+list(APPEND sources ${bitshares_headers})
 
-IF( UNIX ) 
-  target_link_libraries(bshare ${ZLIB_LIBRARIES} )
+file(GLOB_RECURSE bitshares_headers src/ *.hpp *.h)
+list(APPEND sources ${bitshares_headers})
+
+add_library( bshare ${sources} )
+
+target_include_directories(bshare
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
+  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} 
+  ${CMAKE_CURRENT_SOURCE_DIR}/vendor/SFMT-src-1.4
+  ${CMAKE_CURRENT_SOURCE_DIR}/vendor/miniupnp
+  ${BDB_CXX_INCLUDE_DIR}
+  ${BDB_INCLUDE_DIR}
+)
+
+IF(WIN32)
+  target_include_directories(bshare
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/vendor/leveldb-win/include
+  )
+  target_compile_definitions(bshare PUBLIC LEVELDB_PLATFORM_WINDOWS)
+ELSE()
+  target_include_directories(bshare
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/vendor/leveldb-1.12.0/include
+    PRIVATE ${ZLIB_INCLUDE_DIRS}
+    ${BITSHARES_DIR}/vendor/qtmacextras/include
+  )
 ENDIF()
+
+# Here should be specified ALL dependencies of bshare library - Cmake will pass them automatically
+# to the modules using bshare
+target_link_libraries(bshare fc upnpc-static leveldb ${BDB_LIBRARIES} ${ZLIB_LIBRARIES})
 
 #add_subdirectory( sancho )
 #add_subdirectory( server )
 
-
 #add_executable( wallet_test tests/wallet_test.cpp )
-#target_link_libraries( wallet_test bshare fc ${BOOST_LIBRARIES})
+#target_link_libraries( wallet_test bshare )
 #setup_library( bshare SOURCES ${sources} LIBRARY_TYPE STATIC )
 
 #add_executable( unit_tests tests/unit_tests.cpp )
-#target_link_libraries( unit_tests bshare fc ${BOOST_LIBRARIES} ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}  )
+#target_link_libraries( unit_tests bshare ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}  )
 
 #add_executable( bitshares src/main.cpp )
-#target_link_libraries( bitshares bshare fc ${BOOST_LIBRARIES})
+#target_link_libraries( bitshares bshare )
 
 #add_executable( bitchatc bitchat/main.cpp )
 #target_link_libraries( bitchatc upnpc-static bshare fc ${BOOST_LIBRARIES} upnpc-static )
@@ -220,3 +193,6 @@ add_subdirectory( bts_wallet )
 add_subdirectory( tests )
 add_subdirectory( founder_reg_server )
 add_subdirectory( mail_server )
+
+MESSAGE(STATUS "Finished Bitshares configuration...")
+

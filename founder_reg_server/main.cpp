@@ -1,4 +1,5 @@
 #include <bts/db/level_map.hpp>
+#include <bts/db/upgrade_leveldb.hpp>
 #include <fc/reflect/variant.hpp>
 #include <fc/network/tcp_socket.hpp>
 #include <fc/rpc/json_connection.hpp>
@@ -7,7 +8,6 @@
 #include <fc/reflect/reflect.hpp>
 #include <fc/io/raw.hpp>
 #include <fc/exception/exception.hpp>
-
 
 #include <fc/log/logger.hpp>
 #include <fc/log/file_appender.hpp>
@@ -23,32 +23,35 @@
 #include <wincon.h>
 #endif
 
-struct record
+struct record1
 {
-    record() : points(0){}
-    record( std::string k, double p ) : key(k), points(p) {}
-    record( std::string k, std::string public_key, double p) : key(k), points(p), pub_key(public_key) {}
+    record1() : points(0){}
+    record1( std::string k, double p ) : key(k), points(p) {}
+    record1( std::string k, std::string public_key, double p) : key(k), points(p), pub_key(public_key) {}
 
     std::string key; //founderCode
     double    points;
     std::string pub_key;
 };
 
-FC_REFLECT( record, (key)(points)(pub_key) )
+FC_REFLECT( record1, (key)(points)(pub_key) )
 
-/*
+//#define RECORD2
+#ifndef RECORD2
+typedef record1 record;
+#else
 struct record2
 {
     record2() : points(0){}
-    record2( std::string k, double p ) : key(k), points(p) {}
-    record2( std::string k, std::string public_key, double p) : key(k), points(p), pub_key(public_key) {}
+    record2( std::string k, double p ) : key(k), points(p), new_field(0) {}
+    record2( std::string k, std::string public_key, double p) : key(k), points(p), pub_key(public_key), new_field(0) {}
     //convert from record1 to record2
     record2(const record1& r1)
       {
       key = r1.key;
       points = r1.points;
       pub_key = r1.pub_key;
-      new_field = 0;
+      new_field = 3;
       }
 
     std::string key; //founderCode
@@ -57,11 +60,12 @@ struct record2
     int   new_field;
 };
 
-typedef record2 record;
 
-FC_REFLECT( record1, (key)(points)(pub_key) )
 FC_REFLECT( record2, (key)(points)(pub_key)(new_field) )
+typedef record2 record;
+REGISTER_DB_OBJECT(record,1)
 
+/*
 namespace ldb = leveldb;
 void convert_record1_db(ldb::DB* dbase)
   {
@@ -93,6 +97,8 @@ void convert_record1_db(ldb::DB* dbase)
     } //while
   }
 */
+#endif 
+
 
 int main( int argc, char** argv )
 {
@@ -113,7 +119,10 @@ int main( int argc, char** argv )
          //maps keyhoteeId -> founderCode,points,publicKey
          bts::db::level_map<std::string,record>   _known_names;
          _known_names.open( "reg_db" );
-         
+
+         #ifdef RECORD2
+//         convert_record1_db(_known_names._db.get());
+         #endif
          
          if (argc == 3)
          {  //update records in goood dbase with matching records from messy database
@@ -226,7 +235,7 @@ int main( int argc, char** argv )
             {
               auto id_record = itr.value();
               //ilog( "${key} => ${value}", ("key",itr.key())("value",id_record));
-              ilog( "${key}, ${pub_key}", ("key",itr.key())("pub_key",id_record.pub_key));
+              ilog( "${key}, ${pub_key}, ${points}", ("key",itr.key())("pub_key",id_record.pub_key)("points",id_record.points));
               ++id_count;
               if (id_record.pub_key.empty())
                 ++unregistered_count;

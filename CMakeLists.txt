@@ -111,6 +111,8 @@ set( BOOST_LIBRARIES ${BOOST_LIBRARIES} PARENT_SCOPE )
 set( sources 
      src/momentum.cpp
 
+     src/db/upgrade_leveldb.cpp
+
      src/network/stcp_socket.cpp
      src/network/connection.cpp
      src/network/server.cpp

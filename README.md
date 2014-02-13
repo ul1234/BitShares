@@ -16,7 +16,7 @@ Dependencies
 	g++ 4.6, VC2012, clang++ 3.2 (apple)
 	boost 1.54
 	OpenSSL
-	cmake 2.8.11.2
+	cmake 2.8.12
   libreadline-dev
 
 OS X Build Instructions

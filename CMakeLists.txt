@@ -16,11 +16,16 @@ get_git_head_revision(GIT_REFSPEC GIT_SHA2)
 
 add_subdirectory( vendor/miniupnp/miniupnpc )
 
+
 # Set the Berkeley DB version you use
 IF (WIN32)
   SET(DB_VERSION 60)
   SET(BDB_STATIC_LIBS 1)
 ENDIF()
+
+IF ( APPLE )
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -stdlib=libc++ -Wall")
+ENDIF( APPLE )
 
 FIND_PACKAGE( BerkeleyDB )
 
@@ -146,6 +151,7 @@ add_library( bshare ${sources} )
 target_include_directories(bshare
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} 
+         ${CMAKE_CURRENT_SOURCE_DIR}/fc/include
   ${CMAKE_CURRENT_SOURCE_DIR}/vendor/SFMT-src-1.4
   ${CMAKE_CURRENT_SOURCE_DIR}/vendor/miniupnp
   ${BDB_CXX_INCLUDE_DIR}

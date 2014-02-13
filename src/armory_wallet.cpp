@@ -74,7 +74,14 @@ namespace bts
 
         skipB( 512 - 44 - 4 ); // skip remaining bytes
 
-        skipB(  205 ); // KeyGen / sizeof(address)
+        // KeyGen / sizeof(address), varies with compressed keys:
+        skipB( 148 );
+
+        char keyType;
+        isWallet.read(&keyType, 1);
+
+        skipB( keyType == 4 ? 88 : 56 );
+
         skipB( 1024 ); // unused
 
         enum EntryType

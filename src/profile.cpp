@@ -31,7 +31,7 @@ namespace bts {
             bitchat::message_db_ptr                         _pending_db;
             bitchat::message_db_ptr                         _sent_db;
             bitchat::message_db_ptr                         _chat_db;
-            db::level_map<std::string, addressbook::wallet_identity>            _idents;
+            db::level_map<std::string, addressbook::wallet_identity0>            _idents;
             std::wstring                                    _profile_name;
             
             fc::mmap_struct<fc::time_point>                 _last_sync_time;
@@ -138,9 +138,9 @@ namespace bts {
     ilog("finished opening profile");
   } FC_RETHROW_EXCEPTIONS( warn, "", ("profile_dir",profile_dir) ) }
 
-  std::vector<addressbook::wallet_identity>   profile::identities()const
+  std::vector<addressbook::wallet_identity0>   profile::identities()const
   { try {
-     std::vector<addressbook::wallet_identity> idents;
+     std::vector<addressbook::wallet_identity0> idents;
      for( auto itr = my->_idents.begin(); itr.valid(); ++itr )
      {
        idents.push_back(itr.value());
@@ -159,12 +159,12 @@ namespace bts {
        return itr.valid();
   } FC_RETHROW_EXCEPTIONS( warn, "", ("id",id) ) }
 
-  void    profile::store_identity( const addressbook::wallet_identity& id )
+  void    profile::store_identity( const addressbook::wallet_identity0& id )
   { try {
       my->_idents.store( id.dac_id_string, id ); 
   } FC_RETHROW_EXCEPTIONS( warn, "", ("id",id) ) }
 
-  addressbook::wallet_identity    profile::get_identity( const std::string& dac_id_string )const
+  addressbook::wallet_identity0    profile::get_identity( const std::string& dac_id_string )const
   { try {
       auto hash_value =  bitname::name_hash(dac_id_string);
       auto idents = profile::identities();

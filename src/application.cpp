@@ -299,7 +299,7 @@ namespace bts {
     std::vector<fc::ecc::private_key> recv_keys;
     auto keychain =  tmp_profile->get_keychain();
 
-    std::vector<bts::addressbook::wallet_identity> idents = tmp_profile->identities();
+    std::vector<bts::addressbook::wallet_identity0> idents = tmp_profile->identities();
     for(const auto& id : idents)
     {
       recv_keys.push_back(keychain.get_identity_key(id.dac_id_string));

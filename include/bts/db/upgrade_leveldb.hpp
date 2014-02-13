@@ -53,4 +53,4 @@ void UpgradeDb ## TYPE ## VERSIONNUM(leveldb::DB* dbase) \
 static int dummyResult ## TYPE ## VERSIONNUM  = \
   gUpgradeDbMapper.Add(fc::get_typename<TYPE ## VERSIONNUM>::name(), UpgradeDb ## TYPE ## VERSIONNUM);
 
-void UpgradeDbIfNecessary(leveldb::DB* dbase, const char* current_record_name );
+void UpgradeDbIfNecessary(fc::path dir, leveldb::DB* dbase, const char* record_type, size_t record_type_size);

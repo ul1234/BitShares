@@ -23,9 +23,6 @@ IF (WIN32)
   SET(BDB_STATIC_LIBS 1)
 ENDIF()
 
-IF ( APPLE )
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -stdlib=libc++ -Wall")
-ENDIF( APPLE )
 
 FIND_PACKAGE( BerkeleyDB )
 
@@ -148,10 +145,11 @@ list(APPEND sources ${bitshares_headers})
 
 add_library( bshare ${sources} )
 
+# All include directories required to compile dependency headers will be automatically added 
+# from dependency list specified in target_link_libraries.
 target_include_directories(bshare
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} 
-         ${CMAKE_CURRENT_SOURCE_DIR}/fc/include
   ${CMAKE_CURRENT_SOURCE_DIR}/vendor/SFMT-src-1.4
   ${CMAKE_CURRENT_SOURCE_DIR}/vendor/miniupnp
   ${BDB_CXX_INCLUDE_DIR}

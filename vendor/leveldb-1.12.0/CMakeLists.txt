@@ -1,5 +1,3 @@
-include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/include )
-include_directories( ${CMAKE_CURRENT_SOURCE_DIR} )
 set( CMAKE_CXX_SOURCE_FILE_EXTENSIONS .cpp .cc )
 if(APPLE)
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -stdlib=libc++" ) 
@@ -54,3 +52,7 @@ set( sources
 )
 
 add_library( leveldb  ${sources} )
+
+target_include_directories(leveldb PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}"
+  "${CMAKE_CURRENT_SOURCE_DIR}/include" )
+

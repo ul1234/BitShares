@@ -134,6 +134,7 @@ set( sources
      src/bitcoin_wallet.cpp
      src/electrum_wallet.cpp
      src/multibit_wallet.cpp
+     src/armory_wallet.cpp
 
      vendor/SFMT-src-1.4/SFMT.c
      src/proof_of_work.cpp )

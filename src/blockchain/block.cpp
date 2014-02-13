@@ -78,6 +78,13 @@ namespace bts { namespace blockchain  {
      return layer_one.front();
   }
 
+  uint64_t block_header::get_missing_cdd( uint64_t prev_avail_cdays )const
+  {
+     uint64_t cdd = prev_avail_cdays / BLOCKS_PER_YEAR;
+     if( cdd < total_cdd ) return total_cdd - cdd;
+     return 0;
+  }
+
   uint64_t block_header::get_required_difficulty(uint64_t prev_difficulty,uint64_t prev_avail_cdays)const
   {
       prev_avail_cdays /= BLOCKS_PER_YEAR;

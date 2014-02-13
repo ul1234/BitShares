@@ -16,11 +16,13 @@ get_git_head_revision(GIT_REFSPEC GIT_SHA2)
 
 add_subdirectory( vendor/miniupnp/miniupnpc )
 
+
 # Set the Berkeley DB version you use
 IF (WIN32)
   SET(DB_VERSION 60)
   SET(BDB_STATIC_LIBS 1)
 ENDIF()
+
 
 FIND_PACKAGE( BerkeleyDB )
 
@@ -145,6 +147,8 @@ list(APPEND sources ${bitshares_headers})
 
 add_library( bshare ${sources} )
 
+# All include directories required to compile dependency headers will be automatically added 
+# from dependency list specified in target_link_libraries.
 target_include_directories(bshare
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} 

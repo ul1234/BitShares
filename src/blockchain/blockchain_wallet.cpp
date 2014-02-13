@@ -51,12 +51,13 @@ namespace bts { namespace blockchain {
       class wallet_impl
       {
           public:
-              wallet_impl():_stake(0){}
+              wallet_impl():_stake(0),_current_head_idx(0){}
 
               fc::path                                                   _wallet_dat;
               wallet_data                                                _data;
               asset                                                      _current_fee_rate;
               uint64_t                                                   _stake;
+              uint32_t                                                   _current_head_idx;
 
               std::map<output_index, output_reference>                   _output_index_to_ref;
               std::unordered_map<output_reference, output_index>         _output_ref_to_index;
@@ -84,6 +85,34 @@ namespace bts { namespace blockchain {
                    return total_bal;
               }
 
+              std::vector<trx_input> collect_coindays( uint64_t request_cdd, asset& total_in, 
+                                                       std::unordered_set<bts::address>& req_sigs, uint64_t& provided_cdd )
+              {
+                   FC_ASSERT( _current_head_idx > 0 );
+                   provided_cdd = 0;
+                   std::vector<trx_input> inputs;
+                   for( auto itr = _unspent_outputs.begin(); itr != _unspent_outputs.end(); ++itr )
+                   {
+                       ilog( "unspent outputs ${o}", ("o",*itr) );
+                       if( itr->second.claim_func == claim_by_signature && itr->second.amount.unit == asset::bts )
+                       {
+                           inputs.push_back( trx_input( _output_index_to_ref[itr->first] ) );
+                           total_in += itr->second.amount;
+                           auto cdd = itr->second.amount.get_rounded_amount() * (_current_head_idx - itr->first.block_idx);
+                           if( cdd > 0 ) 
+                           {
+                              provided_cdd += cdd;
+                              req_sigs.insert( itr->second.as<claim_by_signature_output>().owner );
+                             // ilog( "total in ${in}  min ${min}", ( "in",total_in)("min",min_amnt) );
+                              if( provided_cdd >= request_cdd )
+                              {
+                                 return inputs;
+                              }
+                           }
+                       }
+                   }
+                   return inputs;
+              }
 
               /**
                *  Collect inputs that total to at least min_amnt.
@@ -185,7 +214,7 @@ namespace bts { namespace blockchain {
               /** completes a transaction signing it and logging it, this is different than wallet::sign_transaction which
                *  merely signs the transaction without checking anything else or storing the transaction.
                **/
-              void sign_transaction( signed_transaction& trx, const std::unordered_set<address>& addresses )
+              void sign_transaction( signed_transaction& trx, const std::unordered_set<address>& addresses, bool mark_output_as_used = true)
               {
                    trx.stake = _stake;
                    trx.timestamp = fc::time_point::now();
@@ -193,10 +222,13 @@ namespace bts { namespace blockchain {
                    {
                       self->sign_transaction( trx, *itr );
                    }
-                   for( auto itr = trx.inputs.begin(); itr != trx.inputs.end(); ++itr )
+                   if( mark_output_as_used )
                    {
-                       elog( "MARK AS SPENT ${B}", ("B",itr->output_ref) );
-                       self->mark_as_spent( itr->output_ref );
+                      for( auto itr = trx.inputs.begin(); itr != trx.inputs.end(); ++itr )
+                      {
+                          elog( "MARK AS SPENT ${B}", ("B",itr->output_ref) );
+                          self->mark_as_spent( itr->output_ref );
+                      }
                    }
                    _data.transactions.push_back(trx);
               }
@@ -249,10 +281,11 @@ namespace bts { namespace blockchain {
       return my->get_margin_balance( t, collat );
    }
 
-   void           wallet::set_stake( uint64_t stake )
+   void           wallet::set_stake( uint64_t stake, uint32_t head_idx )
    {
       wlog( "STAKE ${S}", ("S",stake) );
       my->_stake = stake;
+      my->_current_head_idx = head_idx;
    }
 
    void           wallet::import_key( const fc::ecc::private_key& key )
@@ -287,6 +320,30 @@ namespace bts { namespace blockchain {
       my->_current_fee_rate = pts_per_byte;
    }
 
+   signed_transaction    wallet::collect_coindays( uint64_t cdd, uint64_t& cdd_collected )
+   { try {
+       auto   change_address = get_new_address();
+       std::unordered_set<bts::address> req_sigs; 
+       asset  total_in(static_cast<uint64_t>(0ull),asset::bts);
+       signed_transaction trx; 
+       trx.inputs    = my->collect_coindays( cdd, total_in, req_sigs, cdd_collected );
+       asset change = total_in;
+       trx.outputs.push_back( trx_output( claim_by_signature_output( change_address ), change) );
+
+       trx.sigs.clear();
+       my->sign_transaction( trx, req_sigs, false );
+
+       uint64_t trx_bytes = fc::raw::pack( trx ).size();
+       asset    fee( my->_current_fee_rate * trx_bytes );
+       FC_ASSERT( total_in > fee );
+       trx.outputs.back() = trx_output( claim_by_signature_output( change_address ), change - fee );
+
+       trx.sigs.clear();
+       my->sign_transaction(trx, req_sigs, false);
+       return trx;
+   } FC_RETHROW_EXCEPTIONS( warn, "", ("cdd",cdd)("collected",cdd_collected) ) }
+
+
    signed_transaction    wallet::transfer( const asset& amnt, const bts::address& to )
    { try {
        auto   change_address = get_new_address();
@@ -303,7 +360,7 @@ namespace bts { namespace blockchain {
        trx.outputs.push_back( trx_output( claim_by_signature_output( change_address ), change) );
 
        trx.sigs.clear();
-       my->sign_transaction( trx, req_sigs );
+       my->sign_transaction( trx, req_sigs, false );
 
        uint64_t trx_bytes = fc::raw::pack( trx ).size();
        asset    fee( my->_current_fee_rate * trx_bytes );
@@ -396,7 +453,7 @@ namespace bts { namespace blockchain {
        trx.outputs.push_back( trx_output( claim_by_signature_output( change_address ), change) );
 
        trx.sigs.clear();
-       my->sign_transaction( trx, req_sigs );
+       my->sign_transaction( trx, req_sigs, false );
 
        uint32_t trx_bytes = fc::raw::pack( trx ).size();
        asset    fee( my->_current_fee_rate * trx_bytes );
@@ -463,7 +520,7 @@ namespace bts { namespace blockchain {
        trx.outputs.push_back( trx_output( claim_by_signature_output( change_address ), change) );
 
        trx.sigs.clear();
-       my->sign_transaction( trx, req_sigs );
+       my->sign_transaction( trx, req_sigs, false );
 
        uint32_t trx_bytes = fc::raw::pack( trx ).size();
        asset    fee( my->_current_fee_rate * trx_bytes );
@@ -643,7 +700,7 @@ namespace bts { namespace blockchain {
           trx.outputs.push_back( trx_output( claim_by_signature_output( change_address ), change) );
 
        ilog( "req sigs ${sigs}", ("sigs",req_sigs) );
-       my->sign_transaction( trx, req_sigs );
+       my->sign_transaction( trx, req_sigs, false );
        auto fees_due = my->_current_fee_rate * trx.size() * 2;
        trx.sigs.clear();
 
@@ -679,7 +736,7 @@ namespace bts { namespace blockchain {
        trx.outputs.push_back( trx_output( claim_by_cover_output( cover_in, change_address ), collat_in + collateral_amount ) );
        trx.outputs.push_back( trx_output( claim_by_signature_output( change_address ), change ) );
 
-       my->sign_transaction( trx, req_sigs );
+       my->sign_transaction( trx, req_sigs, false );
        auto trx_fees = my->_current_fee_rate * trx.size();
        trx.outputs.clear();
 

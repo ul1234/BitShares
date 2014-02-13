@@ -58,11 +58,12 @@ namespace bts { namespace blockchain {
            std::vector<bts::address> list_address();
            asset                     get_balance( asset::type t );
            asset                     get_margin( asset::type t, asset& collat );
-           void                      set_stake( uint64_t stake );
+           void                      set_stake( uint64_t stake, uint32_t head_idx  );
            void                      import_key( const fc::ecc::private_key& key );
            void                      set_fee_rate( const asset& pts_per_byte );
            uint64_t                  last_scanned()const;
 
+           signed_transaction    collect_coindays( uint64_t cdd, uint64_t& cdd_collected );
            signed_transaction    transfer( const asset& amnt, const bts::address& to );
            signed_transaction    bid( const asset& amnt, const price& ratio );
            signed_transaction    short_sell( const asset& amnt, const price& ratio );

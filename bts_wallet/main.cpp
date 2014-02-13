@@ -40,7 +40,7 @@ std::string to_balance( uint64_t a )
 struct client_config
 {
     client_config()
-    :rpc_port(5678)
+    :rpc_port(0)
     {
         //unique_node_list["162.243.45.158:4567"] = "";
         unique_node_list["127.0.0.1:4567"] = "";
@@ -363,7 +363,7 @@ class client : public chain_connection_delegate
             {
                pending.erase( itr->id() );
             }
-            _wallet.set_stake( chain.get_stake() );
+            _wallet.set_stake( chain.get_stake(), chain.head_block_num() );
             _wallet.set_fee_rate( chain.get_fee_rate() );
             if( _wallet.scan_chain( chain, blkmsg.block_data.block_num ) )
             {
@@ -407,7 +407,7 @@ class client : public chain_connection_delegate
           
           if( chain.head_block_num() != uint32_t(-1) )
              _wallet.scan_chain( chain );
-          _wallet.set_stake( chain.get_stake() );
+          _wallet.set_stake( chain.get_stake(), chain.head_block_num() );
           _wallet.set_fee_rate( chain.get_fee_rate() );
 
           // load config, connect to server, and start subscribing to blocks...
@@ -709,6 +709,7 @@ class client : public chain_connection_delegate
                    new_trxs.push_back(itr->second);
                 }
 
+                _new_trx   = false;
                 auto block_template = chain.generate_next_block( new_trxs );
                 if( block_template.trxs.size() == 0 )
                 {
@@ -722,10 +723,22 @@ class client : public chain_connection_delegate
                 if( req_dif > block_template.next_difficulty*2 )
                 {
                    wlog( "not enough coin days" );
-                   // generate transaction to self with sufficient coin days
+                   auto extra_cdd = block_template.get_missing_cdd( chain.available_coindays() );
+                   uint64_t cdd_collected = 0;
+                   auto cdd_trx  = _wallet.collect_coindays( extra_cdd, cdd_collected );
+                   if( extra_cdd > cdd_collected ) continue; // too bad, so sad... cannot mine
 
-                   // if not sufficient coin days... 
-                       continue;
+                   block_template.total_cdd      += cdd_collected;
+                   block_template.avail_coindays -= cdd_collected;
+                   block_template.trxs.push_back( cdd_trx );
+                   //block_template.next_fee       = block_header::calculate_next_fee( chain.get_fee_rate().get_rounded_amount(), block_template.block_size() );
+                   block_template.trx_mroot      = block_template.calculate_merkle_root();
+                   trx_eval               eval   =  chain.evaluate_signed_transaction( cdd_trx );
+                   // block_template.total_shares   -= eval.fees.get_rounded_amount(); // these fees are paid back to owner.
+                   // TODO: we need to regenerate this trx any time the user initates a transaction because
+                   // the outputs from this trx may be used.
+                   
+                   // TODO: add new transaction that pays us our fee for CDD and refunds TRX fee from our own transaction. 
                 }
 
                 block_template.next_fee = block_header::calculate_next_fee( chain.get_fee_rate().get_rounded_amount(), 
@@ -757,6 +770,7 @@ class client : public chain_connection_delegate
                              ilog( "sleep for 60 seconds after broadcasting block" );
                              fc::usleep( fc::seconds( 60 ) ); // give it a 60 second rest after we find a block
                              i = canidates.size();
+                             _new_trx = true; // break the loop
                           }
                        }
                     }
@@ -1171,7 +1185,7 @@ int main( int argc, char** argv )
         std::cerr<<"Usage: "<<argv[0]<<" [DATADIR]\n";
         return -2;
      }
-     bts_client->start_rpc_server(5678);
+     bts_client->start_rpc_server(0);
 
      
      fc::thread  read_thread;

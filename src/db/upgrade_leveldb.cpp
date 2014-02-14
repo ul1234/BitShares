@@ -2,6 +2,11 @@
 #include <boost/filesystem.hpp>
 #include <fc/log/logger.hpp>
 
+#include <bts/addressbook/contact.hpp>
+namespace bts { namespace addressbook {
+REGISTER_DB_OBJECT(wallet_identity,0)
+} }
+
 TUpgradeDbMapper gUpgradeDbMapper;
 // this code has no bitshares dependencies, and it
 // could be moved to fc, if fc ever adds a leveldb dependency

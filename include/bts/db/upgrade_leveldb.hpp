@@ -27,7 +27,7 @@ extern TUpgradeDbMapper gUpgradeDbMapper;
 #define REGISTER_DB_OBJECT(TYPE,VERSIONNUM) \
 void UpgradeDb ## TYPE ## VERSIONNUM(leveldb::DB* dbase) \
   { \
-  std::unique_ptr<leveldb::Iterator> dbaseI = dbase->NewIterator( leveldb::ReadOptions() ); \
+  std::unique_ptr<leveldb::Iterator> dbaseI( dbase->NewIterator(leveldb::ReadOptions()) ); \
   dbaseI->SeekToFirst(); \
   if (dbaseI->status().IsNotFound()) /*if empty database, do nothing*/ \
     return; \

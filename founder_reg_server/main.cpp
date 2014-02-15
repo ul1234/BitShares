@@ -15,6 +15,7 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <locale>
 
 #include <boost/algorithm/string.hpp> 
 
@@ -22,6 +23,10 @@
 #include <Windows.h>
 #include <wincon.h>
 #endif
+
+#include <fstream>
+
+std::ofstream deb("/tmp/debug.txt");
 
 struct record0
 {
@@ -60,6 +65,7 @@ struct record1
     int   new_field;
 };
 FC_REFLECT( record1, (key)(points)(pub_key)(new_field) )
+
 struct record2
 {
     record2() : points(0){}
@@ -93,6 +99,33 @@ REGISTER_DB_OBJECT(record,2)
 #endif 
 
 
+bool is_known(bts::db::level_map<std::string,record>& _known_names, std::string name)
+{
+   auto itr = _known_names.find(name);
+   if (itr.valid())
+      deb << "  found as " << name << std::endl;
+   return itr.valid();
+}
+
+void convertToAscii(const std::string& input, std::string* buffer)
+{
+   buffer->reserve(input.size());
+   for (const auto& c : input)
+   {
+      unsigned int cCode = c;
+      if (cCode > 0x7F)
+      {
+         char numBuffer[64];
+         sprintf(numBuffer, "_0x%X_", cCode);
+         buffer->append(numBuffer);
+      }
+      else
+      {
+         *buffer += toupper(c);
+      }
+    }
+}
+
 int main( int argc, char** argv )
 {
 #ifdef WIN32
@@ -112,12 +145,28 @@ int main( int argc, char** argv )
          //maps keyhoteeId -> founderCode,points,publicKey
          bts::db::level_map<std::string,record>   _known_names;
          _known_names.open( "reg_db" );
+         auto fix_itr = _known_names.begin();
+         while (fix_itr.valid())
+         {
+            std::string kid = fix_itr.key();
+            std::string asciiName;
+            convertToAscii(kid,&asciiName);
+            if (kid != asciiName)
+            {
+               auto unchanged_record = fix_itr.value();
+               deb << kid << " to " << asciiName << std::endl;
+               _known_names.remove(kid);
+               _known_names.store(asciiName,unchanged_record);
+            }
+            ++fix_itr;
+         }
          
          if (argc == 3)
          {  //update records in goood dbase with matching records from messy database
+            std::cerr << "update records with records from messy database" << std::endl;
             bts::db::level_map<std::string,record>   _messy_names;
             _messy_names.open( "messy_db" );
-            //walkthrough all names in messydb, see if it matches record in good db, update good db with record if so
+            //walkthrough all names in messydb, see if it matches record in good db, update good db with public key if so
             auto itr = _messy_names.begin();
             while( itr.valid() )
             {
@@ -125,8 +174,20 @@ int main( int argc, char** argv )
               if (found_itr.valid())
               {
                 auto id_record = itr.value();
-                ilog( "${key} => ${value}", ("key",itr.key())("value",id_record));
-                _known_names.store( itr.key(), id_record);
+                auto found_record = found_itr.value();
+                found_record.pub_key = id_record.pub_key;
+                ilog( "${key} => ${value}", ("key",itr.key())("value",found_record));
+                _known_names.store( itr.key(), found_record);
+              }
+              else //report couldn't be found in debug.txt
+              {
+                 std::string lower_kid = itr.key();
+                 boost::to_lower(lower_kid);
+                 found_itr = _known_names.find(lower_kid);
+                 if (found_itr.valid())
+                    deb << "found " << itr.key() << " as " << lower_kid << std::endl;
+                 else
+                    deb << "missing " << itr.key() << std::endl;
               }
               ++itr;
             }
@@ -139,27 +200,45 @@ int main( int argc, char** argv )
             std::string line;
             std::getline(in, line);
             int num_commas = std::count(line.begin(), line.end(), ',');
-            if (num_commas == 3)
+            deb << "num_commas=" << num_commas << "\n";
+            std::cerr << "num_commas=" << num_commas << "\n";
+            if (num_commas == 2 || num_commas == 3)
             {
               while( in.good() )
               {
                  std::stringstream ss(line);
-                 std::string name; //keyhoteeId
-                 std::getline( ss, name, ',' );
-                 boost::to_lower(name);
+                 std::string oname; //keyhoteeId
+                 std::getline( ss, oname, ',' );
+                 std::string name;
+                 convertToAscii(oname,&name);
+                 //boost::to_lower(name);
                  std::string key; //founderCode
                  std::getline( ss, key, ',' );
                  std::string points;
                  std::getline( ss, points, ',' );
+                 deb << "OK"<< std::endl;
+
+                 try {
                  auto itr = _known_names.find( name );
-                 if( !itr.valid() )
+                 if (itr.valid())
                  {
-                    std::cerr << name << "\t\t" << key << "\t\t'" << points <<"'\n";
+                     deb << "found " << name << std::endl;
+                 }
+                 else
+                 {
+                    deb << "adding " << name << "\t\t" << key << "\t\t'" << points << std::endl;
                     double pointsd = atof( points.c_str() );
                     _known_names.store( name, record( key, pointsd ) );
                  }
+                 }
+                 catch (...)
+                 {
+                    deb << "Couldn't find name" << std::endl;
+                 }
                  std::getline(in, line);
               }
+              deb << "FINISHED importing more KIDs" << std::endl;
+              deb.flush();
             }
             else if (num_commas >= 5)
             { //update registered keyhoteeIds with public keys sent from web form
@@ -171,9 +250,11 @@ int main( int argc, char** argv )
                  std::string email;
                  std::getline( ss, email, ',' );
 
-                 std::string name; //keyhoteeId
-                 std::getline( ss, name, ',' );
-                 boost::to_lower(name);
+                 std::string oname; //keyhoteeId
+                 std::getline( ss, oname, ',' );
+                 std::string name;
+                 convertToAscii(oname,&name);
+                 //boost::to_lower(name);
                  std::string key; //founderCode
                  std::getline( ss, key, ',' );
                  std::string public_key;
@@ -189,12 +270,23 @@ int main( int argc, char** argv )
                       if (record_to_update.key == key)
                         _known_names.store( name, record_to_update);
                       else
-                        std::cerr << "Founder code mismatch for " << name << std::endl;
+                        deb << "Founder code mismatch for " << name << std::endl;
                     }
                     else
                     {
-                      std::cerr << "Public key empty for " << name << std::endl;
+                      deb << "Public key empty for " << name << std::endl;
                     }
+                 }
+                 else
+                 {
+                    deb << "Looking for " << name << " ";
+                    std::string similar_name = name;
+                    boost::to_lower(similar_name);
+                    if (!is_known(_known_names,similar_name))
+                       boost::to_upper(similar_name);
+                    if (!is_known(_known_names,similar_name))
+                      deb << "NOT FOUND" << std::endl;
+                    deb.flush();
                  }
                  std::getline(in, line);
               }
@@ -217,6 +309,7 @@ int main( int argc, char** argv )
             ac.flush    = true;
             fc::logger::get().add_appender( fc::shared_ptr<fc::file_appender>( new fc::file_appender( fc::variant(ac) ) ) );
 
+            std::ofstream report_stream("report.txt");
             int id_count = 0;
             int unregistered_count = 0;
             auto itr = _known_names.begin();
@@ -224,12 +317,14 @@ int main( int argc, char** argv )
             {
               auto id_record = itr.value();
               //ilog( "${key} => ${value}", ("key",itr.key())("value",id_record));
-              ilog( "${key}, ${pub_key}, ${points}", ("key",itr.key())("pub_key",id_record.pub_key)("points",id_record.points));
+              ilog( "${key}, ${pub_key}, ${p}", ("key",itr.key())("pub_key",id_record.pub_key)("p",id_record.points));
+              report_stream << itr.key() << "," << id_record.pub_key << std::endl;
               ++id_count;
               if (id_record.pub_key.empty())
                 ++unregistered_count;
               ++itr;
             }
+            report_stream.close();
             ilog( "Total Id Count: ${id_count} Unregistered: ${unregistered_count}",("id_count",id_count)("unregistered_count",unregistered_count) );
          }
          _tcp_serv.listen( 3879 );
@@ -255,21 +350,26 @@ int main( int argc, char** argv )
                 json_con->add_method( "register_key", [&]( const fc::variants& params ) -> fc::variant 
                 {
                     FC_ASSERT( params.size() == 3 );
-                    auto name = params[0].as_string();
-                    boost::to_lower(name);
-                    name = fc::trim(name);
+                    auto oname = params[0].as_string();
+                    oname = fc::trim(oname);
+                    std::string name;
+                    convertToAscii(oname,&name);
+
                     auto rec = _known_names.fetch( name );
+                    //ensure founder code is correct
                     if( rec.key != params[1].as_string() ) //, "Key ${key} != ${expected}", ("key",params[1])("expected",rec.key) );
                     {
                         FC_ASSERT( !"Invalid Key" );
                     }
+                    //report if key is already registered, don't allow re-registering
                     if( !(rec.pub_key.size() == 0 || rec.pub_key == params[2].as_string() ) )
                     {
                       // FC_ASSERT( rec.pub_key.size() == 0 || rec.pub_key == params[2].as_string() );
                       FC_ASSERT( !"Key already Registered" );
                     }
+                    //register the public key
                     rec.pub_key = params[2].as_string();
-                    _known_names.store( params[0].as_string(), rec );
+                    _known_names.store( name, rec );
                     return fc::variant( rec );
                 });
 

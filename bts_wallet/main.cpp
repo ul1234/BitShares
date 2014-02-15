@@ -731,14 +731,22 @@ class client : public chain_connection_delegate
                    block_template.total_cdd      += cdd_collected;
                    block_template.avail_coindays -= cdd_collected;
                    block_template.trxs.push_back( cdd_trx );
+
+
                    //block_template.next_fee       = block_header::calculate_next_fee( chain.get_fee_rate().get_rounded_amount(), block_template.block_size() );
-                   block_template.trx_mroot      = block_template.calculate_merkle_root();
                    trx_eval               eval   =  chain.evaluate_signed_transaction( cdd_trx );
-                   // block_template.total_shares   -= eval.fees.get_rounded_amount(); // these fees are paid back to owner.
-                   // TODO: we need to regenerate this trx any time the user initates a transaction because
-                   // the outputs from this trx may be used.
-                   
-                   // TODO: add new transaction that pays us our fee for CDD and refunds TRX fee from our own transaction. 
+
+                   signed_transaction     reward_trx;
+                   auto cur_shares = chain.total_shares();
+                   FC_ASSERT( cur_shares > block_template.total_shares );
+
+                   uint64_t total_block_fees = cur_shares - block_template.total_shares;
+                   asset mining_reward = eval.fees + bts::blockchain::asset((total_block_fees * cdd_collected)/block_template.total_cdd,asset::bts);
+                   reward_trx.outputs.push_back( trx_output( claim_by_signature_output( cdd_trx.outputs[0].as<claim_by_signature_output>().owner ), mining_reward ) );
+                   block_template.trxs.push_back(reward_trx);
+
+                   block_template.total_shares   += (total_block_fees * cdd_collected)/block_template.total_cdd;
+                   block_template.trx_mroot      = block_template.calculate_merkle_root();
                 }
 
                 block_template.next_fee = block_header::calculate_next_fee( chain.get_fee_rate().get_rounded_amount(), 

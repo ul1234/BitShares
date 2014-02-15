@@ -40,20 +40,19 @@ std::string to_balance( uint64_t a )
 struct client_config
 {
     client_config()
-    :rpc_port(0)
     {
         //unique_node_list["162.243.45.158:4567"] = "";
         unique_node_list["127.0.0.1:4567"] = "";
     }
 
-    uint16_t rpc_port;
-    std::string rpc_user;
-    std::string rpc_password;
+    fc::ip::endpoint rpc_endpoint;
+    std::string      rpc_user;
+    std::string      rpc_password;
 
     /// map "IP:PORT" to "publickey" of the node that we are connecting to.
     std::unordered_map<std::string,std::string> unique_node_list;
 };
-FC_REFLECT( client_config, (rpc_port)(rpc_user)(rpc_password)(unique_node_list) )
+FC_REFLECT( client_config, (rpc_endpoint)(rpc_user)(rpc_password)(unique_node_list) )
 
 class client : public chain_connection_delegate
 {
@@ -101,12 +100,13 @@ class client : public chain_connection_delegate
            }
       }
 
-      void start_rpc_server(uint16_t port)
-      {
-          std::cout<<"\rlistening for rpc connections on port "<<port<<"\n";
-          _tcp_serv.listen( port );
+      void start_rpc_server(const fc::ip::endpoint& ep )
+      { try {
+          _tcp_serv.listen( ep );
+          std::cout<<"\rlistening for rpc connections on "
+                   <<std::string(ep.get_address())<<":"<<_tcp_serv.get_port()<<"\n";
           _accept_loop_complete = fc::async( [this]{ accept_loop(); } );
-      }
+      } FC_RETHROW_EXCEPTIONS( warn, "unable to start RPC server on endpoint ${ep}", ("ep",ep) ) }
 
       void accept_loop()
       {
@@ -126,7 +126,8 @@ class client : public chain_connection_delegate
            auto buf_istream = std::make_shared<fc::buffered_istream>( sock );
            auto buf_ostream = std::make_shared<fc::buffered_ostream>( sock );
 
-           auto json_con = std::make_shared<fc::rpc::json_connection>( std::move(buf_istream), std::move(buf_ostream) );
+           auto json_con = std::make_shared<fc::rpc::json_connection>( std::move(buf_istream), 
+                                                                       std::move(buf_ostream) );
            register_methods( json_con );
 
            fc::async( [json_con]{ json_con->exec().wait(); } );
@@ -392,28 +393,35 @@ class client : public chain_connection_delegate
       }
 
       void open( const fc::path& datadir )
-      {
+      { try {
           chain.open( datadir / "chain" );
+          ilog( "opening ${d}", ("d", datadir/"wallet.bts") );
           _wallet.open( datadir / "wallet.bts" );
 
-         // if( chain.head_block_num() == uint32_t(-1) )
-         // {
-          //    auto genesis = create_test_genesis_block();
-         //   ilog( "genesis block: \n${s}", ("s", fc::json::to_pretty_string(genesis) ) );
-         //    chain.push_block( genesis );
-         //     _wallet.scan_chain( chain, 0 );
-         //     _wallet.save();
-         // }
-          
           if( chain.head_block_num() != uint32_t(-1) )
              _wallet.scan_chain( chain );
+
           _wallet.set_stake( chain.get_stake(), chain.head_block_num() );
           _wallet.set_fee_rate( chain.get_fee_rate() );
 
+
           // load config, connect to server, and start subscribing to blocks...
-          //sim_loop_complete = fc::async( [this]() { server_sim_loop(); } );
+          
+          ilog( "opening ${d}", ("d", datadir/"config.json") );
+          auto config_file = datadir/"config.json";
+          if( fc::exists( config_file ) )
+          {
+            _config = fc::json::from_file( config_file ).as<client_config>();
+          }
+          else
+          {
+             std::cerr<<"creating default config file "<<config_file.generic_string()<<"\n";
+             fc::json::save_to_file( _config, config_file );
+          }
+
           chain_connect_loop_complete = fc::async( [this](){ chain_connect_loop(); } );
-      }
+          start_rpc_server(_config.rpc_endpoint);
+      } FC_RETHROW_EXCEPTIONS( warn, "", ("datadir",datadir) ) }
 
       void broadcast_transaction( const signed_transaction& trx )
       { try {
@@ -1156,7 +1164,7 @@ int main( int argc, char** argv )
 
    std::cout<<"================================================================\n";
    std::cout<<"=                                                              =\n";
-   std::cout<<"=             Welcome to BitShares X - Alpha                   =\n";
+   std::cout<<"=             Welcome to BitShares XT                          =\n";
    std::cout<<"=                                                              =\n";
    std::cout<<"=  This software is in alpha testing and is not suitable for   =\n";
    std::cout<<"=  real monetary transactions or trading.  Use at your own     =\n";
@@ -1183,7 +1191,9 @@ int main( int argc, char** argv )
    try {
      auto  bts_client = std::make_shared<client>();
      if( argc == 1 )
-     bts_client->open( "datadir" );
+     {
+        bts_client->open( "datadir" );
+     }
      else if( argc == 2 )
      {
         bts_client->open( argv[1] );
@@ -1193,8 +1203,6 @@ int main( int argc, char** argv )
         std::cerr<<"Usage: "<<argv[0]<<" [DATADIR]\n";
         return -2;
      }
-     bts_client->start_rpc_server(0);
-
      
      fc::thread  read_thread;
      read_thread.async( [=](){ process_commands( main_thread, bts_client ); } ).wait();

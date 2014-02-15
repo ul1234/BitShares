@@ -27,9 +27,6 @@ namespace bts
    {
        auto dat      = pub.serialize();
        auto dat_hash = small_hash(dat.data, sizeof(dat) );
-       // set the version number
-       ((char*)&dat_hash)[0] &= 0x0f; // set first 4 bits to 0 
-       ((char*)&dat_hash)[0] |= 0x10; // set the first 4 bits to 0001
        auto check = fc::ripemd160::hash( (char*)&dat_hash, 16 );
        memcpy( addr.data, (char*)&dat_hash, sizeof(addr) );
        memcpy( &addr.data[16], (char*)&check, 4 );
@@ -41,11 +38,6 @@ namespace bts
     */
    bool address::is_valid()const
    {
-       if( (addr.data[0] & 0xf0) != 0x10 ) // version 1
-       {
-          FC_THROW_EXCEPTION( exception, "invalid address version" );
-          return false; 
-       }
        auto check = fc::ripemd160::hash( addr.data, 16 );
        return memcmp(&addr.data[16], &check, 4 ) == 0;
    }

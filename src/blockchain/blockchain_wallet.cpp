@@ -294,8 +294,9 @@ namespace bts { namespace blockchain {
       my->_my_addresses[ key.get_public_key() ] = my->_data.extra_keys.size() -1;
    }
 
-   bts::address   wallet::get_new_address()
+   bts::address   wallet::get_new_address( const std::string& label )
    {
+      // TODO: actually store the label... 
       my->_data.last_used_key++;
       auto new_key = my->_data.base_key.child( my->_data.last_used_key );
       import_key(new_key);

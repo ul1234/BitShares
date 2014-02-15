@@ -420,8 +420,8 @@ namespace bts { namespace blockchain {
       {
           return;
       }
-      my->_unspent_outputs.erase(ref_itr->second);
       my->_spent_outputs[ref_itr->second] = itr->second;
+      my->_unspent_outputs.erase(ref_itr->second);      
    }
 
    void wallet::sign_transaction( signed_transaction& trx, const bts::address& addr )

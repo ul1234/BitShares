@@ -913,9 +913,47 @@ namespace bts { namespace blockchain {
         trx_eval total_eval;
         for( uint32_t i = 0; i < trxs.size(); ++i )
         {
-            // ignore fees for the market trxs and for the mining transaction
-            total_eval += evaluate_signed_transaction( trxs[i], 
-                                 (i == trxs.size()-1) || (i < ignore_first_n_fees) );
+            // ignore fees for the market trxs and for the mining transaction... assuming there is a mining trx??
+            if( i < ignore_first_n_fees )
+            {
+               total_eval += evaluate_signed_transaction( trxs[i], true );
+            }
+            bts::address mining_addr;
+            if( i == trxs.size() - 1 ) // last trx..
+            {
+               if( trxs.back().inputs.size() == 0 )
+               {
+                  if( trxs.size() > 1 ) 
+                  {
+                     if( trxs[i-1].outputs.size() == 1 ) // mining trx can only have 1 output
+                     {
+                        if( trxs[i-1].outputs[0].claim_func == claim_by_signature ) // mining trx must be claim by sig
+                        {
+                           mining_addr =  trxs[i-1].outputs[0].as<claim_by_signature_output>().owner;
+                           FC_ASSERT( trxs.back().outputs.size() == 1 ); // only allowed 1 output
+                           FC_ASSERT( trxs.back().outputs.back().as<claim_by_signature_output>().owner == mining_addr ); // must match
+
+                           auto prev_eval = evaluate_signed_transaction( trxs[i-1], true );
+
+                           auto rew = (total_eval.fees.get_rounded_amount() * prev_eval.coindays_destroyed )/
+                                                total_eval.coindays_destroyed;
+                           asset mining_reward(rew, asset::bts); 
+                           // calculate mining reward... 
+                           FC_ASSERT( trxs.back().outputs.back().amount == mining_reward );
+                        }
+                     }
+                  }
+               }
+               if( mining_addr == bts::address() ) // process like normal
+               {
+                  total_eval += evaluate_signed_transaction( trxs[i], false );
+               }
+            }
+            else 
+            {
+               total_eval += evaluate_signed_transaction( trxs[i], 
+                                    (i == trxs.size()-1) || (i < ignore_first_n_fees) );
+            }
         }
         ilog( "summary: ${totals}", ("totals",total_eval) );
         return total_eval;
@@ -1255,6 +1293,10 @@ namespace bts { namespace blockchain {
     uint64_t blockchain_db::current_difficulty()const
     {
        return my->head_block.next_difficulty;
+    }
+    uint64_t blockchain_db::total_shares()const
+    {
+       return my->head_block.total_shares;
     }
     uint64_t blockchain_db::available_coindays()const
     {

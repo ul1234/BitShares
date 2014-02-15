@@ -160,6 +160,7 @@ namespace bts { namespace blockchain {
           void open( const fc::path& dir, bool create = true );
           void close();
 
+          uint64_t      total_shares()const;
           uint32_t      head_block_num()const;
           block_id_type head_block_id()const;
           uint64_t      get_stake(); // head - 1 

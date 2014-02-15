@@ -54,7 +54,7 @@ namespace bts { namespace blockchain {
            void open( const fc::path& wallet_file );
            void save();
 
-           bts::address              get_new_address();
+           bts::address              get_new_address( const std::string& label = "" );
            std::vector<bts::address> list_address();
            asset                     get_balance( asset::type t );
            asset                     get_margin( asset::type t, asset& collat );

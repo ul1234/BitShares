@@ -18,6 +18,7 @@
 #include "chain_messages.hpp"
 #include <fc/network/tcp_socket.hpp>
 #include <fc/rpc/json_connection.hpp>
+#include <fc/signals.hpp>
 #ifndef WIN32
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -40,20 +41,21 @@ std::string to_balance( uint64_t a )
 struct client_config
 {
     client_config()
-    :rpc_port(0)
+    :rpc_endpoint( fc::ip::endpoint::from_string("127.0.0.1:0") ),ignore_console(false)
     {
         //unique_node_list["162.243.45.158:4567"] = "";
         unique_node_list["127.0.0.1:4567"] = "";
     }
 
-    uint16_t rpc_port;
-    std::string rpc_user;
-    std::string rpc_password;
+    fc::ip::endpoint rpc_endpoint;
+    std::string      rpc_user;
+    std::string      rpc_password;
+    bool             ignore_console;
 
     /// map "IP:PORT" to "publickey" of the node that we are connecting to.
     std::unordered_map<std::string,std::string> unique_node_list;
 };
-FC_REFLECT( client_config, (rpc_port)(rpc_user)(rpc_password)(unique_node_list) )
+FC_REFLECT( client_config, (rpc_endpoint)(rpc_user)(rpc_password)(unique_node_list)(ignore_console) )
 
 class client : public chain_connection_delegate
 {
@@ -71,6 +73,12 @@ class client : public chain_connection_delegate
       std::unordered_set<fc::rpc::json_connection*> _login_set;
       client_config                                 _config;
       std::unordered_map<bts::blockchain::transaction_id_type,bts::blockchain::signed_transaction> pending;
+
+      fc::signal<void()>                            _exit_signal;
+      void wait_for_quit()
+      {
+        fc::wait( _exit_signal );
+      }
 
       ~client()
       {
@@ -101,12 +109,13 @@ class client : public chain_connection_delegate
            }
       }
 
-      void start_rpc_server(uint16_t port)
-      {
-          std::cout<<"\rlistening for rpc connections on port "<<port<<"\n";
-          _tcp_serv.listen( port );
+      void start_rpc_server(const fc::ip::endpoint& ep )
+      { try {
+          _tcp_serv.listen( ep );
+          std::cout<<"\rlistening for rpc connections on "
+                   <<std::string(ep.get_address())<<":"<<_tcp_serv.get_port()<<"\n";
           _accept_loop_complete = fc::async( [this]{ accept_loop(); } );
-      }
+      } FC_RETHROW_EXCEPTIONS( warn, "unable to start RPC server on endpoint ${ep}", ("ep",ep) ) }
 
       void accept_loop()
       {
@@ -126,7 +135,8 @@ class client : public chain_connection_delegate
            auto buf_istream = std::make_shared<fc::buffered_istream>( sock );
            auto buf_ostream = std::make_shared<fc::buffered_ostream>( sock );
 
-           auto json_con = std::make_shared<fc::rpc::json_connection>( std::move(buf_istream), std::move(buf_ostream) );
+           auto json_con = std::make_shared<fc::rpc::json_connection>( std::move(buf_istream), 
+                                                                       std::move(buf_ostream) );
            register_methods( json_con );
 
            fc::async( [json_con]{ json_con->exec().wait(); } );
@@ -157,12 +167,11 @@ class client : public chain_connection_delegate
               asset due  = _wallet.get_margin( params[0].as<asset::type>(), collat );
 
               fc::mutable_variant_object info; 
-              info["collateral"]     = fc::variant(chain.head_block_id());
+              info["collateral"]     = fc::variant(collat); //chain.head_block_id());
               info["owed"]           = fc::variant(due);
 
               collat.amount *= 3;
               collat.amount /= 4;
-             // info["min_call_price"] = 
               info["avg_call_price"] = std::string( due/collat );
 
               return fc::variant(info);
@@ -182,6 +191,13 @@ class client : public chain_connection_delegate
 
               return fc::variant(trx.id());
          });
+         con->add_method( "stop", [=]( const fc::variants& params ) -> fc::variant 
+         {
+            check_login( capture_con );
+            FC_ASSERT( params.size() == 0 );
+            _exit_signal();
+            return fc::variant(true);
+         });
 
          con->add_method( "getmarket", [=]( const fc::variants& params ) -> fc::variant 
          {
@@ -195,7 +211,10 @@ class client : public chain_connection_delegate
          con->add_method( "getnewaddress", [=]( const fc::variants& params ) -> fc::variant 
          {
              check_login( capture_con );
-             return fc::variant( _wallet.get_new_address() ); 
+             if( params.size() == 0 )
+                return fc::variant( _wallet.get_new_address() ); 
+             else
+                return fc::variant( _wallet.get_new_address(params[0].as_string()) ); 
          });
 
          con->add_method( "transfer", [=]( const fc::variants& params ) -> fc::variant 
@@ -322,6 +341,7 @@ class client : public chain_connection_delegate
                           
          con->add_method( "import_bts_privkey", [=]( const fc::variants& params ) -> fc::variant 
          {
+             // param 0 = key, param 1 = label, param 2 == optional rescan
              check_login( capture_con );
              bool rescan = false;
              FC_ASSERT( params.size() == 1 );
@@ -392,28 +412,42 @@ class client : public chain_connection_delegate
       }
 
       void open( const fc::path& datadir )
-      {
+      { try {
           chain.open( datadir / "chain" );
+          ilog( "opening ${d}", ("d", datadir/"wallet.bts") );
           _wallet.open( datadir / "wallet.bts" );
 
-         // if( chain.head_block_num() == uint32_t(-1) )
-         // {
-          //    auto genesis = create_test_genesis_block();
-         //   ilog( "genesis block: \n${s}", ("s", fc::json::to_pretty_string(genesis) ) );
-         //    chain.push_block( genesis );
-         //     _wallet.scan_chain( chain, 0 );
-         //     _wallet.save();
-         // }
-          
           if( chain.head_block_num() != uint32_t(-1) )
              _wallet.scan_chain( chain );
+
           _wallet.set_stake( chain.get_stake(), chain.head_block_num() );
           _wallet.set_fee_rate( chain.get_fee_rate() );
 
+
           // load config, connect to server, and start subscribing to blocks...
-          //sim_loop_complete = fc::async( [this]() { server_sim_loop(); } );
+          
+          ilog( "opening ${d}", ("d", datadir/"config.json") );
+          auto config_file = datadir/"config.json";
+          if( fc::exists( config_file ) )
+          {
+            _config = fc::json::from_file( config_file ).as<client_config>();
+          }
+          else
+          {
+             std::cerr<<"creating default config file "<<config_file.generic_string()<<"\n";
+             fc::json::save_to_file( _config, config_file );
+          }
+
           chain_connect_loop_complete = fc::async( [this](){ chain_connect_loop(); } );
-      }
+          if( _config.rpc_password != std::string() )
+          {
+            start_rpc_server(_config.rpc_endpoint);
+          }
+          else
+          {
+             std::cerr<<"not starting json-rpc server because rpc_password was not specified in configuration.\n";
+          }
+      } FC_RETHROW_EXCEPTIONS( warn, "", ("datadir",datadir) ) }
 
       void broadcast_transaction( const signed_transaction& trx )
       { try {
@@ -731,14 +765,22 @@ class client : public chain_connection_delegate
                    block_template.total_cdd      += cdd_collected;
                    block_template.avail_coindays -= cdd_collected;
                    block_template.trxs.push_back( cdd_trx );
+
+
                    //block_template.next_fee       = block_header::calculate_next_fee( chain.get_fee_rate().get_rounded_amount(), block_template.block_size() );
-                   block_template.trx_mroot      = block_template.calculate_merkle_root();
                    trx_eval               eval   =  chain.evaluate_signed_transaction( cdd_trx );
-                   // block_template.total_shares   -= eval.fees.get_rounded_amount(); // these fees are paid back to owner.
-                   // TODO: we need to regenerate this trx any time the user initates a transaction because
-                   // the outputs from this trx may be used.
-                   
-                   // TODO: add new transaction that pays us our fee for CDD and refunds TRX fee from our own transaction. 
+
+                   signed_transaction     reward_trx;
+                   auto cur_shares = chain.total_shares();
+                   FC_ASSERT( cur_shares > block_template.total_shares );
+
+                   uint64_t total_block_fees = cur_shares - block_template.total_shares;
+                   asset mining_reward = eval.fees + bts::blockchain::asset((total_block_fees * cdd_collected)/block_template.total_cdd,asset::bts);
+                   reward_trx.outputs.push_back( trx_output( claim_by_signature_output( cdd_trx.outputs[0].as<claim_by_signature_output>().owner ), mining_reward ) );
+                   block_template.trxs.push_back(reward_trx);
+
+                   block_template.total_shares   += (total_block_fees * cdd_collected)/block_template.total_cdd;
+                   block_template.trx_mroot      = block_template.calculate_merkle_root();
                 }
 
                 block_template.next_fee = block_header::calculate_next_fee( chain.get_fee_rate().get_rounded_amount(), 
@@ -1148,7 +1190,7 @@ int main( int argc, char** argv )
 
    std::cout<<"================================================================\n";
    std::cout<<"=                                                              =\n";
-   std::cout<<"=             Welcome to BitShares X - Alpha                   =\n";
+   std::cout<<"=             Welcome to BitShares XT                          =\n";
    std::cout<<"=                                                              =\n";
    std::cout<<"=  This software is in alpha testing and is not suitable for   =\n";
    std::cout<<"=  real monetary transactions or trading.  Use at your own     =\n";
@@ -1175,7 +1217,15 @@ int main( int argc, char** argv )
    try {
      auto  bts_client = std::make_shared<client>();
      if( argc == 1 )
-     bts_client->open( "datadir" );
+     {
+#ifdef WIN32
+        bts_client->open( fc::app_path() / "BitSharesX" );
+#elif defined( __APPLE__ )
+        bts_client->open( fc::app_path() / "BitSharesX" );
+#else
+        bts_client->open( fc::app_path() / ".bitsharesx" );
+#endif
+     }
      else if( argc == 2 )
      {
         bts_client->open( argv[1] );
@@ -1185,11 +1235,16 @@ int main( int argc, char** argv )
         std::cerr<<"Usage: "<<argv[0]<<" [DATADIR]\n";
         return -2;
      }
-     bts_client->start_rpc_server(0);
-
      
-     fc::thread  read_thread;
-     read_thread.async( [=](){ process_commands( main_thread, bts_client ); } ).wait();
+     if( bts_client->_config.ignore_console == false )
+     {
+        fc::thread  read_thread;
+        read_thread.async( [=](){ process_commands( main_thread, bts_client ); } ).wait();
+     }
+     else
+     {
+        bts_client->wait_for_quit();
+     }
    } 
    catch ( const fc::exception& e )
    {

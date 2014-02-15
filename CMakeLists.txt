@@ -145,6 +145,10 @@ list(APPEND sources ${bitshares_headers})
 file(GLOB_RECURSE bitshares_headers src/ *.hpp *.h)
 list(APPEND sources ${bitshares_headers})
 
+IF(APPLE)
+  SET(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++11 -stdlib=libc++  -Wall" )
+ENDIF(APPLE)
+
 add_library( bshare ${sources} )
 
 # All include directories required to compile dependency headers will be automatically added 

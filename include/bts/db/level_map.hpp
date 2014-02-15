@@ -45,8 +45,6 @@ namespace bts { namespace db {
                     );
            }
            _db.reset(ndb);
-           //TODO
-           //DLNFIX commented out temporarily, enable soon
            UpgradeDbIfNecessary(dir,ndb, fc::get_typename<Value>::name(),sizeof(Value));
         }
 

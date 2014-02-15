@@ -14,7 +14,14 @@
 typedef std::function<void(leveldb::DB*)> TUpgradeDbFunction; 
 class TUpgradeDbMapper
 {
+  static TUpgradeDbMapper* _updateDbMapper;
 public:
+  static TUpgradeDbMapper* Instance()
+       {
+       if (!_updateDbMapper)
+         _updateDbMapper = new TUpgradeDbMapper();
+       return _updateDbMapper;
+       }
   std::map<std::string,TUpgradeDbFunction> UpgradeDbFunctionRegistry;
   int Add(std::string typeName, TUpgradeDbFunction function) 
        { 
@@ -23,7 +30,6 @@ public:
        }
 };
 
-extern TUpgradeDbMapper gUpgradeDbMapper;
 #define REGISTER_DB_OBJECT(TYPE,VERSIONNUM) \
 void UpgradeDb ## TYPE ## VERSIONNUM(leveldb::DB* dbase) \
   { \
@@ -51,6 +57,6 @@ void UpgradeDb ## TYPE ## VERSIONNUM(leveldb::DB* dbase) \
     } /*while*/ \
   } \
 static int dummyResult ## TYPE ## VERSIONNUM  = \
-  gUpgradeDbMapper.Add(fc::get_typename<TYPE ## VERSIONNUM>::name(), UpgradeDb ## TYPE ## VERSIONNUM);
+  TUpgradeDbMapper::Instance()->Add(fc::get_typename<TYPE ## VERSIONNUM>::name(), UpgradeDb ## TYPE ## VERSIONNUM);
 
 void UpgradeDbIfNecessary(fc::path dir, leveldb::DB* dbase, const char* record_type, size_t record_type_size);

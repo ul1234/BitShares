@@ -23,34 +23,34 @@
 #include <wincon.h>
 #endif
 
-struct record1
+struct record0
 {
-    record1() : points(0){}
-    record1( std::string k, double p ) : key(k), points(p) {}
-    record1( std::string k, std::string public_key, double p) : key(k), points(p), pub_key(public_key) {}
+    record0() : points(0){}
+    record0( std::string k, double p ) : key(k), points(p) {}
+    record0( std::string k, std::string public_key, double p) : key(k), points(p), pub_key(public_key) {}
 
     std::string key; //founderCode
     double    points;
     std::string pub_key;
 };
+FC_REFLECT( record0, (key)(points)(pub_key) )
 
-FC_REFLECT( record1, (key)(points)(pub_key) )
-
-//#define RECORD2
-#ifndef RECORD2
-typedef record1 record;
+//#define RECORD1
+#ifndef RECORD1
+typedef record0 record;
+REGISTER_DB_OBJECT(record,0)
 #else
-struct record2
+struct record1
 {
-    record2() : points(0){}
-    record2( std::string k, double p ) : key(k), points(p), new_field(0) {}
-    record2( std::string k, std::string public_key, double p) : key(k), points(p), pub_key(public_key), new_field(0) {}
+    record1() : points(0){}
+    record1( std::string k, double p ) : key(k), points(p), new_field(0) {}
+    record1( std::string k, std::string public_key, double p) : key(k), points(p), pub_key(public_key), new_field(0) {}
     //convert from record1 to record2
-    record2(const record1& r1)
+    record1(const record0& r0)
       {
-      key = r1.key;
-      points = r1.points;
-      pub_key = r1.pub_key;
+      key = r0.key;
+      points = r0.points;
+      pub_key = r0.pub_key;
       new_field = 3;
       }
 
@@ -59,44 +59,37 @@ struct record2
     std::string pub_key;
     int   new_field;
 };
-
-
-FC_REFLECT( record2, (key)(points)(pub_key)(new_field) )
-typedef record2 record;
-REGISTER_DB_OBJECT(record,1)
-
-/*
-namespace ldb = leveldb;
-void convert_record1_db(ldb::DB* dbase)
-  {
-  ldb::Iterator* dbaseI = dbase->NewIterator( ldb::ReadOptions() );
-  dbaseI->SeekToFirst();
-  //if empty database, do nothing
-  if (dbaseI->status().IsNotFound())
-    return;
-  if (!dbaseI->status().ok())
-    FC_THROW_EXCEPTION( exception, "database error: ${msg}", ("msg", dbaseI->status().ToString() ) );
-  //convert dbase objects from legacy TypeVersionNum to current Type
-  while (dbaseI->Valid())
-    {
-      ///load old record type
-    record1 old_value;
-    fc::datastream<const char*> dstream( dbaseI->value().data(), dbaseI->value().size() );
-    fc::raw::unpack( dstream, old_value );
-    //convert to new record type
-    record new_value(old_value);
-    auto vec = fc::raw::pack(new_value);
-    ldb::Slice value_slice( vec.data(), vec.size() );             
-    ldb::Slice key_slice = dbaseI->key();
-    auto status = dbase->Put( ldb::WriteOptions(), key_slice, value_slice );
-    if( !status.ok() )
+FC_REFLECT( record1, (key)(points)(pub_key)(new_field) )
+struct record2
+{
+    record2() : points(0){}
+    record2( std::string k, double p ) : key(k), points(p), new_field(0) {}
+    record2( std::string k, std::string public_key, double p) : key(k), points(p), pub_key(public_key), new_field(0) {}
+    //convert from record1 to record2
+    record2(const record1& rec)
       {
-      FC_THROW_EXCEPTION( exception, "database error: ${msg}", ("msg", status.ToString() ) );
+      key = rec.key;
+      points = rec.points;
+      pub_key = rec.pub_key;
+      new_field = 3;
+      x = y = z = 0.0;
       }
-    dbaseI->Next();
-    } //while
-  }
-*/
+
+    std::string key; //founderCode
+    double    points;
+    std::string pub_key;
+    int   new_field;
+    double x;
+    double y;
+    double z;
+};
+FC_REFLECT( record2, (key)(points)(pub_key)(new_field)(x)(y)(z) )
+
+
+typedef record2 record;
+REGISTER_DB_OBJECT(record,0)
+REGISTER_DB_OBJECT(record,1)
+REGISTER_DB_OBJECT(record,2)
 #endif 
 
 
@@ -119,10 +112,6 @@ int main( int argc, char** argv )
          //maps keyhoteeId -> founderCode,points,publicKey
          bts::db::level_map<std::string,record>   _known_names;
          _known_names.open( "reg_db" );
-
-         #ifdef RECORD2
-//         convert_record1_db(_known_names._db.get());
-         #endif
          
          if (argc == 3)
          {  //update records in goood dbase with matching records from messy database

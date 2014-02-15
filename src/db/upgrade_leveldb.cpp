@@ -7,7 +7,7 @@ namespace bts { namespace addressbook {
 REGISTER_DB_OBJECT(wallet_identity,0)
 } }
 
-TUpgradeDbMapper gUpgradeDbMapper;
+TUpgradeDbMapper* TUpgradeDbMapper::_updateDbMapper = nullptr;
 // this code has no bitshares dependencies, and it
 // could be moved to fc, if fc ever adds a leveldb dependency
 void UpgradeDbIfNecessary(fc::path dir, leveldb::DB* dbase, const char* record_type, size_t record_type_size)
@@ -48,8 +48,8 @@ void UpgradeDbIfNecessary(fc::path dir, leveldb::DB* dbase, const char* record_t
   if (old_record_type != record_type)
     {
     //check if upgrade function in registry
-    auto upgrade_functionI = gUpgradeDbMapper.UpgradeDbFunctionRegistry.find( old_record_type );
-    if (upgrade_functionI != gUpgradeDbMapper.UpgradeDbFunctionRegistry.end())
+    auto upgrade_functionI = TUpgradeDbMapper::Instance()->UpgradeDbFunctionRegistry.find( old_record_type );
+    if (upgrade_functionI != TUpgradeDbMapper::Instance()->UpgradeDbFunctionRegistry.end())
       {
       ilog("Upgrading database ${db} from ${old} to ${new}",("db",dir.to_native_ansi_path())
                                                             ("old",old_record_type)
@@ -57,9 +57,14 @@ void UpgradeDbIfNecessary(fc::path dir, leveldb::DB* dbase, const char* record_t
       //update database's RECORD_TYPE to new record type name
       std::ofstream os(record_type_filename.to_native_ansi_path());
       os << record_type << std::endl;
-      os << sizeof(record_type);
+      os << record_type_size;
       //upgrade the database using upgrade function
       upgrade_functionI->second(dbase);
+      }
+    else
+      {
+      elog("In ${db}, record types ${old} and ${new} do not match, but no upgrade function found!",
+               ("db",dir.to_native_ansi_path())("old",old_record_type)("new",record_type));
       }
     }
   else if (old_record_type_size == 0) //if record type file never created, create it now
@@ -70,6 +75,8 @@ void UpgradeDbIfNecessary(fc::path dir, leveldb::DB* dbase, const char* record_t
     }
   else if (old_record_type_size != record_type_size)
     {
-    elog("Record type names match, but record sizes do not match!");
+    elog("In ${db}, record type matches ${new}, but record sizes do not match!",
+             ("db",dir.to_native_ansi_path())("new",record_type));
+
     }
   }

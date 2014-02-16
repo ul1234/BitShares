@@ -202,7 +202,46 @@ int main( int argc, char** argv )
             int num_commas = std::count(line.begin(), line.end(), ',');
             deb << "num_commas=" << num_commas << "\n";
             std::cerr << "num_commas=" << num_commas << "\n";
-            if (num_commas == 2 || num_commas == 3)
+            if (num_commas == 1)
+            { //fix badly transcribed keyhoteeIDs (replace 1st column names with 2nd column names)
+              while( in.good() )
+              {
+                std::stringstream ss(line);
+
+                std::string original_name; //old keyhoteeId
+                std::getline( ss, original_name, ',' );
+                std::string name;
+                convertToAscii(original_name,&name);
+
+                std::string original_new_name; //old keyhoteeId
+                std::getline(ss, original_new_name);
+                std::string new_name;
+                convertToAscii(original_new_name,&new_name);
+
+                try {
+                  auto itr = _known_names.find( name );
+                  if (itr.valid())
+                  {
+                      deb << "found " << name << " replacing with " << new_name << std::endl;
+                      auto rec = itr.value();
+                      rec.key = new_name;
+                      _known_names.store( new_name, rec );
+                  }
+                  else
+                  {
+                      deb << name << " NOT FOUND when trying to replace" << std::endl;
+                  }
+                }
+                catch (...)
+                {
+                  deb << "Couldn't find name " << name << std::endl;
+                }
+
+              }
+              deb << "FINISHED replacing bad KIDs" << std::endl;
+              deb.flush();
+            }
+            else if (num_commas == 2 || num_commas == 3)
             {
               while( in.good() )
               {
@@ -261,6 +300,17 @@ int main( int argc, char** argv )
                  std::getline( ss, public_key, ',' );
 
                  auto itr = _known_names.find( name );
+                 if (!itr.valid())
+                 {
+                    std::string similar_name = name;
+                    boost::to_lower(similar_name);
+                    itr = _known_names.find( similar_name );
+                    if (!itr.valid())
+                    {
+                        boost::to_upper(similar_name);
+                        itr = _known_names.find( similar_name );
+                    }
+                 }
                  if( itr.valid() )
                  {
                     auto record_to_update = itr.value();

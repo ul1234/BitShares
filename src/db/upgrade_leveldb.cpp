@@ -1,6 +1,7 @@
 #include <bts/db/upgrade_leveldb.hpp>
 #include <boost/filesystem.hpp>
 #include <fc/log/logger.hpp>
+#include <fstream>
 
 #include <bts/addressbook/contact.hpp>
 namespace bts { namespace addressbook {

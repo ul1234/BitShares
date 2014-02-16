@@ -6,6 +6,8 @@
 #include <fc/io/raw.hpp>
 #include <fc/exception/exception.hpp>
 
+#include "upgrade_leveldb.hpp"
+
 namespace bts { namespace db {
 
   namespace ldb = leveldb;
@@ -26,13 +28,13 @@ namespace bts { namespace db {
            opts.create_if_missing = create;
            opts.comparator = & _comparer;
            
-           ldb::DB* ndb = nullptr;
 
            /// \waring Given path must exist to succeed toNativeAnsiPath
            fc::create_directories(dir);
 
            std::string ldb_path = dir.to_native_ansi_path();
 
+           ldb::DB* ndb = nullptr;
            auto ntrxstat = ldb::DB::Open( opts, ldb_path.c_str(), &ndb );
            if( !ntrxstat.ok() )
            {
@@ -42,6 +44,7 @@ namespace bts { namespace db {
                     );
            }
            _db.reset(ndb);
+           UpgradeDbIfNecessary(dir,ndb, fc::get_typename<Value>::name(),sizeof(Value));
         }
 
         void close()

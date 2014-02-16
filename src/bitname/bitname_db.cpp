@@ -26,6 +26,12 @@ struct name_location
 };
 FC_REFLECT( name_location, (block_num)(trx_num) )
 
+namespace fc {
+//  template<> struct get_typename<bts::bitname::name_header>   { static const char* name()   { return "bts::bitname::name_header";   } };
+  template<> struct get_typename<std::vector<bts::bitname::name_trx>>   { static const char* name()   { return "std::vector<bts::bitname::name_trx>";   } };
+  template<> struct get_typename<std::vector<name_location>>   { static const char* name()   { return "std::vector<name_location>";   } };
+}
+
 namespace bts { namespace bitname {
 
     namespace ldb = leveldb;

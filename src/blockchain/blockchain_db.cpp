@@ -18,6 +18,9 @@
 #include <algorithm>
 #include <sstream>
 
+namespace fc {
+  template<> struct get_typename<std::vector<uint160>>    { static const char* name()  { return "std::vector<uint160>";  } };
+} // namespace fc
 
 struct trx_stat
 {

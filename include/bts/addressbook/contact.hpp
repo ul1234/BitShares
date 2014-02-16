@@ -105,9 +105,9 @@ namespace bts { namespace addressbook {
       std::vector<contact_property>   properties;
    };
 
-  struct wallet_identity : public contact
+  struct wallet_identity0 : public contact
   { //DLNFIX can we derive wallet_identity from wallet_contact instead to avoid code duplication?
-      wallet_identity() : mining_effort(0.2) {}
+      wallet_identity0() : mining_effort(0.2) {}
       std::string get_full_name() const { return first_name + " " + last_name; }
       std::string get_display_name() const
       {
@@ -131,6 +131,7 @@ namespace bts { namespace addressbook {
       std::vector<char>    private_icon_png;  // kept locally, not shared
 
   };
+  typedef struct wallet_identity0 wallet_identity;
 
   /**
    *  Contains the private information about a given contact

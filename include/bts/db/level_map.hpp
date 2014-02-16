@@ -10,6 +10,8 @@
 
 #include <fc/log/logger.hpp>
 
+#include "upgrade_leveldb.hpp"
+
 namespace bts { namespace db {
 
   namespace ldb = leveldb;
@@ -43,6 +45,7 @@ namespace bts { namespace db {
                     );
            }
            _db.reset(ndb);
+           UpgradeDbIfNecessary(dir,ndb, fc::get_typename<Value>::name(),sizeof(Value));
         }
 
         void close()
@@ -249,6 +252,7 @@ namespace bts { namespace db {
         };
 
         key_compare                  _comparer;
+public: //DLNFIX temporary, remove this
         std::unique_ptr<leveldb::DB> _db;
         
   };

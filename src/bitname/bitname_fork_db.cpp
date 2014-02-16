@@ -35,6 +35,12 @@ bool operator == ( const fork_index& a, const fork_index& b )
 
 FC_REFLECT( fork_index, (fork_difficulty)(fork_header) );
 
+namespace fc {
+//  template<> struct get_typename<bts::bitname::meta_header>   { static const char* name()   { return "bts::bitname::meta_header";   } };
+  template<> struct get_typename<std::unordered_set<bts::bitname::name_id_type>>   { static const char* name()   { return "std::unordered_set<bts::bitname::name_id_type>";   } };
+  template<> struct get_typename<bts::bitname::name_id_type>   { static const char* name()   { return "bts::bitname::name_id_type";   } };
+  //template<> struct get_typename<std::vector<bts::bitname::name_location>>   { static const char* name()   { return "std::vector<bts::bitname::name_location>";   } };
+}
 
 
 namespace bts { namespace bitname {

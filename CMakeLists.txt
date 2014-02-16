@@ -65,6 +65,8 @@ ENDIF(WIN32)
 set( sources 
      src/momentum.cpp
 
+     src/db/upgrade_leveldb.cpp
+
      src/network/stcp_socket.cpp
      src/network/connection.cpp
      src/network/server.cpp

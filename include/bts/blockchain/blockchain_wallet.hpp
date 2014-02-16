@@ -40,6 +40,15 @@ namespace bts { namespace blockchain {
         uint16_t   output_idx;
    };
 
+   struct transaction_state
+   {
+      transaction_state():block_num(-1),valid(false){}
+      signed_transaction  trx;
+      std::string         memo;
+      uint32_t            block_num; // block that included it, -1 if not included
+      bool                valid; // is this transaction currently valid if it is not confirmed...
+   };
+
    /**
     *  The wallet stores all signed_transactions that reference one of its
     *  addresses in the inputs or outputs section.  It also tracks all
@@ -51,20 +60,36 @@ namespace bts { namespace blockchain {
            wallet();
            ~wallet();
 
-           void open( const fc::path& wallet_file );
+           void open( const fc::path& wallet_file, const std::string& password );
+           void create( const fc::path& wallet_file, const std::string& base_pass, const std::string& key_pass, bool is_brain = false );
            void save();
+           void backup_wallet( const fc::path& backup_path );
 
-           bts::address              get_new_address( const std::string& label = "" );
-           std::vector<bts::address> list_address();
-           asset                     get_balance( asset::type t );
-           asset                     get_margin( asset::type t, asset& collat );
-           void                      set_stake( uint64_t stake, uint32_t head_idx  );
-           void                      import_key( const fc::ecc::private_key& key );
-           void                      set_fee_rate( const asset& pts_per_byte );
-           uint64_t                  last_scanned()const;
+           bts::address                                 import_key( const fc::ecc::private_key& key, const std::string& label = "" );
+           bts::address                                 new_recv_address( const std::string& label = "" );
+           std::unordered_map<bts::address,std::string> get_recv_addresses()const;
 
-           signed_transaction    collect_coindays( uint64_t cdd, uint64_t& cdd_collected );
-           signed_transaction    transfer( const asset& amnt, const bts::address& to );
+           void                                         add_send_address( const bts::address&, const std::string& label = "" );
+           std::unordered_map<bts::address,std::string> get_send_addresses()const;
+
+           asset                                        get_balance( asset::type t );
+           asset                                        get_margin( asset::type t, asset& collat );
+           void                                         set_stake( uint64_t stake, uint32_t head_idx  );
+           void                                         set_fee_rate( const asset& pts_per_byte );
+           uint64_t                                     last_scanned()const;
+
+           /** provides the password required to gain access to the private keys
+            *  associated with this wallet.
+            */
+           void                  unlock_wallet( const std::string& key_password );
+           /**
+            *  removes private keys from memory
+            */
+           void                  lock_wallet();
+           bool                  is_locked()const;
+
+           signed_transaction    collect_coindays( uint64_t cdd, uint64_t& cdd_collected, const std::string& label = "mining" );
+           signed_transaction    transfer( const asset& amnt, const bts::address& to, const std::string& memo = "change" );
            signed_transaction    bid( const asset& amnt, const price& ratio );
            signed_transaction    short_sell( const asset& amnt, const price& ratio );
            signed_transaction    cancel_bid( const output_reference& bid );
@@ -72,7 +97,7 @@ namespace bts { namespace blockchain {
            signed_transaction    cancel_short_sell( const output_reference& bid );
 
            /** returns all transactions issued */
-           std::vector<signed_transaction> get_transaction_history();
+           std::unordered_map<transaction_id_type, transaction_state> get_transaction_history()const;
 
            // automatically covers position with lowest margin which is the position entered 
            // at the lowest price...
@@ -115,3 +140,4 @@ namespace bts { namespace blockchain {
 } } // bts::blockchain
 
 FC_REFLECT( bts::blockchain::output_index, (block_idx)(trx_idx)(output_idx) )
+FC_REFLECT( bts::blockchain::transaction_state, (trx)(memo)(block_num) )

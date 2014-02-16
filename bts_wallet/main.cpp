@@ -70,6 +70,7 @@ class client : public chain_connection_delegate
 
       // TODO: clean up memory leak where we never remove items from this set because
       // we do not detect RPC disconnects
+      fc::path                                      _datadir;
       std::unordered_set<fc::rpc::json_connection*> _login_set;
       client_config                                 _config;
       std::unordered_map<bts::blockchain::transaction_id_type,bts::blockchain::signed_transaction> pending;
@@ -212,9 +213,9 @@ class client : public chain_connection_delegate
          {
              check_login( capture_con );
              if( params.size() == 0 )
-                return fc::variant( _wallet.get_new_address() ); 
+                return fc::variant( _wallet.new_recv_address() ); 
              else
-                return fc::variant( _wallet.get_new_address(params[0].as_string()) ); 
+                return fc::variant( _wallet.new_recv_address(params[0].as_string()) ); 
          });
 
          con->add_method( "transfer", [=]( const fc::variants& params ) -> fc::variant 
@@ -413,12 +414,13 @@ class client : public chain_connection_delegate
 
       void open( const fc::path& datadir )
       { try {
+          _datadir = datadir;
           chain.open( datadir / "chain" );
           ilog( "opening ${d}", ("d", datadir/"wallet.bts") );
-          _wallet.open( datadir / "wallet.bts" );
+          //_wallet.open( datadir / "wallet.bts" );
 
-          if( chain.head_block_num() != uint32_t(-1) )
-             _wallet.scan_chain( chain );
+          //if( chain.head_block_num() != uint32_t(-1) )
+          //   _wallet.scan_chain( chain );
 
           _wallet.set_stake( chain.get_stake(), chain.head_block_num() );
           _wallet.set_fee_rate( chain.get_fee_rate() );
@@ -629,25 +631,24 @@ class client : public chain_connection_delegate
          }
       }
 
-      void print_new_address()
+      void print_new_address( const std::string& label )
       {
-         std::cout<< std::string(_wallet.get_new_address()) <<"\n";
+         std::cout<< label << ": " << std::string(_wallet.new_recv_address(label)) <<"\n";
       }
 	  
-	  void print_wallet_address()
-	  {
-		  std::vector<bts::address> address=_wallet.list_address();
-
-		  for(auto itr=address.begin();itr!=address.end();++itr)
-		  {
-			  std::cout<<"address:"<<std::string(*itr) <<"\n";
-		  }
-		   
-	  }
+	    void print_wallet_address()
+	    {
+		     auto addresses = _wallet.get_recv_addresses();
+         for( auto itr = addresses.begin(); itr != addresses.end(); ++itr )
+         {
+            std::cout<<std::setw(25) << std::string(itr->first) <<"  " <<itr->second<<"\n";
+         }
+	    } 
+        
       std::string transfer( double amnt, std::string u, std::string addr )
-      {
-         FC_ASSERT( _chain_connected );
-         asset::type unit = fc::variant(u).as<asset::type>();
+      { 
+          FC_ASSERT( _chain_connected );
+          asset::type unit = fc::variant(u).as<asset::type>();
          auto trx = _wallet.transfer( asset(amnt,unit), addr );
          ilog( "${trx}", ("trx",trx) );
          broadcast_transaction( trx );
@@ -889,10 +890,13 @@ void print_help()
 {
     std::cout<<"Commands:\n";
     std::cout<<" quit\n";
-    std::cout<<" importkey PRIV_KEY [rescan]\n";
-    std::cout<<" balance  -  print the wallet balances\n";
-    std::cout<<" newaddr  -  print a new wallet address\n";
-	  std::cout<<" listaddr  - print the wallet address(es)\n";
+    std::cout<<" login  - enter your password to load your wallet file\n";
+    std::cout<<" unlock - enter your password to unlock your private keys\n";
+    std::cout<<" lock   - lock your private keys \n";
+    std::cout<<" importkey PRIV_KEY [label] [rescan]\n";
+    std::cout<<" balance         -  print the wallet balances\n";
+    std::cout<<" newaddr [label] -  print a new wallet address\n";
+	  std::cout<<" listaddr        - print the wallet address(es)\n";
     std::cout<<" transfer AMOUNT UNIT to ADDRESS  \n";
     std::cout<<" buy AMOUNT UNIT \n";
     std::cout<<" sell AMOUNT UNIT  \n";
@@ -997,10 +1001,12 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
          {
             main_thread->async( [=](){ c->print_wallet_address(); } ).wait();
          }
-		 else if( command == "n" || command == "newaddr"  )
-		 {
-			 main_thread->async( [=](){ c->print_new_address(); } ).wait();
-		 }
+		     else if( command == "n" || command == "newaddr"  )
+		     {
+           std::string label;
+           std::getline( ss, label ); //ss >> amount >> unit >> to >> addr;
+		       main_thread->async( [=](){ c->print_new_address(label); } ).wait();
+		     }
          else if( command == "t" || command == "transfer" )
          {
             double amount;
@@ -1131,6 +1137,71 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
             {
                 std::cout<<"order canceled\n";
             }
+         }
+         else if( command == "login" )
+         {
+            if( fc::exists( c->_datadir / "wallet.bts" ) )
+            {
+                std::string password;
+                std::cout<<"password: ";
+                std::getline( std::cin, password );
+                c->_wallet.open( c->_datadir / "wallet.bts", password );
+            }
+            else // create new wallet
+            {
+               std::cout << "No wallet.bts found, creating new wallet.\n\n";
+               std::cout << "    Every wallet has two passwords: one to load and save your transaction history and addressbook\n"; 
+               std::cout << "    and one to secure your private keys necessary to send money.  You will be asked to provide these\n"; 
+               std::cout << "    two passwords now, do not forget them. \n\n"; 
+               std::cout << "    Your addressbook password may be left empty, but you must provide a password of at least\n"; 
+               std::cout << "    8 characters for your key password.\n\n"; 
+               std::cout << "Please specify an addressbook password for your new wallet.\n";
+               std::string password1, password2;
+               std::string password3, password4;
+               do {
+                  std::cout<<"addressbook password: ";
+                  std::getline( std::cin, password1 );
+                  std::cout<<"addressbook password (again): ";
+                  std::getline( std::cin, password2 );
+                  if( password1 != password2 )
+                  {
+                     std::cout<<"Your passwords did not match, please try again.\n";
+                  }
+               } while( password1 != password2 );
+
+               do {
+                  std::cout<<"key password: ";
+                  std::getline( std::cin, password3 );
+                  if( password3.size() > 0 && password3.size() < 8 )
+                  {
+                     std::cout<<"Your password must be at least 8 characters.\n";
+                     continue;
+                  }
+                  std::cout<<"key password (again): ";
+                  std::getline( std::cin, password4 );
+                  if( password3 != password4 )
+                  {
+                     std::cout<<"Your passwords did not match, please try again.\n";
+                  }
+               } while( password3 != password4 );
+
+               if( password3 == std::string() )
+               {
+                  std::cout<<"No wallet created.\n";
+               }
+               else
+               {
+                  main_thread->async( [=](){
+                     c->_wallet.create( c->_datadir / "wallet.bts", password1, password3 );
+                  } ).wait();
+               }
+            }
+         }
+         else if( command == "unlock" )
+         {
+         }
+         else if( command == "lock" )
+         {
          }
          else if( command == "cover" )
          {

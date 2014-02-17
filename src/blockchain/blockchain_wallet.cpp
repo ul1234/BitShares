@@ -10,31 +10,82 @@
 #include <fc/io/json.hpp>
 #include <fc/log/logger.hpp>
 #include <fc/reflect/variant.hpp>
+#include <fc/crypto/aes.hpp>
 #include <sstream>
 
 #include <iostream>
 
 namespace bts { namespace blockchain {
+   /** 
+    * this is the data that is stored on disk in an encrypted form protected by
+    * the wallet password.
+    */
    struct wallet_data 
    {
-       extended_private_key                                 base_key; 
-       uint32_t                                             last_used_key;
-       uint32_t                                             last_scanned_block_num;
-       std::unordered_map<bts::address,std::string>         recv_addresses;
-       std::unordered_map<bts::address,std::string>         send_addresses;
-       std::vector<fc::ecc::private_key>                    extra_keys;
-       std::vector<bts::blockchain::signed_transaction>     transactions;
+       uint32_t                                                 version;
+       uint32_t                                                 last_used_key;
+       uint32_t                                                 last_scanned_block_num;
+       std::unordered_map<bts::address,std::string>             recv_addresses;
+       std::unordered_map<bts::address,std::string>             send_addresses;
+
+       //std::vector<fc::ecc::private_key>                 keys;
+       // an aes encrypted std::unordered_map<bts::address,fc::ecc::private_key>
+       std::vector<char>                                        encrypted_keys;
+       std::vector<char>                                        encrypted_base_key;
+
+       std::unordered_map<bts::address,fc::ecc::private_key>    get_keys( const std::string& password )
+       { try {
+          std::unordered_map<bts::address, fc::ecc::private_key> keys;
+          if( encrypted_keys.size() == 0 ) return keys;
+
+          auto plain_txt = fc::aes_decrypt( fc::sha512::hash( password.c_str(), password.size() ), encrypted_keys );
+          fc::datastream<const char*> ds(plain_txt.data(),plain_txt.size());
+          fc::raw::unpack( ds, keys );
+          return keys;
+       } FC_RETHROW_EXCEPTIONS( warn, "" ) }
+
+       extended_private_key                                     get_base_key( const std::string& password )
+       {
+          extended_private_key base_key;
+          if( encrypted_base_key.size() == 0 ) return base_key;
+
+          auto plain_txt = fc::aes_decrypt( fc::sha512::hash( password.c_str(), password.size() ), encrypted_keys );
+          return fc::raw::unpack<extended_private_key>( plain_txt );
+       }
+
+       void set_keys( const std::unordered_map<bts::address,fc::ecc::private_key>& k, const std::string& password )
+       {
+          auto plain_txt = fc::raw::pack( k );
+          encrypted_keys = fc::aes_encrypt( fc::sha512::hash( password.c_str(), password.size() ), plain_txt );
+       }
+
+       void change_password( const std::string& old_password, const std::string& new_password )
+       {
+          set_keys( get_keys( old_password ), new_password );
+          set_base_key( get_base_key( old_password ), new_password );
+       }
+
+       void set_base_key( const extended_private_key& bk, const std::string& new_password )
+       {
+          auto plain_txt = fc::raw::pack( bk );
+          encrypted_base_key = fc::aes_encrypt( fc::sha512::hash( new_password.c_str(), new_password.size() ), plain_txt );
+       }
+
+       // 
+       std::unordered_map<transaction_id_type, transaction_state> transactions;
    };
 } } // bts::blockchain
 
+
 FC_REFLECT( bts::blockchain::wallet_data, 
-            (base_key)
+            (version)
             (last_used_key)
             (last_scanned_block_num)
             (recv_addresses)
             (send_addresses)
-            (extra_keys)
-//            (transactions) // rescan every time we load for now
+            (encrypted_base_key)
+            (encrypted_keys)
+            (transactions) 
             )
 
 namespace bts { namespace blockchain {
@@ -52,6 +103,8 @@ namespace bts { namespace blockchain {
       {
           public:
               wallet_impl():_stake(0),_current_head_idx(0){}
+              std::string _wallet_base_password; // used for saving/loading the wallet
+              std::string _wallet_key_password;  // used to access private keys
 
               fc::path                                                   _wallet_dat;
               wallet_data                                                _data;
@@ -67,7 +120,7 @@ namespace bts { namespace blockchain {
               std::map<output_index, trx_output>                         _spent_outputs;
 
               // maps address to private key index
-              std::unordered_map<bts::address,uint32_t>                  _my_addresses;
+              std::unordered_map<bts::address,fc::ecc::private_key>      _my_keys;
               std::unordered_map<transaction_id_type,signed_transaction> _id_to_signed_transaction;
 
               asset get_balance( asset::type balance_type )
@@ -229,8 +282,8 @@ namespace bts { namespace blockchain {
                           elog( "MARK AS SPENT ${B}", ("B",itr->output_ref) );
                           self->mark_as_spent( itr->output_ref );
                       }
+                      _data.transactions[trx.id()].trx = trx;
                    }
-                   _data.transactions.push_back(trx);
               }
               wallet* self;
       };
@@ -247,30 +300,101 @@ namespace bts { namespace blockchain {
       save();
    }
 
-   void wallet::open( const fc::path& wallet_dat )
+   void wallet::open( const fc::path& wallet_dat, const fc::string& password )
    { try {
-      my->_wallet_dat = wallet_dat;
-      if( fc::exists( wallet_dat ) )
+      my->_wallet_dat           = wallet_dat;
+      my->_wallet_base_password = password;
+
+      FC_ASSERT( fc::exists( wallet_dat ), "", ("wallet_dat",wallet_dat) )
+
+      if( password == std::string() )
       {
          my->_data = fc::json::from_file<bts::blockchain::wallet_data>( wallet_dat );
       }
       else
       {
-         my->_data.base_key = extended_private_key( fc::ecc::private_key::generate().get_secret(), 
-                                                    fc::ecc::private_key::generate().get_secret() );
-         save();
+         std::vector<char> plain_txt = aes_load( wallet_dat, fc::sha512::hash( password.c_str(), password.size() ) );
+         FC_ASSERT( plain_txt.size() > 0 );
+         std::string str( plain_txt.begin(), plain_txt.end() );
+         my->_data = fc::json::from_string(str).as<wallet_data>();
       }
-      for( uint32_t i = 0; i < my->_data.extra_keys.size(); ++i )
+   } FC_RETHROW_EXCEPTIONS( warn, "unable to load wallet ${wal}", ("wal",wallet_dat) ) }
+
+   void wallet::create( const fc::path& wallet_dat, const fc::string& base_password, const fc::string& key_password, bool is_brain )
+   { try {
+      FC_ASSERT( !fc::exists( wallet_dat ), "", ("wallet_dat",wallet_dat) );
+      FC_ASSERT( key_password.size() > 8 );
+
+      my->_data = wallet_data();
+
+      my->_wallet_dat = wallet_dat;
+      my->_wallet_base_password = base_password;
+      my->_wallet_key_password  = key_password;
+      
+      if( is_brain )
       {
-         my->_my_addresses[bts::address(my->_data.extra_keys[i].get_public_key())] = i;
+         FC_ASSERT( base_password.size() > 8 );
+         my->_data.set_base_key( extended_private_key( fc::sha256::hash( key_password.c_str(), key_password.size() ),
+                                                             fc::sha256::hash( base_password.c_str(), base_password.size() ) ), key_password );
       }
-   } FC_RETHROW_EXCEPTIONS( warn, "unable to load ${wal}", ("wal",wallet_dat) ) }
+      else
+      {
+         my->_data.set_base_key( extended_private_key( fc::ecc::private_key::generate().get_secret(),
+                                                             fc::ecc::private_key::generate().get_secret() ), key_password );
+      }
+      save();
+   } FC_RETHROW_EXCEPTIONS( warn, "unable to create wallet ${wal}", ("wal",wallet_dat) ) }
+
+   void wallet::backup_wallet( const fc::path& backup_path )
+   { try {
+      FC_ASSERT( !fc::exists( backup_path ) );
+      auto tmp = my->_wallet_dat;
+      my->_wallet_dat = backup_path;
+      try {
+        save();
+        my->_wallet_dat = tmp;
+      } 
+      catch ( ... )
+      {
+        my->_wallet_dat = tmp;
+        throw;
+      }
+   } FC_RETHROW_EXCEPTIONS( warn, "unable to backup to ${path}", ("path",backup_path) ) }
 
    void wallet::save()
-   {
+   { try {
       ilog( "saving wallet\n" );
-      fc::json::save_to_file( my->_data, my->_wallet_dat );
-   }
+      auto wallet_json = fc::json::to_pretty_string( my->_data );
+      std::vector<char> data( wallet_json.begin(), wallet_json.end() );
+
+      if( fc::exists( my->_wallet_dat ) )
+      {
+        auto new_tmp = fc::unique_path();
+        auto old_tmp = fc::unique_path();
+        if( my->_wallet_base_password.size() )
+        {
+          fc::aes_save( new_tmp, fc::sha512::hash( my->_wallet_base_password.c_str(), my->_wallet_base_password.size() ), data );
+        }
+        else
+        {
+           fc::json::save_to_file( my->_wallet_dat, my->_wallet_dat, true );
+        }
+        fc::rename( my->_wallet_dat, old_tmp );
+        fc::rename( new_tmp, my->_wallet_dat );
+        fc::remove( old_tmp );
+      }
+      else
+      {
+         if( my->_wallet_base_password.size() != 0 )
+         {
+            fc::aes_save( my->_wallet_dat, fc::sha512::hash( my->_wallet_base_password.c_str(), my->_wallet_base_password.size() ), data );
+         }
+         else
+         {
+            fc::json::save_to_file( my->_wallet_dat, my->_wallet_dat, true );
+         }
+      }
+   } FC_RETHROW_EXCEPTIONS( warn, "Unable to save wallet ${wallet}", ("wallet",my->_wallet_dat) ) }
 
    asset wallet::get_balance( asset::type t )
    {
@@ -288,32 +412,39 @@ namespace bts { namespace blockchain {
       my->_current_head_idx = head_idx;
    }
 
-   void           wallet::import_key( const fc::ecc::private_key& key )
-   {
-      my->_data.extra_keys.push_back(key);
-      my->_my_addresses[ key.get_public_key() ] = my->_data.extra_keys.size() -1;
-   }
+   bts::address   wallet::import_key( const fc::ecc::private_key& key, const std::string& label )
+   { try {
+      auto keys = my->_data.get_keys( my->_wallet_key_password );
+      auto addr = bts::address(key.get_public_key());
+      keys[addr] = key;
+      my->_data.set_keys( keys, my->_wallet_base_password );
+      my->_data.recv_addresses[addr] = label;
+      save();
+      return addr;
+   } FC_RETHROW_EXCEPTIONS( warn, "unable to import private key" ) }
 
-   bts::address   wallet::get_new_address( const std::string& label )
-   {
-      // TODO: actually store the label... 
+   bts::address   wallet::new_recv_address( const std::string& label )
+   { try {
+      FC_ASSERT( !is_locked() );
       my->_data.last_used_key++;
-      auto new_key = my->_data.base_key.child( my->_data.last_used_key );
-      import_key(new_key);
-      //bts::address addr = new_key.get_public_key();
-      return  new_key.get_public_key();
-   }
+      auto base_key = my->_data.get_base_key( my->_wallet_key_password );
+      auto new_key = base_key.child( my->_data.last_used_key );
+      return import_key(new_key, label);
+   } FC_RETHROW_EXCEPTIONS( warn, "unable to create new address with label '${label}'", ("label",label) ) } 
 
-   std::vector<bts::address>   wallet::list_address()
+   void wallet::add_send_address( const bts::address& addr, const std::string& label )
+   { try {
+      my->_data.send_addresses[addr] = label;
+      save();
+   } FC_RETHROW_EXCEPTIONS( warn, "unable to add send address ${addr} with label ${label}", ("addr",addr)("label",label) ) }
+
+   std::unordered_map<bts::address,std::string> wallet::get_recv_addresses()const
    {
-	   std::vector<bts::address> address;
-	   
-	   for(auto itr=my->_my_addresses.begin();itr!=my->_my_addresses.end();++itr)
-	   {
-		   address.push_back(itr->first);
-	   }
-
-	   return address;
+      return my->_data.recv_addresses;
+   }
+   std::unordered_map<bts::address,std::string> wallet::get_send_addresses()const
+   {
+      return my->_data.send_addresses;
    }
 
    void                  wallet::set_fee_rate( const asset& pts_per_byte )
@@ -321,9 +452,19 @@ namespace bts { namespace blockchain {
       my->_current_fee_rate = pts_per_byte;
    }
 
-   signed_transaction    wallet::collect_coindays( uint64_t cdd, uint64_t& cdd_collected )
+   void                  wallet::unlock_wallet( const std::string& key_password )
+   {
+      my->_wallet_key_password = key_password;
+   }
+   void                  wallet::lock_wallet()
+   {
+      my->_wallet_base_password = std::string();
+   }
+   bool   wallet::is_locked()const { return my->_wallet_key_password.size() == 0; }
+
+   signed_transaction    wallet::collect_coindays( uint64_t cdd, uint64_t& cdd_collected, const std::string& label )
    { try {
-       auto   change_address = get_new_address();
+       auto   change_address = new_recv_address( label );
        std::unordered_set<bts::address> req_sigs; 
        asset  total_in(static_cast<uint64_t>(0ull),asset::bts);
        signed_transaction trx; 
@@ -345,9 +486,9 @@ namespace bts { namespace blockchain {
    } FC_RETHROW_EXCEPTIONS( warn, "", ("cdd",cdd)("collected",cdd_collected) ) }
 
 
-   signed_transaction    wallet::transfer( const asset& amnt, const bts::address& to )
+   signed_transaction    wallet::transfer( const asset& amnt, const bts::address& to, const std::string& memo )
    { try {
-       auto   change_address = get_new_address();
+       auto   change_address = new_recv_address( "change: " + memo );
 
        std::unordered_set<bts::address> req_sigs; 
        asset  total_in(static_cast<uint64_t>(0ull),amnt.unit);
@@ -426,19 +567,21 @@ namespace bts { namespace blockchain {
    }
 
    void wallet::sign_transaction( signed_transaction& trx, const bts::address& addr )
-   {
+   { try {
       ilog( "Sign ${trx}  ${addr}", ("trx",trx.id())("addr",addr));
-      auto priv_key_idx = my->_my_addresses.find(addr);
-      FC_ASSERT( priv_key_idx != my->_my_addresses.end() );
-      trx.sign( my->_data.extra_keys[priv_key_idx->second] );
-   }
+      FC_ASSERT( my->_wallet_key_password.size() );
+      auto keys = my->_data.get_keys( my->_wallet_key_password );
+      auto priv_key_itr = keys.find(addr);
+      FC_ASSERT( priv_key_itr != keys.end() );
+      trx.sign( priv_key_itr->second );
+   } FC_RETHROW_EXCEPTIONS( warn, "unable to sign transaction ${trx} for ${addr}", ("trx",trx)("addr",addr) ) }
 
    /** When bidding on an asset you specify the asset you have and the price you would like
     * to sell it at.
     */
    signed_transaction    wallet::bid( const asset& amnt, const price& ratio )
    { try {
-       auto   change_address = get_new_address();
+       auto   change_address = new_recv_address( "bid change: " + std::string(amnt) + " at " + std::string(ratio) );
 
        signed_transaction trx; 
        std::unordered_set<bts::address> req_sigs; 
@@ -504,7 +647,7 @@ namespace bts { namespace blockchain {
    { try {
        auto   amnt = borrow_amnt * ratio;
        FC_ASSERT( borrow_amnt.unit != asset::bts, "You cannot short sell BTS" );
-       auto   change_address = get_new_address();
+       auto   change_address = new_recv_address("short sell change");
 
        auto bts_in = amnt;
 
@@ -512,7 +655,7 @@ namespace bts { namespace blockchain {
        std::unordered_set<bts::address> req_sigs; 
        asset  total_in;
 
-       asset in_with_fee = bts_in; // TODO: add fee proportional to trx size...
+       asset in_with_fee = bts_in; // TODO: add fee proportional to trx size...??
 
        trx.inputs    = my->collect_inputs( in_with_fee, total_in, req_sigs );
        asset change  = total_in - bts_in;
@@ -630,7 +773,7 @@ namespace bts { namespace blockchain {
    signed_transaction    wallet::cover( const asset& amnt )
    { try {
        wlog( "Cover ${amnt}", ("amnt",amnt) );
-       auto   change_address = get_new_address();
+       auto   change_address = new_recv_address("cover change");
        signed_transaction trx; 
        std::unordered_set<bts::address> req_sigs; 
        asset  total_in(static_cast<uint64_t>(0ull),amnt.unit);
@@ -720,7 +863,7 @@ namespace bts { namespace blockchain {
        FC_ASSERT( collateral_amount.unit == asset::bts );
        FC_ASSERT( u != asset::bts );
 
-       auto   change_address = get_new_address();
+       auto   change_address = new_recv_address( "add margin change");
 
        signed_transaction trx;
        std::unordered_set<bts::address> req_sigs; 
@@ -728,7 +871,7 @@ namespace bts { namespace blockchain {
        asset  cover_in(static_cast<uint64_t>(0ull),u);
        asset  collat_in(static_cast<uint64_t>(0ull),asset::bts);
 
-       trx.inputs         = my->collect_inputs( collateral_amount, total_in, req_sigs );
+       trx.inputs   = my->collect_inputs( collateral_amount, total_in, req_sigs );
        asset change = total_in - collateral_amount;
 
        auto cover_inputs  = my->collect_cover_inputs( asset(), collat_in, cover_in, req_sigs );
@@ -799,7 +942,7 @@ namespace bts { namespace blockchain {
 
 
    /** returns all transactions issued */
-   std::vector<signed_transaction> wallet::get_transaction_history()
+   std::unordered_map<transaction_id_type, transaction_state> wallet::get_transaction_history()const
    {
       return my->_data.transactions;
    }
@@ -842,8 +985,8 @@ namespace bts { namespace blockchain {
                      case claim_by_signature:
                      {
                         auto owner = out.as<claim_by_signature_output>().owner;
-                        auto aitr  = my->_my_addresses.find(owner);
-                        if( aitr != my->_my_addresses.end() )
+                        auto aitr  = my->_data.recv_addresses.find(owner); //my_addresses.find(owner);
+                        if( aitr != my->_data.recv_addresses.end() )
                         {
                             if( !trx.meta_outputs[out_idx].is_spent() )
                             {
@@ -868,8 +1011,8 @@ namespace bts { namespace blockchain {
                      case claim_by_bid:
                      {
                         auto bid = out.as<claim_by_bid_output>();
-                        auto aitr = my->_my_addresses.find(bid.pay_address);
-                        if( aitr != my->_my_addresses.end() )
+                        auto aitr = my->_data.recv_addresses.find(bid.pay_address);
+                        if( aitr != my->_data.recv_addresses.end() )
                         {
                             found = true;
                             if( trx.meta_outputs[out_idx].is_spent() )
@@ -895,8 +1038,8 @@ namespace bts { namespace blockchain {
                      case claim_by_long:
                      {
                         auto short_sell = out.as<claim_by_long_output>();
-                        auto aitr = my->_my_addresses.find(short_sell.pay_address);
-                        if( aitr != my->_my_addresses.end() )
+                        auto aitr = my->_data.recv_addresses.find(short_sell.pay_address);
+                        if( aitr != my->_data.recv_addresses.end() )
                         {
                             found = true;
                             if( trx.meta_outputs[out_idx].is_spent() )
@@ -921,8 +1064,8 @@ namespace bts { namespace blockchain {
                      case claim_by_cover:
                      {
                         auto cover = out.as<claim_by_cover_output>();
-                        auto aitr = my->_my_addresses.find(cover.owner);
-                        if( aitr != my->_my_addresses.end() )
+                        auto aitr = my->_data.recv_addresses.find(cover.owner);
+                        if( aitr != my->_data.recv_addresses.end() )
                         {
                             found = true;
                             if( trx.meta_outputs[out_idx].is_spent() )

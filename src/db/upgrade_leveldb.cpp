@@ -1,13 +1,8 @@
 #include <bts/db/upgrade_leveldb.hpp>
 #include <boost/filesystem.hpp>
-#include <fc/io/raw_variant.hpp>
 #include <fc/log/logger.hpp>
 #include <fstream>
 
-#include <bts/addressbook/contact.hpp>
-namespace bts { namespace addressbook {
-REGISTER_DB_OBJECT(wallet_identity,0)
-} }
 
 TUpgradeDbMapper* TUpgradeDbMapper::_updateDbMapper = nullptr;
 // this code has no bitshares dependencies, and it

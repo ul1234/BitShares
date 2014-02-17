@@ -1,6 +1,5 @@
 #include <bts/db/upgrade_leveldb.hpp>
 #include <boost/filesystem.hpp>
-#include <fc/io/raw_variant.hpp>
 #include <fc/log/logger.hpp>
 #include <fstream>
 

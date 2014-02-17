@@ -15,6 +15,10 @@
 #include <fc/io/fstream.hpp>
 #include <fc/filesystem.hpp>
 
+namespace bts { namespace addressbook {
+REGISTER_DB_OBJECT(wallet_identity,0)
+} }
+
 #define KEYHOTEE_MASTER_KEY_FILE ".keyhotee_master.key"
 
 namespace bts {
@@ -115,7 +119,7 @@ namespace bts {
       try {
         stretched_seed_data     = fc::aes_load( profile_dir / KEYHOTEE_MASTER_KEY_FILE, profile_cfg_key );
       }
-      catch (fc::exception& e)
+      catch (fc::exception& /* e */)
       { //try to open legacy name for key file
         wlog("Could not open " KEYHOTEE_MASTER_KEY_FILE ", trying to open legacy key file (.strecthed_seed).");
         stretched_seed_data     = fc::aes_load( profile_dir / ".stretched_seed", profile_cfg_key );

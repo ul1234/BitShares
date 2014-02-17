@@ -1191,6 +1191,8 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
                }
                else
                {
+                  std::cout<<"creating wallet with login password '"<<password1<<"'\n";
+                  std::cout<<"creating wallet with master password '"<<password3<<"'\n";
                   main_thread->async( [=](){
                      c->_wallet.create( c->_datadir / "wallet.bts", password1, password3 );
                   } ).wait();
@@ -1199,6 +1201,12 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
          }
          else if( command == "unlock" )
          {
+             std::cout<<"key password: ";
+             std::string password;
+             std::getline( std::cin, password );
+             main_thread->async( [=]() {
+                                 c->_wallet.unlock_wallet( password );
+                                 } ).wait();
          }
          else if( command == "lock" )
          {

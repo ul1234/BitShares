@@ -35,10 +35,13 @@ namespace bts { namespace blockchain {
 
        std::unordered_map<bts::address,fc::ecc::private_key>    get_keys( const std::string& password )
        { try {
+          ilog( "get_keys with password '${pass}'", ("pass",password) );
           std::unordered_map<bts::address, fc::ecc::private_key> keys;
           if( encrypted_keys.size() == 0 ) return keys;
+          ilog( "encrypted keys.size: ${s}", ("s",encrypted_keys.size() ) );
 
           auto plain_txt = fc::aes_decrypt( fc::sha512::hash( password.c_str(), password.size() ), encrypted_keys );
+          ilog( "plain_txt '${p}' size ${s}", ("p",plain_txt)("s",plain_txt.size()) );
           fc::datastream<const char*> ds(plain_txt.data(),plain_txt.size());
           fc::raw::unpack( ds, keys );
           return keys;
@@ -46,17 +49,20 @@ namespace bts { namespace blockchain {
 
        extended_private_key                                     get_base_key( const std::string& password )
        {
+          ilog( "get_base_key  with password '${pass}'  encrypted_base_key ${ebk}", ("pass",password)("ebk",encrypted_base_key.size()) );
           extended_private_key base_key;
           if( encrypted_base_key.size() == 0 ) return base_key;
 
-          auto plain_txt = fc::aes_decrypt( fc::sha512::hash( password.c_str(), password.size() ), encrypted_keys );
+          auto plain_txt = fc::aes_decrypt( fc::sha512::hash( password.c_str(), password.size() ), encrypted_base_key );
           return fc::raw::unpack<extended_private_key>( plain_txt );
        }
 
        void set_keys( const std::unordered_map<bts::address,fc::ecc::private_key>& k, const std::string& password )
        {
           auto plain_txt = fc::raw::pack( k );
+          ilog( "new_password '${p}'  plaint_txt '${pt}' size ${s}", ("p",password)("pt",plain_txt)("s",plain_txt.size()) );
           encrypted_keys = fc::aes_encrypt( fc::sha512::hash( password.c_str(), password.size() ), plain_txt );
+          FC_ASSERT( k == get_keys(password) );
        }
 
        void change_password( const std::string& old_password, const std::string& new_password )
@@ -68,7 +74,10 @@ namespace bts { namespace blockchain {
        void set_base_key( const extended_private_key& bk, const std::string& new_password )
        {
           auto plain_txt = fc::raw::pack( bk );
+          ilog( "new_password '${p}'  plaint_txt ${pt}", ("p",new_password)("pt",plain_txt) );
           encrypted_base_key = fc::aes_encrypt( fc::sha512::hash( new_password.c_str(), new_password.size() ), plain_txt );
+          auto check = fc::aes_decrypt( fc::sha512::hash( new_password.c_str(), new_password.size() ), encrypted_base_key );
+          FC_ASSERT( check == plain_txt );
        }
 
        // 
@@ -297,7 +306,12 @@ namespace bts { namespace blockchain {
 
    wallet::~wallet()
    {
-      save();
+      try {
+        save();
+      } catch ( const fc::exception& e )
+      {
+         wlog( "unhandled exception while saving wallet ${e}", ("e",e.to_detail_string()) );
+      }
    }
 
    void wallet::open( const fc::path& wallet_dat, const fc::string& password )
@@ -340,8 +354,9 @@ namespace bts { namespace blockchain {
       else
       {
          my->_data.set_base_key( extended_private_key( fc::ecc::private_key::generate().get_secret(),
-                                                             fc::ecc::private_key::generate().get_secret() ), key_password );
+                                                       fc::ecc::private_key::generate().get_secret() ), key_password );
       }
+      my->_data.set_keys( std::unordered_map<bts::address,fc::ecc::private_key>(), key_password );
       save();
    } FC_RETHROW_EXCEPTIONS( warn, "unable to create wallet ${wal}", ("wal",wallet_dat) ) }
 
@@ -377,7 +392,7 @@ namespace bts { namespace blockchain {
         }
         else
         {
-           fc::json::save_to_file( my->_wallet_dat, my->_wallet_dat, true );
+           fc::json::save_to_file( my->_data, new_tmp, true );
         }
         fc::rename( my->_wallet_dat, old_tmp );
         fc::rename( new_tmp, my->_wallet_dat );
@@ -391,7 +406,7 @@ namespace bts { namespace blockchain {
          }
          else
          {
-            fc::json::save_to_file( my->_wallet_dat, my->_wallet_dat, true );
+            fc::json::save_to_file( my->_data, my->_wallet_dat, true );
          }
       }
    } FC_RETHROW_EXCEPTIONS( warn, "Unable to save wallet ${wallet}", ("wallet",my->_wallet_dat) ) }
@@ -453,9 +468,10 @@ namespace bts { namespace blockchain {
    }
 
    void                  wallet::unlock_wallet( const std::string& key_password )
-   {
+   { try {
+      my->_data.get_base_key( key_password );
       my->_wallet_key_password = key_password;
-   }
+   } FC_RETHROW_EXCEPTIONS( warn, "unable to unlock wallet" ) }
    void                  wallet::lock_wallet()
    {
       my->_wallet_base_password = std::string();

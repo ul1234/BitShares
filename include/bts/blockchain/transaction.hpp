@@ -1,6 +1,7 @@
 #pragma once
 #include <bts/blockchain/output_reference.hpp>
 #include <bts/address.hpp>
+#include <bts/pts_address.hpp>
 #include <bts/blockchain/asset.hpp>
 #include <bts/blockchain/outputs.hpp>
 #include <bts/units.hpp>
@@ -102,6 +103,7 @@ struct transaction
 struct signed_transaction : public transaction
 {
     std::unordered_set<address>      get_signed_addresses()const;
+    std::unordered_set<pts_address>  get_signed_pts_addresses()const;
     transaction_id_type              id()const;
     void                             sign( const fc::ecc::private_key& k );
     size_t                           size()const;

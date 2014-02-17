@@ -123,6 +123,7 @@ namespace bts { namespace blockchain {
 
            void validate_input( const meta_trx_input& );
            void validate_signature( const meta_trx_input& );
+           void validate_pts( const meta_trx_input& );
            void validate_bid( const meta_trx_input& );
            void validate_long( const meta_trx_input& );
            void validate_cover( const meta_trx_input& );

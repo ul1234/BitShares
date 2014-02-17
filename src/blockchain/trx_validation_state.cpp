@@ -108,6 +108,9 @@ void trx_validation_state::validate_input( const meta_trx_input& in )
         case claim_by_signature:
           validate_signature( in );
           return;
+        case claim_by_pts:
+          validate_pts( in );
+          return;
         case claim_by_bid:
           validate_bid( in );
           return;
@@ -245,6 +248,32 @@ void trx_validation_state::validate_password( const trx_output& o )
 }
 
 
+void trx_validation_state::validate_pts( const meta_trx_input& in )
+{
+   try {
+      auto pts_claim = in.output.as<claim_by_pts_output>();
+      auto pts_addrs = trx.get_signed_pts_addresses();
+
+      FC_ASSERT( pts_addrs.find( pts_claim.owner ) != pts_addrs.end(),
+                "Unable to find signature by ${owner}", ("owner",pts_claim.owner) );
+
+      balance_sheet[(asset::type)in.output.amount.unit].in += in.output.amount;
+
+      if( in.output.amount.unit == asset::bts )
+      {
+         //  only count if trx proof of stake prev == one of the last two blocks
+         if( trx.stake == prev_block_id1 || trx.stake == prev_block_id2 )
+         {
+            total_cdd += in.output.amount.get_rounded_amount() * (ref_head-in.source.block_num);
+         }
+         else
+         {
+            uncounted_cdd += in.output.amount.get_rounded_amount() * (ref_head-in.source.block_num);
+            wlog( "stake ${s} != ${a} || ${b}", ("s",trx.stake)("a",prev_block_id1)("b",prev_block_id2) );
+         }
+      }
+   } FC_RETHROW_EXCEPTIONS( warn, "validating pts input ${i}", ("i",in) ) 
+}
 
 /**
  *  Adds the owner to the required signature list

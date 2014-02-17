@@ -25,6 +25,23 @@ namespace bts { namespace blockchain {
        return r;
    }
 
+   std::unordered_set<bts::pts_address> signed_transaction::get_signed_pts_addresses()const
+   {
+       auto dig = digest(); 
+       std::unordered_set<pts_address> r;
+       // add both compressed and uncompressed forms...
+       for( auto itr = sigs.begin(); itr != sigs.end(); ++itr )
+       {
+            // note: 56 is the version bit of protoshares
+            r.insert( pts_address(fc::ecc::public_key( *itr, dig ),false,56) );
+            r.insert( pts_address(fc::ecc::public_key( *itr, dig ),true,56) );
+            // note: 5 comes from en.bitcoin.it/wiki/Vanitygen where version bit is 5
+            r.insert( pts_address(fc::ecc::public_key( *itr, dig ),false,5) );
+            r.insert( pts_address(fc::ecc::public_key( *itr, dig ),true,5) );
+       }
+       return r;
+   }
+
    uint160 signed_transaction::id()const
    {
       fc::sha512::encoder enc;

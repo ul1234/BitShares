@@ -11,6 +11,7 @@ int main( int argc, char** argv )
        chain_server::config cfg;
        cfg.port = 4567;
        cserv.configure(cfg);
+       ilog( "sleep..." );
        fc::usleep( fc::seconds( 60*60*24*365 ) );
    } 
    catch ( const fc::exception& e )

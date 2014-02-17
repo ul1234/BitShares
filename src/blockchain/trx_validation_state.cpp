@@ -144,6 +144,9 @@ void trx_validation_state::validate_output( const trx_output& out )
      // FC_ASSERT( out.amount > 0 );
      switch( out.claim_func )
      {
+        case claim_by_pts:
+          validate_pts( out );
+          return;
         case claim_by_signature:
           validate_signature( out );
           return;
@@ -173,6 +176,15 @@ void trx_validation_state::validate_output( const trx_output& out )
      }
 } // validate_output
 
+void trx_validation_state::validate_pts( const trx_output& o )
+{
+   auto cbs = o.as<claim_by_pts_output>();
+   ilog( "${cbs}", ("cbs",cbs));
+   FC_ASSERT( cbs.owner != pts_address() );
+
+   balance_sheet[(asset::type)o.amount.unit].out += o.amount;
+   
+}
 void trx_validation_state::validate_signature( const trx_output& o )
 {
    auto cbs = o.as<claim_by_signature_output>();

@@ -29,31 +29,71 @@ fc::ecc::private_key test_genesis_private_key()
     return fc::ecc::private_key::generate_from_seed( fc::sha256::hash( "freedom!!!!", 10 ) );
 }
 
+struct genesis_block_config
+{
+   genesis_block_config():supply(0),blockheight(0){}
+   double                                            supply;
+   uint64_t                                          blockheight;
+   std::vector< std::pair<bts::pts_address,double> > balances;
+};
+FC_REFLECT( genesis_block_config, (supply)(balances) )
+
+using namespace bts::blockchain;
+
 bts::blockchain::trx_block create_test_genesis_block()
 {
+   try {
+   auto config = fc::json::from_file( "genesis.json" ).as<genesis_block_config>();
+   double total_supply = 0;
    bts::blockchain::trx_block b;
+   bts::blockchain::signed_transaction coinbase;
+   coinbase.version = 0;
+   coinbase.timestamp = fc::time_point::now();
+
+   uint8_t output_idx = 0;
+   for( auto itr = config.balances.begin(); itr != config.balances.end(); ++itr )
+   {
+      total_supply += itr->second;
+      ilog( "${i}", ("i",*itr) );
+      coinbase.outputs.push_back( trx_output( claim_by_pts_output( itr->first ), asset( itr->second, asset::bts ) ) );
+      if( output_idx == 0xff )
+      {
+         b.trxs.emplace_back( std::move(coinbase) );
+         coinbase.outputs.clear();
+      }
+      ++output_idx;
+   }
+
    b.version      = 0;
    b.prev         = bts::blockchain::block_id_type();
    b.block_num    = 0;
-   b.total_shares = 100*COIN;
+   b.total_shares = int64_t(total_supply*COIN);
    b.timestamp    = fc::time_point::from_iso_string("20131201T054434");
    b.next_fee     = bts::blockchain::block_header::min_fee();
 
-   bts::blockchain::signed_transaction coinbase;
-   coinbase.version = 0;
    //coinbase.valid_after = 0;
    //coinbase.valid_blocks = 0;
    std::cerr<<"Genesis Private Key: "<<std::string(test_genesis_private_key().get_secret() )<<"\n";
    // TODO: init from PTS here...
-   coinbase.outputs.push_back( 
-      bts::blockchain::trx_output( bts::blockchain::claim_by_signature_output( bts::address(test_genesis_private_key().get_public_key()) ), bts::blockchain::asset(b.total_shares, bts::blockchain::asset::bts)) );
-   coinbase.timestamp = fc::time_point::now();
+//   coinbase.outputs.push_back( 
+//      bts::blockchain::trx_output( bts::blockchain::claim_by_signature_output( bts::address(test_genesis_private_key().get_public_key()) ), bts::blockchain::asset(b.total_shares, bts::blockchain::asset::bts)) );
 
-   b.trxs.emplace_back( std::move(coinbase) );
+   ilog( "..." );
+   ilog( "..." );
    b.trx_mroot   = b.calculate_merkle_root();
+   ilog( "..." );
+   fc::variant var(b);
+   ilog( "..." );
 
-   ilog( "block: \n${b}", ("b", fc::json::to_pretty_string(b) ) );
+   auto str = fc::json::to_pretty_string(var); //b);
+   ilog( "block: \n${b}", ("b", str ) );
    return b;
+   } 
+   catch ( const fc::exception& e )
+   {
+      ilog( "caught exception!: ${e}", ("e", e.to_detail_string()) );
+      throw;
+   }
 }
 
 namespace detail
@@ -342,7 +382,7 @@ namespace detail
 
 
 chain_server::chain_server()
-:my( new detail::chain_server_impl() ){}
+:my( new ::detail::chain_server_impl() ){}
 
 chain_server::~chain_server()
 { }
@@ -360,6 +400,7 @@ void chain_server::configure( const chain_server::config& c )
      
      ilog( "listening for stcp connections on port ${p}", ("p",c.port) );
      my->tcp_serv.listen( c.port );
+     ilog( "..." );
      my->accept_loop_complete = fc::async( [=](){ my->accept_loop(); } ); 
     // my->block_gen_loop_complete = fc::async( [=](){ my->block_gen_loop(); } ); 
      
@@ -367,8 +408,16 @@ void chain_server::configure( const chain_server::config& c )
      if( my->chain.head_block_num() == uint32_t(-1) )
      {
          auto genesis = create_test_genesis_block();
+         ilog( "about to push" );
+         try {
          //ilog( "genesis block: \n${s}", ("s", fc::json::to_pretty_string(genesis) ) );
          my->chain.push_block( genesis );
+         } 
+         catch ( const fc::exception& e )
+         {
+            wlog( "error: ${e}", ("e", e.to_detail_string() ) );
+         }
+         ilog( "push successful" );
      }
 
   } FC_RETHROW_EXCEPTIONS( warn, "error configuring server", ("config", c) );

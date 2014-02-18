@@ -153,7 +153,7 @@ namespace bts
                     if (buf[0] == 4)
                     {
                         // uncompressed pubkey (bitcoin?)
-                        fc::array<char, 65> publicKey;
+                        fc::public_key_point_data publicKey;
                         publicKey.at(0) = buf[0];
 
                         isWallet.read( &publicKey.at(1), 64 );
@@ -166,7 +166,7 @@ namespace bts
                     else
                     {
                         // compressed pubkey
-                        fc::array<char, 33> publicKey;
+                        fc::public_key_data publicKey;
                         publicKey.at(0) = buf[0];
 
                         isWallet.read( &publicKey.at(1), 32 );

@@ -19,6 +19,10 @@ Dependencies
 	cmake 2.8.12
   libreadline-dev
 
+  On Linux you may also require uuid-dev
+
+     apt-get install uuid-dev
+
 OS X Build Instructions
 -----------------------
 Download the latest boost and build it with clang++ with support for static libraries like so

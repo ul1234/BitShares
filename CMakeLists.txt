@@ -132,6 +132,8 @@ set( sources
      src/keychain.cpp
      src/wallet_cache.cpp
      src/bitcoin_wallet.cpp
+     src/electrum_wallet.cpp
+     src/multibit_wallet.cpp
 
      vendor/SFMT-src-1.4/SFMT.c
      src/proof_of_work.cpp )

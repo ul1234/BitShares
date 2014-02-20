@@ -305,6 +305,7 @@ struct claim_by_multi_sig_input
 
 FC_REFLECT_ENUM( bts::blockchain::claim_type_enum, 
     (null_claim_type)
+    (claim_by_pts)
     (claim_by_signature)
     (claim_by_bid)
     (claim_by_long)

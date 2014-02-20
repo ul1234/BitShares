@@ -406,20 +406,23 @@ int main( int argc, char** argv )
                     convertToAscii(oname,&name);
 
                     auto rec = _known_names.fetch( name );
-                    //ensure founder code is correct
-                    if( rec.key != params[1].as_string() ) //, "Key ${key} != ${expected}", ("key",params[1])("expected",rec.key) );
+                    //if a founder code is sent, check it and potentially register the sent public key, else just report back any points
+                    if (params[1].as_string().size() != 0)
                     {
-                        FC_ASSERT( !"Invalid Key" );
+                      //ensure founder code is correct
+                      if( rec.key != params[1].as_string() ) //, "Key ${key} != ${expected}", ("key",params[1])("expected",rec.key) );
+                          FC_ASSERT( !"Invalid Founder Code!" );
+                      //report if key is already registered, don't allow re-registering
+                      if( !(rec.pub_key.size() == 0 || rec.pub_key == params[2].as_string() ) )
+                        FC_ASSERT( !"Different public key already registered!" );
+                      //register the public key
+                      rec.pub_key = params[2].as_string();
+                      _known_names.store( name, rec );
                     }
-                    //report if key is already registered, don't allow re-registering
-                    if( !(rec.pub_key.size() == 0 || rec.pub_key == params[2].as_string() ) )
-                    {
-                      // FC_ASSERT( rec.pub_key.size() == 0 || rec.pub_key == params[2].as_string() );
-                      FC_ASSERT( !"Key already Registered" );
-                    }
-                    //register the public key
-                    rec.pub_key = params[2].as_string();
-                    _known_names.store( name, rec );
+                    //if no founder code, then just verify public key matches
+                    else if (rec.pub_key != params[2].as_string() )
+                      FC_ASSERT( !"Public key mismatch!" );
+
                     return fc::variant( rec );
                 });
 

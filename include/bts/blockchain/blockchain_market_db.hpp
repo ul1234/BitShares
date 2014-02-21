@@ -7,27 +7,7 @@
 namespace bts { namespace blockchain {
 
   namespace detail { class market_db_impl; }
-
-  struct price_point
-  {
-      price_point():from_block(0),to_block(0){}
-      fc::time_point_sec from_time;
-      fc::time_point_sec to_time;
-      uint32_t           from_block;
-      uint32_t           to_block;
-      price              open_bid;
-      price              high_bid;
-      price              low_bid;
-      price              close_bid;
-      price              open_ask;
-      price              high_ask;
-      price              low_ask;
-      price              close_ask;
-      asset              quote_volume;
-      asset              base_volume;
-
-      price_point& operator += ( const price_point& pp );
-  };
+  struct price_point;
 
  /**
   *   Bids:  (offers to buy Base Unit with Quote Unit)
@@ -104,9 +84,4 @@ namespace bts { namespace blockchain {
 
 FC_REFLECT( bts::blockchain::market_order, (base_unit)(quote_unit)(ratio)(location) );
 FC_REFLECT( bts::blockchain::margin_call, (call_price)(location) )
-FC_REFLECT( bts::blockchain::price_point, (from_time)(to_time)
-                                          (from_block)(to_block)
-                                          (open_bid)(high_bid)(low_bid)(close_bid)
-                                          (open_ask)(high_ask)(low_ask)(close_ask)
-                                          (quote_volume)(base_volume) )
 

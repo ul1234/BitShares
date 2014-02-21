@@ -12,6 +12,28 @@ namespace bts { namespace blockchain {
 
     namespace detail  { class blockchain_db_impl; }
 
+    struct price_point
+    {
+        price_point():from_block(0),to_block(0){}
+        fc::time_point_sec from_time;
+        fc::time_point_sec to_time;
+        uint32_t           from_block;
+        uint32_t           to_block;
+        price              open_bid;
+        price              high_bid;
+        price              low_bid;
+        price              close_bid;
+        price              open_ask;
+        price              high_ask;
+        price              low_ask;
+        price              close_ask;
+        asset              quote_volume;
+        asset              base_volume;
+    
+        price_point& operator += ( const price_point& pp );
+    };
+
+
     /**
      *  Information generated as a result of evaluating a signed
      *  transaction.
@@ -169,6 +191,10 @@ namespace bts { namespace blockchain {
           uint64_t      current_difficulty()const;
           uint64_t      available_coindays()const;
 
+          std::vector<price_point> get_market_history( asset::type quote, asset::type base, 
+                                                      fc::time_point_sec from, fc::time_point_sec to, 
+                                                      uint32_t blocks_per_point = 1 );
+
          /**
           *  Validates that trx could be included in a future block, that
           *  all inputs are unspent, that it is valid for the current time,
@@ -182,7 +208,7 @@ namespace bts { namespace blockchain {
          trx_eval   evaluate_signed_transaction( const signed_transaction& trx, bool ignore_fees = false );       
          trx_eval   evaluate_signed_transactions( const std::vector<signed_transaction>& trxs, uint64_t ignore_first_n = 0 );
 
-         std::vector<signed_transaction> match_orders();
+         std::vector<signed_transaction> match_orders( std::vector<price_point>* order_stats = nullptr );
          trx_block  generate_next_block( const std::vector<signed_transaction>& trx );
 
          trx_num    fetch_trx_num( const uint160& trx_id );
@@ -233,3 +259,8 @@ FC_REFLECT( bts::blockchain::short_data, (short_price)(amount) )
 FC_REFLECT( bts::blockchain::margin_data, (call_price)(amount)(collateral) )
 FC_REFLECT( bts::blockchain::market_data, (bids)(asks)(shorts)(margins) )
 
+FC_REFLECT( bts::blockchain::price_point, (from_time)(to_time)
+                                          (from_block)(to_block)
+                                          (open_bid)(high_bid)(low_bid)(close_bid)
+                                          (open_ask)(high_ask)(low_ask)(close_ask)
+                                          (quote_volume)(base_volume) )

@@ -1,4 +1,5 @@
 #include <bts/blockchain/blockchain_market_db.hpp>
+#include <bts/blockchain/blockchain_db.hpp>
 #include <bts/db/level_pod_map.hpp>
 #include <fc/reflect/variant.hpp>
 #include <fc/log/logger.hpp>

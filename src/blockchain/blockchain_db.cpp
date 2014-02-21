@@ -170,7 +170,7 @@ namespace bts { namespace blockchain {
             /**
              *  Pushes a new transaction into matched that pairs all bids/asks for a single quote/base pair
              */
-            void match_orders( std::vector<signed_transaction>& matched,  asset::type quote, asset::type base )
+            void match_orders( std::vector<signed_transaction>& matched,  asset::type quote, asset::type base, price_point& stats )
             { try {
                ilog( "match orders.." );
                auto asks = _market_db.get_asks( quote, base );
@@ -217,8 +217,31 @@ namespace bts { namespace blockchain {
                trx_output working_ask;
                trx_output working_bid;
 
-               if( ask_itr != asks.end() ) working_ask = get_output( ask_itr->location );
-               if( bid_itr != bids.rend() ) working_bid = get_output( bid_itr->location );
+               stats.from_block   = head_block.block_num;
+               stats.to_block     = stats.from_block + 1;
+               stats.from_time    = head_block.timestamp;
+               stats.to_time      = head_block.timestamp;
+               stats.quote_volume = pay_asker; // asker has bts, wants usd... usd is quote
+               stats.base_volume  = pay_bidder; // bidder has usd, wants bts... bts is base
+
+               if( ask_itr != asks.end() )
+               {
+                    working_ask   = get_output( ask_itr->location );
+                    if( working_ask.claim_func == claim_by_bid )
+                       stats.low_ask = working_ask.as<claim_by_bid_output>().ask_price;
+               }
+               if( bid_itr != bids.rend() )
+               {
+                   working_bid = get_output( bid_itr->location );
+
+                   if( working_ask.claim_func == claim_by_bid )
+                      stats.high_bid = working_ask.as<claim_by_bid_output>().ask_price;
+                   else if( working_ask.claim_func == claim_by_long )
+                      stats.high_bid = working_ask.as<claim_by_long_output>().ask_price;
+               }
+               stats.open_bid = stats.high_bid;
+               stats.open_ask = stats.low_ask;
+               
 
                bool has_change = false;
 
@@ -272,7 +295,8 @@ namespace bts { namespace blockchain {
 
                      if( ask_amount_usd < bid_amount_usd )
                      { // then we have filled the ask
-                         pay_asker         += ask_amount_usd;
+                         pay_asker          += ask_amount_usd;
+                         stats.quote_volume += ask_amount_usd;
                          loan_amount       += ask_amount_usd;
                          collateral_amount += ask_amount_bts +  ask_amount_usd * long_claim.ask_price;
                          ilog( "bid amount bts ${bid_bts}  - ${pay_asker} * ${price} = ${result}",
@@ -293,8 +317,9 @@ namespace bts { namespace blockchain {
                      }
                      else // we have filled the bid (short sell) 
                      {
-                         pay_asker         += bid_amount_usd;
-                         loan_amount       += bid_amount_usd;
+                         pay_asker          += bid_amount_usd;
+                         stats.quote_volume += bid_amount_usd;
+                         loan_amount        += bid_amount_usd;
                          collateral_amount += bid_amount_bts + (bid_amount_usd * ask_claim.ask_price);
                          ilog( "ask_amount_bts ${bid_bts}  - ${loan_amount} * ${price} = ${result}",
                                ("bid_bts",ask_amount_bts)("loan_amount",loan_amount)
@@ -354,9 +379,11 @@ namespace bts { namespace blockchain {
                      { // then we have filled the ask
                         ilog("ilog ${x} < ${y}???", ("x",ask_amount_usd.amount)("y",bid_amount_usd.amount));
                         pay_asker          += ask_amount_usd;
+                        stats.quote_volume += ask_amount_usd;
                         ilog(".");
                         auto delta_bidder  = ask_amount_usd * bid_claim.ask_price;
                         pay_bidder         += delta_bidder; 
+                        stats.base_volume  += delta_bidder;
                         bidder_change      = bid_amount_usd - delta_bidder * bid_claim.ask_price;
 
                         ask_change.reset();
@@ -378,10 +405,12 @@ namespace bts { namespace blockchain {
                      else // then we have filled the bid or we have filled BOTH
                      {
                         ilog(".");
-                        pay_bidder    += bid_amount_bts;
+                        pay_bidder         += bid_amount_bts;
+                        stats.base_volume  += bid_amount_bts;
                         ilog(".");
                         auto delta_asker =  bid_amount_bts * ask_claim.ask_price;
                         pay_asker     += delta_asker;
+                        stats.quote_volume += delta_asker;
 
                         working_bid.amount.amount = 0;
 
@@ -421,6 +450,25 @@ namespace bts { namespace blockchain {
                                 "", ("bid", working_bid) );  
                   }
                } // while( ... ) 
+
+               if( ask_itr != asks.end() )
+               {
+                    working_ask   = get_output( ask_itr->location );
+                    if( working_ask.claim_func == claim_by_bid )
+                       stats.high_ask = working_ask.as<claim_by_bid_output>().ask_price;
+               }
+               if( bid_itr != bids.rend() )
+               {
+                   working_bid = get_output( bid_itr->location );
+
+                   if( working_ask.claim_func == claim_by_bid )
+                      stats.low_bid = working_ask.as<claim_by_bid_output>().ask_price;
+                   else if( working_ask.claim_func == claim_by_long )
+                      stats.low_bid = working_ask.as<claim_by_long_output>().ask_price;
+               }
+               stats.close_bid = stats.low_bid;
+               stats.close_ask = stats.high_ask;
+
 
                // We are done with all of the asks, but not the bids as margin calls may use the bids...
                if( has_change && working_ask.amount.get_rounded_amount() > 0 )
@@ -559,6 +607,7 @@ namespace bts { namespace blockchain {
                             working_call.amount -= bid_usd * call_price;
                             cover_claim.payoff  -= bid_usd;
                             pay_bidder          += bid_usd * call_price;
+                            stats.base_volume   += bid_usd * call_price;
 
                             market_trx.outputs.push_back( 
                                    trx_output( claim_by_signature_output( bid_payout_address ), pay_bidder ) );
@@ -571,6 +620,7 @@ namespace bts { namespace blockchain {
                          else if( payoff < bid_usd )
                          { // pay the full cover, leaving change in the bid
                             pay_bidder          += payoff * call_price;
+                            stats.base_volume   += payoff * call_price;
                             working_call.amount -= payoff * call_price;
 
                             market_trx.inputs.push_back( call_itr->location );
@@ -592,6 +642,7 @@ namespace bts { namespace blockchain {
                             working_call.amount -= bid_usd * call_price;
                             cover_claim.payoff  -= bid_usd;
                             pay_bidder          += bid_usd * call_price;
+                            stats.base_volume   += bid_usd * call_price;
                             working_bid.amount  -= bid_usd; 
 
                             market_trx.outputs.push_back( 
@@ -1004,9 +1055,10 @@ namespace bts { namespace blockchain {
         //validate_issuance( b, my->head_block /*aka new prev*/ );
         validate_unique_inputs( b.trxs );
 
+        std::vector<price_point> order_stats;
         // the order matching must be deterministic and the first set of transactions in 
         // every block.
-        std::vector<signed_transaction> matched = match_orders();
+        std::vector<signed_transaction> matched = match_orders( &order_stats );
         FC_ASSERT( matched.size() <= b.trxs.size() );
         for( uint32_t i = 0; i < matched.size(); ++i )
         {
@@ -1019,6 +1071,12 @@ namespace bts { namespace blockchain {
         wlog( "total_fees: ${tf}", ("tf", total_eval.fees ) );
 
         my->store( b );
+
+        for( auto pt : order_stats )
+        {
+           my->_market_db.push_price_point( pt );
+        }
+
         my->blk_id2num.store( b.id(), b.block_num );
         
       } FC_RETHROW_EXCEPTIONS( warn, "unable to push block", ("b", b) );
@@ -1043,14 +1101,16 @@ namespace bts { namespace blockchain {
      *  Generates transactions that match all compatiable bids, asks, and shorts for
      *  all possible asset combinations and returns the result.
      */
-    std::vector<signed_transaction> blockchain_db::match_orders()
+    std::vector<signed_transaction> blockchain_db::match_orders( std::vector<price_point>* stats )
     { try {
        std::vector<signed_transaction> matched;
        for( uint32_t base = asset::bts; base < asset::count; ++base )
        {
           for( uint32_t quote = base+1; quote < asset::count; ++quote )
           {
-              my->match_orders( matched, asset::type(quote), asset::type(base) );
+              price_point pt;
+              my->match_orders( matched, asset::type(quote), asset::type(base), pt );
+              if( stats ) stats->push_back( pt );
           }
        }
        return matched;
@@ -1309,6 +1369,14 @@ namespace bts { namespace blockchain {
        return asset( uint64_t(my->head_block.next_fee), asset::bts );
     }
 
+    std::vector<price_point> blockchain_db::get_market_history( asset::type quote, asset::type base, 
+                                                fc::time_point_sec from, fc::time_point_sec to, 
+                                                uint32_t blocks_per_point  )
+    { try {
+       FC_ASSERT( quote != base );
+       if( quote > base ) std::swap( quote, base );
+       return my->_market_db.get_history( quote, base, from, to, blocks_per_point );
+    } FC_RETHROW_EXCEPTIONS( warn, "", ("quote",quote)("base",base)("from",from)("to",to)("blocks_per_point",blocks_per_point) ) }
 
 }  } // bts::blockchain
 

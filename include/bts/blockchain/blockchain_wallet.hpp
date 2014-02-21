@@ -65,6 +65,8 @@ namespace bts { namespace blockchain {
            void save();
            void backup_wallet( const fc::path& backup_path );
 
+           void import_bitcoin_wallet( const fc::path& dir, const std::string& passphrase );
+
            bts::address                                 import_key( const fc::ecc::private_key& key, const std::string& label = "" );
            bts::address                                 new_recv_address( const std::string& label = "" );
            std::unordered_map<bts::address,std::string> get_recv_addresses()const;

@@ -3,6 +3,7 @@
 #include <bts/blockchain/block.hpp>
 #include <bts/extended_address.hpp>
 #include <bts/config.hpp>
+#include <bts/bitcoin_wallet.hpp>
 #include <unordered_map>
 #include <map>
 #include <fc/filesystem.hpp>
@@ -375,6 +376,16 @@ namespace bts { namespace blockchain {
         throw;
       }
    } FC_RETHROW_EXCEPTIONS( warn, "unable to backup to ${path}", ("path",backup_path) ) }
+
+   void wallet::import_bitcoin_wallet( const fc::path& wallet_dat, const std::string& passphrase )
+   { try {
+      auto priv_keys = bts::import_bitcoin_wallet(  wallet_dat, passphrase );
+      for( auto key : priv_keys )
+      {
+         import_key( key, "bitcoin_import" );
+      }
+   } FC_RETHROW_EXCEPTIONS( warn, "Unable to import bitcoin wallet ${wallet_dat}", ("wallet_dat",wallet_dat) ) }
+
 
    void wallet::save()
    { try {

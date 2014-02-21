@@ -3,6 +3,7 @@
 #include <bts/blockchain/block.hpp>
 #include <bts/extended_address.hpp>
 #include <bts/config.hpp>
+#include <bts/pts_address.hpp>
 #include <bts/bitcoin_wallet.hpp>
 #include <unordered_map>
 #include <map>
@@ -27,6 +28,7 @@ namespace bts { namespace blockchain {
        uint32_t                                                 last_used_key;
        uint32_t                                                 last_scanned_block_num;
        std::unordered_map<bts::address,std::string>             recv_addresses;
+       std::unordered_map<bts::pts_address,bts::address>        recv_pts_addresses;
        std::unordered_map<bts::address,std::string>             send_addresses;
 
        //std::vector<fc::ecc::private_key>                 keys;
@@ -92,6 +94,7 @@ FC_REFLECT( bts::blockchain::wallet_data,
             (last_used_key)
             (last_scanned_block_num)
             (recv_addresses)
+            (recv_pts_addresses)
             (send_addresses)
             (encrypted_base_key)
             (encrypted_keys)
@@ -173,6 +176,21 @@ namespace bts { namespace blockchain {
                               }
                            }
                        }
+                       else if( itr->second.claim_func == claim_by_pts && itr->second.amount.unit == asset::bts )
+                       {
+                           inputs.push_back( trx_input( _output_index_to_ref[itr->first] ) );
+                           total_in += itr->second.amount;
+                           auto cdd = itr->second.amount.get_rounded_amount() * (_current_head_idx - itr->first.block_idx);
+                           if( cdd > 0 ) 
+                           {
+                              provided_cdd += cdd;
+                              req_sigs.insert( _data.recv_pts_addresses[itr->second.as<claim_by_pts_output>().owner] );
+                              if( provided_cdd >= request_cdd )
+                              {
+                                 return inputs;
+                              }
+                           }
+                       }
                    }
                    return inputs;
               }
@@ -191,6 +209,17 @@ namespace bts { namespace blockchain {
                            inputs.push_back( trx_input( _output_index_to_ref[itr->first] ) );
                            total_in += itr->second.amount;
                            req_sigs.insert( itr->second.as<claim_by_signature_output>().owner );
+                           ilog( "total in ${in}  min ${min}", ( "in",total_in)("min",min_amnt) );
+                           if( total_in.get_rounded_amount() >= min_amnt.get_rounded_amount() )
+                           {
+                              return inputs;
+                           }
+                       }
+                       else if( itr->second.claim_func == claim_by_pts && itr->second.amount.unit == min_amnt.unit )
+                       {
+                           inputs.push_back( trx_input( _output_index_to_ref[itr->first] ) );
+                           total_in += itr->second.amount;
+                           req_sigs.insert( _data.recv_pts_addresses[itr->second.as<claim_by_pts_output>().owner] );
                            ilog( "total in ${in}  min ${min}", ( "in",total_in)("min",min_amnt) );
                            if( total_in.get_rounded_amount() >= min_amnt.get_rounded_amount() )
                            {
@@ -377,12 +406,17 @@ namespace bts { namespace blockchain {
       }
    } FC_RETHROW_EXCEPTIONS( warn, "unable to backup to ${path}", ("path",backup_path) ) }
 
+   /**
+    *  @note no balances will show up unless you scan the chain after import... perhaps just scan the
+    *  genesis block which is the only place where PTS and BTC addresses should be found.
+    */
    void wallet::import_bitcoin_wallet( const fc::path& wallet_dat, const std::string& passphrase )
    { try {
       auto priv_keys = bts::import_bitcoin_wallet(  wallet_dat, passphrase );
       for( auto key : priv_keys )
       {
          import_key( key, "bitcoin_import" );
+         my->_data.recv_pts_addresses[ bts::pts_address( key.get_public_key() ) ] = bts::address( key.get_public_key() );
       }
    } FC_RETHROW_EXCEPTIONS( warn, "Unable to import bitcoin wallet ${wallet_dat}", ("wallet_dat",wallet_dat) ) }
 
@@ -1009,6 +1043,27 @@ namespace bts { namespace blockchain {
                   const output_index      oidx( i, trx_idx, out_idx );
                   switch( out.claim_func )
                   {
+                     case claim_by_pts:
+                     {
+                        auto owner = out.as<claim_by_pts_output>().owner;
+                        auto aitr  = my->_data.recv_pts_addresses.find(owner); //my_addresses.find(owner);
+                        if( aitr != my->_data.recv_pts_addresses.end() )
+                        {
+                            if( !trx.meta_outputs[out_idx].is_spent() )
+                            {
+                               my->_output_index_to_ref[oidx]    = out_ref;
+                               my->_output_ref_to_index[out_ref] = oidx;
+                               my->_unspent_outputs[oidx] = trx.outputs[out_idx];
+                            }
+                            else
+                            {
+                               mark_as_spent( out_ref ); //output_reference(trx.id(), out_idx ) );
+                               //my->_spent_outputs[output_reference( trx.id(), out_idx )] = trx.outputs[out_idx];
+                            }
+                           // std::cerr<<"found block["<<i<<"].trx["<<trx_idx<<"].output["<<out_idx<<"]  " << std::string(trx.id()) <<" => "<<std::string(owner)<<"\n";
+                           found = true;
+                        }
+                     }
                      case claim_by_signature:
                      {
                         auto owner = out.as<claim_by_signature_output>().owner;
@@ -1116,6 +1171,11 @@ namespace bts { namespace blockchain {
                         }
                         break;
                      }
+
+                     case null_claim_type:
+                     default:
+                        FC_ASSERT( !"Invalid Claim Type" );
+                        break;
                   }
               }
           }
@@ -1138,6 +1198,8 @@ namespace bts { namespace blockchain {
                  std::cerr<< std::string(itr->second.as<claim_by_signature_output>().owner);
                  std::cerr<<"\n";
                  break;
+              default:
+                  std::cerr << "unsupported claim type "<<fc::variant(itr->second.claim_func).as_string() <<" \n";
            }
        }
        std::cerr<<"\n";

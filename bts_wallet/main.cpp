@@ -218,6 +218,28 @@ class client : public chain_connection_delegate
                 return fc::variant( _wallet.new_recv_address(params[0].as_string()) ); 
          });
 
+         /**
+          *  @param quote
+          *  @param base
+          *  @param from 
+          *  @param to 
+          *  blocks_per_point
+          */
+         con->add_method( "market_history", [=]( const fc::variants& params ) -> fc::variant 
+         {
+             FC_ASSERT( _chain_connected );
+             FC_ASSERT( params.size() >= 4 );
+
+             auto quote = params[0].as<bts::blockchain::asset::type>();
+             auto base  = params[1].as<bts::blockchain::asset::type>();
+             auto from  = params[2].as<fc::time_point_sec>();
+             auto to  = params[3].as<fc::time_point_sec>();
+             uint32_t blocks_per_point = 1;
+             if( params.size() == 5 )
+                blocks_per_point = params[4].as<uint64_t>();
+             return fc::variant( chain.get_market_history( quote, base, from, to, blocks_per_point ) );
+         });
+
          con->add_method( "transfer", [=]( const fc::variants& params ) -> fc::variant 
          {
              FC_ASSERT( _chain_connected );
@@ -262,7 +284,7 @@ class client : public chain_connection_delegate
          });
          con->add_method( "short_sell", [=]( const fc::variants& params ) -> fc::variant 
          {
-             FC_ASSERT( _chain_connected );
+             
              check_login( capture_con );
              FC_ASSERT( params.size() == 2 );
              auto amount       = params[0].as<bts::blockchain::asset>();

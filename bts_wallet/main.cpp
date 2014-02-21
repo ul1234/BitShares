@@ -361,6 +361,16 @@ class client : public chain_connection_delegate
              check_login( capture_con );
              return fc::variant( _wallet.get_open_short_sell() );
          });
+
+         con->add_method( "import_bitcoin_wallet", [=]( const fc::variants& params ) -> fc::variant 
+         {
+             check_login( capture_con );
+             FC_ASSERT( params.size() == 2 );
+             auto wallet_dat      = params[0].as<fc::path>();
+             auto wallet_password = params[1].as_string();
+             _wallet.import_bitcoin_wallet( wallet_dat, wallet_password );
+             return fc::variant(true);
+         });
                           
          con->add_method( "import_bts_privkey", [=]( const fc::variants& params ) -> fc::variant 
          {

@@ -5,6 +5,31 @@
 
 #include <algorithm>
 
+struct price_point_key
+{
+   bts::blockchain::asset::type quote;
+   bts::blockchain::asset::type base;
+   fc::time_point_sec           timestamp;
+
+   price_point_key( bts::blockchain::asset::type q, bts::blockchain::asset::type b, fc::time_point_sec t )
+   :quote(q),base(b),timestamp(t){}
+
+   friend bool operator < ( const price_point_key& a, const price_point_key& b )
+   {
+      if( a.quote >= b.quote )         return false;
+      if( a.base  >= b.base  )         return false;
+      if( a.timestamp >= b.timestamp ) return false;
+      return true;
+   }
+
+   friend bool operator == ( const price_point_key& a, const price_point_key& b )
+   {
+      return a.quote == b.quote && a.base == b.base && a.timestamp == b.timestamp;
+   }
+};
+
+FC_REFLECT( price_point_key, (quote)(base)(timestamp) )
+
 namespace bts { namespace blockchain {
 
   namespace detail
@@ -15,9 +40,41 @@ namespace bts { namespace blockchain {
            db::level_pod_map<market_order,uint32_t> _bids;
            db::level_pod_map<market_order,uint32_t> _asks;
            db::level_pod_map<margin_call,uint32_t>  _calls;
+
+           db::level_pod_map<price_point_key, price_point> _price_history;
+
      };
 
   } // namespace detail
+
+
+
+  price_point& price_point::operator += ( const price_point& pp )
+  {
+     quote_volume += pp.quote_volume;
+     base_volume  += pp.base_volume;
+     if( pp.from_block < from_block )
+     {
+        open_bid   = pp.open_bid;
+        open_ask   = pp.open_ask;
+     }
+     if( pp.to_block > to_block )
+     {
+        close_bid = pp.close_bid;
+        close_ask = pp.close_ask;
+     }
+     high_bid   = std::max( pp.high_bid, high_bid );
+     low_bid    = std::min( pp.low_bid, low_bid );
+     high_ask   = std::max( pp.high_ask, high_ask );
+     low_ask    = std::min( pp.low_ask, low_ask );
+
+     from_time  = std::min( pp.from_time, from_time );
+     to_time    = std::max( pp.to_time, to_time );
+     from_block = std::min( pp.from_block, from_block );
+     to_block   = std::max( pp.to_block, to_block );
+     return *this;
+  }
+
   market_order::market_order( const price& p, const output_reference& loc )
   :base_unit(p.base_unit),quote_unit(p.quote_unit),ratio( p.ratio ),location(loc)
   {}
@@ -73,10 +130,12 @@ namespace bts { namespace blockchain {
      fc::create_directories( db_dir / "bids" );
      fc::create_directories( db_dir / "asks" );
      fc::create_directories( db_dir / "calls" );
+     fc::create_directories( db_dir / "price_history" );
 
      my->_bids.open( db_dir / "bids" );
      my->_asks.open( db_dir / "asks" );
      my->_calls.open( db_dir / "calls" );
+     my->_price_history.open( db_dir / "price_history" );
   } FC_RETHROW_EXCEPTIONS( warn, "unable to open market db ${dir}", ("dir",db_dir) ) }
 
   void market_db::insert_bid( const market_order& m )
@@ -102,6 +161,47 @@ namespace bts { namespace blockchain {
   void market_db::remove_call( const margin_call& c )
   {
      my->_calls.remove( c );
+  }
+
+
+  void market_db::push_price_point( const price_point& pt )
+  {
+     my->_price_history.store( price_point_key( pt.quote_volume.unit, pt.base_volume.unit, pt.from_time ), pt );
+  }
+  
+  /**
+   *  This method returns the price history for a given asset pair for a given range and block granularity. 
+   */
+  std::vector<price_point> market_db::get_history( asset::type quote, asset::type base, fc::time_point_sec from, fc::time_point_sec to, uint32_t blocks_per_point  )
+  {
+     std::vector<price_point> points;
+     uint32_t blocks_in_point = 0;
+
+     auto point_itr = my->_price_history.lower_bound( price_point_key( quote, base, from ) );
+     while( point_itr.valid() )
+     {
+        auto key = point_itr.key();
+        if( key.quote != quote ) return points;
+        if( key.base != base   ) return points;
+        if( key.timestamp > to ) return points;
+
+        if( blocks_in_point == 0 )
+        {
+          points.push_back( point_itr.value() );
+          ++blocks_in_point;
+        }
+        else if( blocks_in_point < blocks_per_point )
+        {
+          points.back() += point_itr.value();
+          ++blocks_in_point;
+        }
+        else
+        {
+          points.push_back( point_itr.value() );
+          blocks_in_point = 1;
+        }
+     }
+     return points;
   }
 
   /** @pre quote > base  */

@@ -403,8 +403,6 @@ class client : public chain_connection_delegate
          }
       }
 
-
-
       client():_chain_con(this),_chain_connected(false){}
       virtual void on_connection_message( chain_connection& c, const message& m )
       {
@@ -1240,6 +1238,21 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
                                  c->_wallet.unlock_wallet( password );
                                  } ).wait();
          }
+         else if( command == "import_bitcoin_wallet" )
+         {
+             std::string wallet_dat;
+             std::getline( ss, wallet_dat );
+
+             wallet_dat = fc::trim( wallet_dat );
+             FC_ASSERT( fc::exists( wallet_dat ), "Unable to open '${wallet_dat}'", ("wallet_dat",wallet_dat) );
+
+             std::cout << "password: ";
+             std::string password;
+             std::getline( std::cin, password );
+             main_thread->async( [=]() {
+                                 c->_wallet.import_bitcoin_wallet( fc::path(wallet_dat), password );
+                                 } ).wait();
+         }
          else if( command == "lock" )
          {
          }
@@ -1271,6 +1284,14 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
          catch( const fc::exception& e) 
          {
              std::cerr<<e.to_detail_string()<<"\n";
+         }
+         catch ( const std::exception& e )
+         {
+            std::cerr<<"Unhandled Exception: "<<e.what()<<"\n";
+         }
+         catch ( ... )
+         {
+            std::cerr<< "Unhandled Exception\n";
          }
 #ifndef WIN32
          line_read = nullptr;

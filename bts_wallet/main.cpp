@@ -1175,7 +1175,10 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
                 std::string password;
                 std::cout<<"password: ";
                 std::getline( std::cin, password );
+                ilog( "opening ${d}", ("d", c->_datadir/"wallet.bts") );
                 c->_wallet.open( c->_datadir / "wallet.bts", password );
+                if( c->chain.head_block_num() != uint32_t(-1) )
+                    c->_wallet.scan_chain( c->chain );
             }
             else // create new wallet
             {

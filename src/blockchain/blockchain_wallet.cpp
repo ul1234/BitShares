@@ -367,7 +367,7 @@ namespace bts { namespace blockchain {
    void wallet::create( const fc::path& wallet_dat, const fc::string& base_password, const fc::string& key_password, bool is_brain )
    { try {
       FC_ASSERT( !fc::exists( wallet_dat ), "", ("wallet_dat",wallet_dat) );
-      FC_ASSERT( key_password.size() > 8 );
+      FC_ASSERT( key_password.size() >= 8 );
 
       my->_data = wallet_data();
 
@@ -377,7 +377,7 @@ namespace bts { namespace blockchain {
       
       if( is_brain )
       {
-         FC_ASSERT( base_password.size() > 8 );
+         FC_ASSERT( base_password.size() >= 8 );
          my->_data.set_base_key( extended_private_key( fc::sha256::hash( key_password.c_str(), key_password.size() ),
                                                              fc::sha256::hash( base_password.c_str(), base_password.size() ) ), key_password );
       }

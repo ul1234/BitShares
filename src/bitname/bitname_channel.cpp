@@ -698,7 +698,7 @@ namespace bts { namespace bitname {
           { try {
                FC_ASSERT( !!cdat.requested_block );
 
-               // TODO: make sure that I requrested this block... 
+               // TODO: make sure that I requested this block... 
                _fork_db.cache_block( msg.block );
                _new_block_info = true;
                cdat.requested_block.reset();
@@ -778,16 +778,20 @@ namespace bts { namespace bitname {
 
           void submit_block( const name_block& block )
           { try {
+             #ifdef PEER_ONLY_VALIDATION
              _fork_db.cache_block( block );
              _new_block_info = true;
              _name_db.push_block( block ); // this throws on error
+             _name_db.dump(); // DEBUG
+             #endif
              _trx_broadcast_mgr.invalidate_all(); // current inventory is now invalid
              _block_index_broadcast_mgr.clear_old_inventory(); // we can clear old inventory
              _trx_broadcast_mgr.clear_old_inventory(); // this inventory no longer matters
              _block_index_broadcast_mgr.validated( block.id(), block, true );
 
-             _name_db.dump(); // DEBUG
+             #ifdef PEER_ONLY_VALIDATION
              if( _delegate ) _delegate->name_block_added( block );
+             #endif
           } FC_RETHROW_EXCEPTIONS( warn, "error submitting block", ("block", block) ) }
     };
 

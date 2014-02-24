@@ -85,7 +85,7 @@ fc::sha256 wallet_to_binary_key( const std::string &strKey)
    std::vector<char> hashed4(hashed.data(), hashed.data() + 4);
    if (!vecs_equal<char>(checksum, hashed4))
       FC_THROW_EXCEPTION( exception, "invalid checksum" );
-   return fc::sha256( vPrivateKey.data() );
+   return fc::sha256( vPrivateKey.data(), vPrivateKey.size() );
 }
 
 class client : public chain_connection_delegate

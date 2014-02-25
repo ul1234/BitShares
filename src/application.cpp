@@ -161,33 +161,33 @@ namespace bts {
 
           virtual void bitchat_message_received( const bitchat::decrypted_message& msg )
           {
-              ilog( "received ${msg}", ("msg", msg) );
-              if( _profile ) _profile->cache( msg );
-              switch( msg.msg_type )
+            ilog( "received ${msg}", ("msg", msg) );
+            if( _profile ) _profile->cache( msg );
+            switch( msg.msg_type )
+            {
+              case bitchat::private_message_type::text_msg:
               {
-                 case bitchat::private_message_type::text_msg:
-                 {
-                   auto txt = msg.as<bitchat::private_text_message>();
-                   ilog( "text message ${msg}", ("msg",txt) );
+                auto txt = msg.as<bitchat::private_text_message>();
+                ilog( "text message ${msg}", ("msg",txt) );
 
-                   if( _delegate ) _delegate->received_text( msg );
-                   break;
-                 }
-                 case bitchat::private_message_type::email_msg:
-                 {
-                   auto email = msg.as<bitchat::private_email_message>();
-                   ilog( "email message ${msg}", ("msg",email) );
-                   if( _delegate ) _delegate->received_email( msg );//, *m.from_key, m.decrypt_key->get_public_key() );
-                   break;
-                 }
-                 case bitchat::private_message_type::contact_request_msg:
-                  {
-                    auto request = msg.as<bitchat::private_contact_request_message>();
-                    ilog( "request message ${msg}", ("msg", request) );
-                    if( _delegate ) _delegate->received_request( msg );
-                    break;
-                  }
+                if( _delegate ) _delegate->received_text( msg );
+                break;
               }
+              case bitchat::private_message_type::email_msg:
+              {
+                auto email = msg.as<bitchat::private_email_message>();
+                ilog( "email message ${msg}", ("msg",email) );
+                if( _delegate ) _delegate->received_email( msg );//, *m.from_key, m.decrypt_key->get_public_key() );
+                break;
+              }
+              case bitchat::private_message_type::contact_request_msg:
+              {
+                auto request = msg.as<bitchat::private_contact_request_message>();
+                ilog( "request message ${msg}", ("msg", request) );
+                if( _delegate ) _delegate->received_request( msg );
+                break;
+              }
+            }
           }
 
           virtual void bitname_block_added( const bts::bitname::name_block& h )
@@ -476,9 +476,19 @@ namespace bts {
      my->_bitname_client->mine_name( name, key );
   } FC_RETHROW_EXCEPTIONS( warn, "name: ${name}", ("name",name) ) }
 
-  void  application::send_contact_request( const fc::ecc::public_key& to, const fc::ecc::private_key& from )
+  void  application::send_contact_request( const bitchat::private_contact_request_message& reqmsg,
+                                           const fc::ecc::public_key& to, const fc::ecc::private_key& from )
   {
-     FC_ASSERT( my->_config );
+    try
+    {
+      FC_ASSERT( my->_config );
+
+      bitchat::decrypted_message msg( reqmsg );
+      msg.sign(from);
+      my->_bitchat_client->send_message( msg, to, 0/* chan 0 */ );
+
+    }
+    FC_RETHROW_EXCEPTIONS( warn, "" )
   }
 
   void  application::send_email( const bitchat::private_email_message& email, 

@@ -84,7 +84,8 @@ namespace bts {
                                                       float effort = 0.1 );
 
       bool  is_mail_connected()const;
-      void  send_contact_request( const fc::ecc::public_key& to, const fc::ecc::private_key& from );
+      void  send_contact_request( const bitchat::private_contact_request_message& reqmsg,
+                                  const fc::ecc::public_key& to, const fc::ecc::private_key& from );
       void  send_email( const bitchat::private_email_message& email, 
                         const fc::ecc::public_key& to, const fc::ecc::private_key& from );
       void  send_text_message( const bitchat::private_text_message& txtmsg, 

@@ -1,5 +1,6 @@
 #pragma once
 #include <bts/network/channel_id.hpp>
+#include <bts/extended_address.hpp>
 #include <fc/io/raw.hpp>
 #include <fc/thread/future.hpp>
 #include <fc/crypto/elliptic.hpp>
@@ -143,9 +144,13 @@ namespace bts { namespace bitchat {
     {
        static const private_message_type  type;
 
-       std::string from_name;
-       std::string greeting_message;///< message introducing name/key
-       channel_id  from_channel;    ///< channel where from_name can be contacted
+       std::string              from_first_name;
+       std::string              from_last_name;
+       std::string              from_keyhotee_id;
+       uint16_t                 request_param;
+       std::string              greeting_message;///< message introducing name/key
+       channel_id               from_channel;    ///< channel where from_name can be contacted
+       bts::extended_public_key extended_pub_key;
     };
 
     struct attachment
@@ -226,5 +231,5 @@ FC_REFLECT( bts::bitchat::decrypted_message, (msg_type)(data)(sig_time)(from_sig
 FC_REFLECT( bts::bitchat::private_text_message, (msg) )
 FC_REFLECT( bts::bitchat::private_email_message, (from_keyhotee_id)(to_list)(cc_list)(subject)(body)(attachments)(bcc_list) )
 FC_REFLECT( bts::bitchat::private_status_message, (status)(status_message) )
-FC_REFLECT( bts::bitchat::private_contact_request_message, (from_name)(greeting_message)(from_channel) )
+FC_REFLECT( bts::bitchat::private_contact_request_message, (from_first_name)(from_last_name)(from_keyhotee_id)(request_param)(greeting_message)(from_channel)(extended_pub_key) )
 

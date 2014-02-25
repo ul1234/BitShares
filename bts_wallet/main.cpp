@@ -81,7 +81,7 @@ fc::sha256 wallet_to_binary_key( const std::string &strKey)
    std::vector<char> vPrivateKey(vKey.begin() + 1, vKey.end() - 4);
    std::vector<char> vVerifyKey(vKey.begin(), vKey.end() - 4);
    fc::sha256 hashed = fc::sha256::hash(vVerifyKey.data(), vVerifyKey.size());
-   hashed = fc::sha256::hash(hashed.data(), 32);
+   hashed = fc::sha256::hash(hashed.data(), sizeof(hashed));
    std::vector<char> hashed4(hashed.data(), hashed.data() + 4);
    if (!vecs_equal<char>(checksum, hashed4))
       FC_THROW_EXCEPTION( exception, "invalid checksum" );

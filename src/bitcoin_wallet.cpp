@@ -162,24 +162,17 @@ namespace bts {
 
    static bool decrypt( std::vector<unsigned char>& privkey, std::vector<unsigned char>& key,
                         std::vector<unsigned char> iv, std::vector<unsigned char>& plainkey )
-   {
-      if ( privkey.size() < 32 )
-         return false;
+   { try {
+      FC_ASSERT( privkey.size() >= 32 );
 
-      try {
-         std::vector<unsigned char> plaindata(privkey.size());
-         if ( fc::aes_decrypt( (unsigned char*)&privkey[0], privkey.size(), &key[0], &iv[0], (unsigned char*)&plaindata[0] ) >= 32 )
-         {
-            plainkey.assign( (char*)&plaindata[0], (char*)&plaindata[0] + 32 );
-            return true;
-         }
-      }
-      catch ( const fc::exception& e )
+      std::vector<unsigned char> plaindata(privkey.size());
+      if ( fc::aes_decrypt( (unsigned char*)&privkey[0], privkey.size(), &key[0], &iv[0], (unsigned char*)&plaindata[0] ) >= 32 )
       {
-         wlog( "${e}", ("e",e.to_detail_string()) );
+         plainkey.assign( (char*)&plaindata[0], (char*)&plaindata[0] + 32 );
+         return true;
       }
-      return false;
-   }
+      FC_ASSERT( !"Unable to decrypt key" );
+   } FC_RETHROW_EXCEPTIONS( warn, "unable to decrypt key" ) }
 
    static bool private_key_matches_public( fc::ecc::private_key& privkey, std::vector<unsigned char> &pubkey )
    {
@@ -210,8 +203,8 @@ namespace bts {
       std::vector<std::vector<unsigned char>> mkeys;
       wallet_db_blob key, value;
 
-      while( db.getNext( key, value ) ) {
-         try {
+      while( db.getNext( key, value ) ) 
+      {
             std::string cmd = key.get_string();
 
             if( cmd == "key" || cmd == "wkey" )
@@ -259,24 +252,28 @@ namespace bts {
                                    (unsigned char*)&salt[0],
                                    (unsigned char*)passphrase.c_str(), passphrase.size(), iters,
                                    &key[0], &iv[0] ) != 32 )
+               {
+                  wlog( "error importing key" );
                   continue;
+               }
 
                // now get masterkey by decrypting privkey with the key generated above
                std::vector<unsigned char> masterkey;
                if( decrypt( privkey, key, iv, masterkey ) )
+               {
                   mkeys.push_back( masterkey );
+               }
+               else
+               {
+                  elog( "error decrypting key" );
+               }
             }
             else if( cmd == "name" )
             {
                std::string b58name = key.get_string();
                names.push_back( b58name );
             }
-         }
-         catch ( const fc::exception& e )
-         {
-            wlog( "${e}", ("e",e.to_detail_string()) );
-         }
-      }
+      } // while...
 
       std::vector<fc::ecc::private_key> ekeys;
 
@@ -321,21 +318,22 @@ namespace bts {
             continue;
 
          // add only named keys
-         if( std::find( names.begin(), names.end(), key._address_compressed ) != names.end() ||
-             std::find( names.begin(), names.end(), key._address_uncompressed ) != names.end() )
+       //  if( std::find( names.begin(), names.end(), key._address_compressed ) != names.end() ||
+       //      std::find( names.begin(), names.end(), key._address_uncompressed ) != names.end() )
          {
             ekeys.push_back(key._privkey);
          }
       }
+      //ilog( "keys: ${keys}", ("keys",ekeys) );
 
       return ekeys;
    }
 
    std::vector<fc::ecc::private_key> import_bitcoin_wallet( const fc::path& wallet_dat, const std::string& passphrase )
    { try {
-         wallet_db db( wallet_dat.to_native_ansi_path().c_str() );
-         return collect_keys( db, passphrase );
-      }
-      FC_RETHROW_EXCEPTIONS( warn, "" )
-   }
+
+      wallet_db db( wallet_dat.to_native_ansi_path().c_str() );
+      return collect_keys( db, passphrase );
+
+   } FC_RETHROW_EXCEPTIONS( warn, "" ) }
 }

@@ -218,6 +218,28 @@ class client : public chain_connection_delegate
                 return fc::variant( _wallet.new_recv_address(params[0].as_string()) ); 
          });
 
+         /**
+          *  @param quote
+          *  @param base
+          *  @param from 
+          *  @param to 
+          *  blocks_per_point
+          */
+         con->add_method( "market_history", [=]( const fc::variants& params ) -> fc::variant 
+         {
+             FC_ASSERT( _chain_connected );
+             FC_ASSERT( params.size() >= 4 );
+
+             auto quote = params[0].as<bts::blockchain::asset::type>();
+             auto base  = params[1].as<bts::blockchain::asset::type>();
+             auto from  = params[2].as<fc::time_point_sec>();
+             auto to  = params[3].as<fc::time_point_sec>();
+             uint32_t blocks_per_point = 1;
+             if( params.size() == 5 )
+                blocks_per_point = params[4].as<uint64_t>();
+             return fc::variant( chain.get_market_history( quote, base, from, to, blocks_per_point ) );
+         });
+
          con->add_method( "transfer", [=]( const fc::variants& params ) -> fc::variant 
          {
              FC_ASSERT( _chain_connected );
@@ -262,7 +284,7 @@ class client : public chain_connection_delegate
          });
          con->add_method( "short_sell", [=]( const fc::variants& params ) -> fc::variant 
          {
-             FC_ASSERT( _chain_connected );
+             
              check_login( capture_con );
              FC_ASSERT( params.size() == 2 );
              auto amount       = params[0].as<bts::blockchain::asset>();
@@ -339,6 +361,16 @@ class client : public chain_connection_delegate
              check_login( capture_con );
              return fc::variant( _wallet.get_open_short_sell() );
          });
+
+         con->add_method( "import_bitcoin_wallet", [=]( const fc::variants& params ) -> fc::variant 
+         {
+             check_login( capture_con );
+             FC_ASSERT( params.size() == 2 );
+             auto wallet_dat      = params[0].as<fc::path>();
+             auto wallet_password = params[1].as_string();
+             _wallet.import_bitcoin_wallet( wallet_dat, wallet_password );
+             return fc::variant(true);
+         });
                           
          con->add_method( "import_bts_privkey", [=]( const fc::variants& params ) -> fc::variant 
          {
@@ -370,8 +402,6 @@ class client : public chain_connection_delegate
             FC_THROW_EXCEPTION( exception, "not logged in" ); 
          }
       }
-
-
 
       client():_chain_con(this),_chain_connected(false){}
       virtual void on_connection_message( chain_connection& c, const message& m )
@@ -1208,6 +1238,21 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
                                  c->_wallet.unlock_wallet( password );
                                  } ).wait();
          }
+         else if( command == "import_bitcoin_wallet" )
+         {
+             std::string wallet_dat;
+             std::getline( ss, wallet_dat );
+
+             wallet_dat = fc::trim( wallet_dat );
+             FC_ASSERT( fc::exists( wallet_dat ), "Unable to open '${wallet_dat}'", ("wallet_dat",wallet_dat) );
+
+             std::cout << "password: ";
+             std::string password;
+             std::getline( std::cin, password );
+             main_thread->async( [=]() {
+                                 c->_wallet.import_bitcoin_wallet( fc::path(wallet_dat), password );
+                                 } ).wait();
+         }
          else if( command == "lock" )
          {
          }
@@ -1239,6 +1284,14 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
          catch( const fc::exception& e) 
          {
              std::cerr<<e.to_detail_string()<<"\n";
+         }
+         catch ( const std::exception& e )
+         {
+            std::cerr<<"Unhandled Exception: "<<e.what()<<"\n";
+         }
+         catch ( ... )
+         {
+            std::cerr<< "Unhandled Exception\n";
          }
 #ifndef WIN32
          line_read = nullptr;

@@ -41,10 +41,10 @@ namespace bts { namespace blockchain {
           ilog( "get_keys with password '${pass}'", ("pass",password) );
           std::unordered_map<bts::address, fc::ecc::private_key> keys;
           if( encrypted_keys.size() == 0 ) return keys;
-          ilog( "encrypted keys.size: ${s}", ("s",encrypted_keys.size() ) );
+          //ilog( "encrypted keys.size: ${s}", ("s",encrypted_keys.size() ) );
 
           auto plain_txt = fc::aes_decrypt( fc::sha512::hash( password.c_str(), password.size() ), encrypted_keys );
-          ilog( "plain_txt '${p}' size ${s}", ("p",plain_txt)("s",plain_txt.size()) );
+          //ilog( "plain_txt '${p}' size ${s}", ("p",plain_txt)("s",plain_txt.size()) );
           fc::datastream<const char*> ds(plain_txt.data(),plain_txt.size());
           fc::raw::unpack( ds, keys );
           return keys;
@@ -63,7 +63,7 @@ namespace bts { namespace blockchain {
        void set_keys( const std::unordered_map<bts::address,fc::ecc::private_key>& k, const std::string& password )
        {
           auto plain_txt = fc::raw::pack( k );
-          ilog( "new_password '${p}'  plaint_txt '${pt}' size ${s}", ("p",password)("pt",plain_txt)("s",plain_txt.size()) );
+          //ilog( "new_password '${p}'  plaint_txt '${pt}' size ${s}", ("p",password)("pt",plain_txt)("s",plain_txt.size()) );
           encrypted_keys = fc::aes_encrypt( fc::sha512::hash( password.c_str(), password.size() ), plain_txt );
           FC_ASSERT( k == get_keys(password) );
        }
@@ -77,7 +77,7 @@ namespace bts { namespace blockchain {
        void set_base_key( const extended_private_key& bk, const std::string& new_password )
        {
           auto plain_txt = fc::raw::pack( bk );
-          ilog( "new_password '${p}'  plaint_txt ${pt}", ("p",new_password)("pt",plain_txt) );
+          //ilog( "new_password '${p}'  plaint_txt ${pt}", ("p",new_password)("pt",plain_txt) );
           encrypted_base_key = fc::aes_encrypt( fc::sha512::hash( new_password.c_str(), new_password.size() ), plain_txt );
           auto check = fc::aes_decrypt( fc::sha512::hash( new_password.c_str(), new_password.size() ), encrypted_base_key );
           FC_ASSERT( check == plain_txt );
@@ -413,9 +413,11 @@ namespace bts { namespace blockchain {
    void wallet::import_bitcoin_wallet( const fc::path& wallet_dat, const std::string& passphrase )
    { try {
       auto priv_keys = bts::import_bitcoin_wallet(  wallet_dat, passphrase );
+   //   ilog( "keys: ${keys}", ("keys",priv_keys) );
       for( auto key : priv_keys )
       {
-         import_key( key, "bitcoin_import" );
+         auto pts_key = bts::pts_address( key.get_public_key() );
+         import_key( key, std::string( pts_key ) );
          my->_data.recv_pts_addresses[ bts::pts_address( key.get_public_key() ) ] = bts::address( key.get_public_key() );
       }
    } FC_RETHROW_EXCEPTIONS( warn, "Unable to import bitcoin wallet ${wallet_dat}", ("wallet_dat",wallet_dat) ) }
@@ -477,7 +479,7 @@ namespace bts { namespace blockchain {
       auto keys = my->_data.get_keys( my->_wallet_key_password );
       auto addr = bts::address(key.get_public_key());
       keys[addr] = key;
-      my->_data.set_keys( keys, my->_wallet_base_password );
+      my->_data.set_keys( keys, my->_wallet_key_password );
       my->_data.recv_addresses[addr] = label;
       save();
       return addr;

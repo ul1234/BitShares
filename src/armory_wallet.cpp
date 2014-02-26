@@ -3,6 +3,9 @@
 #include <fc/crypto/aes.hpp>
 #include <fc/io/fstream.hpp>
 #include <bts/pts_address.hpp>
+
+//disable codet till romix files get committed
+#if 0
 #include <fc/crypto/romix.hpp>
 
 namespace bts
@@ -221,61 +224,4 @@ namespace bts
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#endif //if 0

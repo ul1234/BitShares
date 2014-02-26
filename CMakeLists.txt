@@ -179,7 +179,7 @@ ENDIF()
 
 # Here should be specified ALL dependencies of bshare library - Cmake will pass them automatically
 # to the modules using bshare
-target_link_libraries(bshare fc upnpc-static leveldb ${BDB_LIBRARIES} ${ZLIB_LIBRARIES})
+target_link_libraries(bshare fc upnpc-static leveldb ${BDB_LIBRARIES} ${ZLIB_LIBRARIES} ${CMAKE_DL_LIBS})
 
 #add_subdirectory( sancho )
 #add_subdirectory( server )

@@ -19,6 +19,7 @@
 #include <fc/network/tcp_socket.hpp>
 #include <fc/rpc/json_connection.hpp>
 #include <fc/signals.hpp>
+#include <fc/crypto/base58.hpp>
 #ifndef WIN32
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -56,6 +57,36 @@ struct client_config
     std::unordered_map<std::string,std::string> unique_node_list;
 };
 FC_REFLECT( client_config, (rpc_endpoint)(rpc_user)(rpc_password)(unique_node_list)(ignore_console) )
+
+void dump_vec(std::vector<char> v) {
+    std::cout << std::hex;
+    for(std::vector<char>::const_iterator i = v.begin(); i != v.end(); ++i)
+        std::cout << (*i & 0xFF) << ' ';
+    std::cout << std::dec << std::endl;
+}
+
+template<class T>
+bool vecs_equal(std::vector<T> v1, std::vector<T> v2) {
+    if (v1.size() != v2.size()) return false;
+    for (int i = 0; i < v1.size(); ++i)
+        if (v1[i] != v2[i]) return false;
+    return true;
+}
+
+fc::sha256 wallet_to_binary_key( const std::string &strKey)
+{
+   std::vector<char> vKey = fc::from_base58(strKey);
+   //char keyType = vKey[0];
+   std::vector<char> checksum(vKey.end() - 4, vKey.end());
+   std::vector<char> vPrivateKey(vKey.begin() + 1, vKey.end() - 4);
+   std::vector<char> vVerifyKey(vKey.begin(), vKey.end() - 4);
+   fc::sha256 hashed = fc::sha256::hash(vVerifyKey.data(), vVerifyKey.size());
+   hashed = fc::sha256::hash(hashed.data(), sizeof(hashed));
+   std::vector<char> hashed4(hashed.data(), hashed.data() + 4);
+   if (!vecs_equal<char>(checksum, hashed4))
+      FC_THROW_EXCEPTION( exception, "invalid checksum" );
+   return fc::sha256( vPrivateKey.data(), vPrivateKey.size() );
+}
 
 class client : public chain_connection_delegate
 {
@@ -372,19 +403,38 @@ class client : public chain_connection_delegate
              return fc::variant(true);
          });
                           
-         con->add_method( "import_bts_privkey", [=]( const fc::variants& params ) -> fc::variant 
+         con->add_method( "import_bts_privkey", [=]( const fc::variants& params ) -> fc::variant
          {
-             // param 0 = key, param 1 = label, param 2 == optional rescan
              check_login( capture_con );
              bool rescan = false;
-             FC_ASSERT( params.size() == 1 );
+             FC_ASSERT( params.size() >= 1 );
 
-             if( params.size() == 3 )
+             if( params.size() == 2 )
              {
-               rescan = params[2].as<bool>();
+               rescan = params[1].as<bool>();
              }
-             auto hashed_parameter = fc::sha256( params[0].as_string() );
-             auto private_key = fc::ecc::private_key::regenerate( hashed_parameter );
+             auto binary_key = fc::sha256( params[0].as_string() );
+             auto private_key = fc::ecc::private_key::regenerate( binary_key );
+             _wallet.import_key( private_key );
+             if( rescan )
+             {
+               _wallet.scan_chain(chain);
+             }
+             return fc::variant( true );
+         });
+
+         con->add_method( "import_bts_wallet_privkey", [=]( const fc::variants& params ) -> fc::variant
+         {
+             check_login( capture_con );
+             bool rescan = false;
+             FC_ASSERT( params.size() >= 1 );
+
+             if( params.size() == 2 )
+             {
+               rescan = params[1].as<bool>();
+             }
+             auto binary_key = wallet_to_binary_key( params[0].as_string() );
+             auto private_key = fc::ecc::private_key::regenerate( binary_key );
              _wallet.import_key( private_key );
              if( rescan )
              {
@@ -924,6 +974,7 @@ void print_help()
     std::cout<<" unlock - enter your password to unlock your private keys\n";
     std::cout<<" lock   - lock your private keys \n";
     std::cout<<" importkey PRIV_KEY [label] [rescan]\n";
+    std::cout<<" importwalletkey PRIV_KEY [label] [rescan]\n";
     std::cout<<" balance         -  print the wallet balances\n";
     std::cout<<" newaddr [label] -  print a new wallet address\n";
 	  std::cout<<" listaddr        - print the wallet address(es)\n";
@@ -984,22 +1035,25 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
             ss >> file;
             main_thread->async( [=](){ c->dump_chain_html(file); } ).wait();
          }
-         else if( command == "importkey" )
+         else if( command == "importkey" || command == "importwalletkey" )
          {
             std::string key;
             ss >> key;
             std::string rescan;
             ss >> rescan;
+            main_thread->async( [=]() {
+               fc::sha256 binary_key =
+                  (command == "importwalletkey" ? wallet_to_binary_key(key) : fc::sha256(key));
 
-            main_thread->async( [=]() { 
-               c->_wallet.import_key( fc::ecc::private_key::regenerate( fc::sha256( key ) ) );
+               c->_wallet.import_key( fc::ecc::private_key::regenerate( binary_key ) );
+
                if( rescan == "rescan" )
                {
                   std::cout<<"rescanning chain...\n";
                   c->_wallet.scan_chain(c->chain);
                }
                std::cout<<"import complete\n";
-               c->print_balances(); 
+               c->print_balances();
             } ).wait();
          }
          else if( command == "json" )

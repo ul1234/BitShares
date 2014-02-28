@@ -98,6 +98,48 @@ namespace fc {
 
    void from_variant( const variant& var,  bts::blockchain::trx_output& vo )
    {
-      FC_ASSERT( !"TODO: implement from_variant(trx_output)" );
+       fc::mutable_variant_object obj(var);
+
+       from_variant(obj["amount"] ,vo.amount);
+       from_variant(obj["claim_func"], vo.claim_func);
+
+       switch( vo.claim_func )
+       {
+       case bts::blockchain::claim_by_signature:
+           {
+               bts::blockchain::claim_by_signature_output c;
+               from_variant(obj["claim_data"], c);
+               vo.claim_data = fc::raw::pack(c);
+               break;
+           }
+         case bts::blockchain::claim_by_pts:
+           {
+               bts::blockchain::claim_by_pts_output c;
+               from_variant(obj["claim_data"], c);
+               vo.claim_data = fc::raw::pack(c);
+               break;
+           }
+       case bts::blockchain::claim_by_bid:
+           {
+               bts::blockchain::claim_by_bid_output c;
+               from_variant(obj["claim_data"], c);
+               vo.claim_data = fc::raw::pack(c);
+               break;
+           }
+       case bts::blockchain::claim_by_long:
+           {
+               bts::blockchain::claim_by_long_output c;
+               from_variant(obj["claim_data"], c);
+               vo.claim_data = fc::raw::pack(c);
+               break;
+           }
+       case bts::blockchain::claim_by_cover:
+           {
+               bts::blockchain::claim_by_cover_output c;
+               from_variant(obj["claim_data"], c);
+               vo.claim_data = fc::raw::pack(c);
+               break;
+           }
+       };
    }
 };

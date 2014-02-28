@@ -1,5 +1,7 @@
 #pragma once
 #include <bts/blockchain/blockchain_db.hpp>
+
+#include <functional>
 #include <unordered_map>
 
 namespace bts { namespace blockchain {

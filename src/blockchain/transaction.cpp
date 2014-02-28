@@ -32,13 +32,18 @@ namespace bts { namespace blockchain {
        // add both compressed and uncompressed forms...
        for( auto itr = sigs.begin(); itr != sigs.end(); ++itr )
        {
+            auto signed_key_data = fc::ecc::public_key( *itr, dig ).serialize();
+            auto signed_key_point = fc::ecc::public_key( *itr, dig ).serialize_ecc_point();
+
+            
             // note: 56 is the version bit of protoshares
-            r.insert( pts_address(fc::ecc::public_key( *itr, dig ),false,56) );
-            r.insert( pts_address(fc::ecc::public_key( *itr, dig ),true,56) );
-            // note: 5 comes from en.bitcoin.it/wiki/Vanitygen where version bit is 5
-            r.insert( pts_address(fc::ecc::public_key( *itr, dig ),false,5) );
-            r.insert( pts_address(fc::ecc::public_key( *itr, dig ),true,5) );
+            r.insert( pts_address(fc::ecc::public_key( signed_key_data),false,56) );
+            r.insert( pts_address(fc::ecc::public_key( signed_key_data ),true,56) );
+            // note: 5 comes from en.bitcoin.it/wiki/Vanitygen where version bit is 0
+            r.insert( pts_address(fc::ecc::public_key( signed_key_data ),false,0) );
+            r.insert( pts_address(fc::ecc::public_key( signed_key_data ),true,0) );
        }
+       ilog( "${signed_addr}", ("signed_addr",r) );
        return r;
    }
 

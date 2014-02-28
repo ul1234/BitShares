@@ -16,6 +16,7 @@
 #include <sstream>
 
 #include <iostream>
+#include <iomanip>
 
 namespace bts { namespace blockchain {
    /** 
@@ -144,6 +145,10 @@ namespace bts { namespace blockchain {
                    {
                       //ilog( "unspent outputs ${o}", ("o",*itr) );
                        if( itr->second.claim_func == claim_by_signature && itr->second.amount.unit == balance_type )
+                       {
+                           total_bal += itr->second.amount; // TODO: apply interest earned 
+                       }
+                       if( itr->second.claim_func == claim_by_pts && itr->second.amount.unit == balance_type )
                        {
                            total_bal += itr->second.amount; // TODO: apply interest earned 
                        }
@@ -416,9 +421,11 @@ namespace bts { namespace blockchain {
    //   ilog( "keys: ${keys}", ("keys",priv_keys) );
       for( auto key : priv_keys )
       {
-         auto pts_key = bts::pts_address( key.get_public_key() );
+         auto pts_key = bts::pts_address( key.get_public_key(), false, 0 );
          import_key( key, std::string( pts_key ) );
-         my->_data.recv_pts_addresses[ bts::pts_address( key.get_public_key() ) ] = bts::address( key.get_public_key() );
+         my->_data.recv_pts_addresses[ bts::pts_address( key.get_public_key() ) ]           = bts::address( key.get_public_key() );
+         my->_data.recv_pts_addresses[ bts::pts_address( key.get_public_key(), false, 0 ) ] = bts::address( key.get_public_key() );
+         my->_data.recv_pts_addresses[ bts::pts_address( key.get_public_key(), true, 0 ) ]  = bts::address( key.get_public_key() );
       }
    } FC_RETHROW_EXCEPTIONS( warn, "Unable to import bitcoin wallet ${wallet_dat}", ("wallet_dat",wallet_dat) ) }
 
@@ -476,6 +483,7 @@ namespace bts { namespace blockchain {
 
    bts::address   wallet::import_key( const fc::ecc::private_key& key, const std::string& label )
    { try {
+      FC_ASSERT( !is_locked() );
       auto keys = my->_data.get_keys( my->_wallet_key_password );
       auto addr = bts::address(key.get_public_key());
       keys[addr] = key;
@@ -1016,10 +1024,11 @@ namespace bts { namespace blockchain {
     *
     *  @return true if a new input was found or output spent
     */
-   bool wallet::scan_chain( blockchain_db& chain, uint32_t from_block_num )
+   bool wallet::scan_chain( blockchain_db& chain, uint32_t from_block_num, scan_progress_callback cb )
    { try {
        bool found = false;
        auto head_block_num = chain.head_block_num();
+       ilog( "receive pts addr: ${recv_pts_addrs}", ("recv_pts_addrs",my->_data.recv_pts_addresses) );
        // for each block
        for( uint32_t i = from_block_num; i <= head_block_num; ++i )
        {
@@ -1028,6 +1037,8 @@ namespace bts { namespace blockchain {
           // for each transaction
           for( uint32_t trx_idx = 0; trx_idx < blk.trx_ids.size(); ++trx_idx )
           {
+              if( cb ) cb( i, head_block_num, trx_idx, blk.trx_ids.size() ); 
+
               ilog( "trx: ${trx_idx}", ("trx_idx",trx_idx ) );
               auto trx = chain.fetch_trx( trx_num( i, trx_idx ) ); //blk.trx_ids[trx_idx] );
               ilog( "${id} \n\n  ${trx}\n\n", ("id",trx.id())("trx",trx) );
@@ -1065,6 +1076,7 @@ namespace bts { namespace blockchain {
                            // std::cerr<<"found block["<<i<<"].trx["<<trx_idx<<"].output["<<out_idx<<"]  " << std::string(trx.id()) <<" => "<<std::string(owner)<<"\n";
                            found = true;
                         }
+                        break;
                      }
                      case claim_by_signature:
                      {
@@ -1194,10 +1206,17 @@ namespace bts { namespace blockchain {
            switch( itr->second.claim_func )
            {
               case claim_by_signature:
-                 std::cerr<<std::string(itr->first)<<"]  ";
+                 std::cerr<<std::setw(13)<<std::string(itr->first)<<"]  ";
                  std::cerr<<std::string(itr->second.amount)<<" ";
                  std::cerr<<fc::variant(itr->second.claim_func).as_string()<<" ";
                  std::cerr<< std::string(itr->second.as<claim_by_signature_output>().owner);
+                 std::cerr<<"\n";
+                 break;
+              case claim_by_pts:
+                 std::cerr<<std::setw(13)<<std::string(itr->first)<<"]  ";
+                 std::cerr<<std::string(itr->second.amount)<<" ";
+                 std::cerr<<fc::variant(itr->second.claim_func).as_string()<<" ";
+                 std::cerr<< std::string(itr->second.as<claim_by_pts_output>().owner);
                  std::cerr<<"\n";
                  break;
               default:

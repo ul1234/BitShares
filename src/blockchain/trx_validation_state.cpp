@@ -265,9 +265,10 @@ void trx_validation_state::validate_pts( const meta_trx_input& in )
    try {
       auto pts_claim = in.output.as<claim_by_pts_output>();
       auto pts_addrs = trx.get_signed_pts_addresses();
+      auto addrs = trx.get_signed_addresses();
 
       FC_ASSERT( pts_addrs.find( pts_claim.owner ) != pts_addrs.end(),
-                "Unable to find signature by ${owner}", ("owner",pts_claim.owner) );
+                "Unable to find signature by ${owner}", ("owner",pts_claim.owner)("signedby",pts_addrs)("addrs",addrs) );
 
       balance_sheet[(asset::type)in.output.amount.unit].in += in.output.amount;
 

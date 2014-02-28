@@ -16,6 +16,7 @@
 
 #include <unordered_map>
 
+#define PEER_ONLY_VALIDATION
 
 namespace bts { namespace bitname {
 

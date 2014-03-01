@@ -77,11 +77,11 @@ namespace fc {
       obj["claim_func"] = var.claim_func;
       switch( var.claim_func )
       {
-         case bts::blockchain::claim_by_signature:
-            obj["claim_data"] = fc::raw::unpack<bts::blockchain::claim_by_signature_output>(var.claim_data);
-            break;
          case bts::blockchain::claim_by_pts:
             obj["claim_data"] = fc::raw::unpack<bts::blockchain::claim_by_pts_output>(var.claim_data);
+            break;
+         case bts::blockchain::claim_by_signature:
+            obj["claim_data"] = fc::raw::unpack<bts::blockchain::claim_by_signature_output>(var.claim_data);
             break;
          case bts::blockchain::claim_by_bid:
             obj["claim_data"] = fc::raw::unpack<bts::blockchain::claim_by_bid_output>(var.claim_data);
@@ -91,6 +91,18 @@ namespace fc {
             break;
          case bts::blockchain::claim_by_cover:
             obj["claim_data"] = fc::raw::unpack<bts::blockchain::claim_by_cover_output>(var.claim_data);
+            break;
+         case bts::blockchain::claim_by_opt_execute:
+            obj["claim_data"] = fc::raw::unpack<bts::blockchain::claim_by_opt_execute_output>(var.claim_data);
+            break;
+         case bts::blockchain::claim_by_multi_sig:
+            obj["claim_data"] = fc::raw::unpack<bts::blockchain::claim_by_multi_sig_output>(var.claim_data);
+            break;
+         case bts::blockchain::claim_by_escrow:
+            obj["claim_data"] = fc::raw::unpack<bts::blockchain::claim_by_escrow_output>(var.claim_data);
+            break;
+         case bts::blockchain::claim_by_password:
+            obj["claim_data"] = fc::raw::unpack<bts::blockchain::claim_by_password_output>(var.claim_data);
             break;
       };
       vo = std::move(obj);
@@ -105,16 +117,16 @@ namespace fc {
 
        switch( vo.claim_func )
        {
+	   case bts::blockchain::claim_by_pts:
+		   {
+			   bts::blockchain::claim_by_pts_output c;
+			   from_variant(obj["claim_data"], c);
+			   vo.claim_data = fc::raw::pack(c);
+			   break;
+		   }
        case bts::blockchain::claim_by_signature:
            {
                bts::blockchain::claim_by_signature_output c;
-               from_variant(obj["claim_data"], c);
-               vo.claim_data = fc::raw::pack(c);
-               break;
-           }
-         case bts::blockchain::claim_by_pts:
-           {
-               bts::blockchain::claim_by_pts_output c;
                from_variant(obj["claim_data"], c);
                vo.claim_data = fc::raw::pack(c);
                break;
@@ -136,6 +148,34 @@ namespace fc {
        case bts::blockchain::claim_by_cover:
            {
                bts::blockchain::claim_by_cover_output c;
+               from_variant(obj["claim_data"], c);
+               vo.claim_data = fc::raw::pack(c);
+               break;
+           }
+       case bts::blockchain::claim_by_opt_execute:
+           {
+               bts::blockchain::claim_by_opt_execute_output c;
+               from_variant(obj["claim_data"], c);
+               vo.claim_data = fc::raw::pack(c);
+               break;
+           }
+       case bts::blockchain::claim_by_multi_sig:
+           {
+               bts::blockchain::claim_by_multi_sig_output c;
+               from_variant(obj["claim_data"], c);
+               vo.claim_data = fc::raw::pack(c);
+               break;
+           }
+       case bts::blockchain::claim_by_escrow:
+           {
+               bts::blockchain::claim_by_escrow_output c;
+               from_variant(obj["claim_data"], c);
+               vo.claim_data = fc::raw::pack(c);
+               break;
+           }
+       case bts::blockchain::claim_by_password:
+           {
+               bts::blockchain::claim_by_password_output c;
                from_variant(obj["claim_data"], c);
                vo.claim_data = fc::raw::pack(c);
                break;

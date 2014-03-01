@@ -79,21 +79,24 @@ namespace bts { namespace blockchain {
                {
                   auto cbb = trx_out.as<claim_by_bid_output>();
                   market_order order( cbb.ask_price, o );
-                  _market_db.remove_bid( order );
-                  _market_db.remove_ask( order );
+                  _market_db.remove_bid( order, 0 );
+                  if( trx_out.amount.unit == asset::bts )
+                     _market_db.remove_ask( order, trx_out.amount.get_rounded_amount() );
+                  else
+                     _market_db.remove_ask( order, 0 );
                }
 
                if( trx_out.claim_func == claim_by_long )
                {
                   auto cbl = trx_out.as<claim_by_long_output>();
                   market_order order( cbl.ask_price, o );
-                  _market_db.remove_bid( order );
+                  _market_db.remove_bid( order, trx_out.amount.get_rounded_amount() );
                }
                if( trx_out.claim_func == claim_by_cover )
                {
                   auto cbc = trx_out.as<claim_by_cover_output>();
                   margin_call order( cbc.get_call_price( trx_out.amount ), o );
-                  _market_db.remove_call( order );
+                  _market_db.remove_call( order, trx_out.amount.get_rounded_amount() );
                }
             }
 
@@ -130,24 +133,30 @@ namespace bts { namespace blockchain {
                      if( cbb.is_bid(t.outputs[i].amount.unit) )
                      {
                         elog( "Insert Bid: ${bid}", ("bid",market_order(cbb.ask_price, output_reference( t.id(), i )) ) );
-                        _market_db.insert_bid( market_order(cbb.ask_price, output_reference( t.id(), i )) );
+                        _market_db.insert_bid( market_order(cbb.ask_price, output_reference( t.id(), i )), 0 );
                      }
                      else
                      {
                         elog( "Insert Ask: ${bid}", ("bid",market_order(cbb.ask_price, output_reference( t.id(), i )) ) );
-                        _market_db.insert_ask( market_order(cbb.ask_price, output_reference( t.id(), i )) );
+                        _market_db.insert_ask( market_order(cbb.ask_price, output_reference( t.id(), i )), 
+                                               t.outputs[i].amount.get_rounded_amount() );
                      }
                   }
                   else if( t.outputs[i].claim_func == claim_by_long )
                   {
                     auto cbl = t.outputs[i].as<claim_by_long_output>();
                     elog( "Insert Short Ask: ${bid}", ("bid",market_order(cbl.ask_price, output_reference( t.id(), i )) ) );
-                    _market_db.insert_bid( market_order(cbl.ask_price, output_reference( t.id(), i )) );
+
+                    /// TODO: should I divide the depth amount by the margin ratio to keep things weighted fairly?
+                    _market_db.insert_bid( market_order(cbl.ask_price, output_reference( t.id(), i )), 
+                                           t.outputs[i].amount.get_rounded_amount() );
                   }
                   else if( t.outputs[i].claim_func == claim_by_cover )
                   {
+                    /// TODO: should I divide the depth amount by the margin ratio to keep things weighted fairly?
                      auto cbc = t.outputs[i].as<claim_by_cover_output>();
-                     _market_db.insert_call( margin_call( cbc.get_call_price(t.outputs[i].amount), output_reference( t.id(), i ) ) );
+                     _market_db.insert_call( margin_call( cbc.get_call_price(t.outputs[i].amount), output_reference( t.id(), i ) ),
+                                             t.outputs[i].amount.get_rounded_amount() );
                   }
                }
             }
@@ -173,6 +182,18 @@ namespace bts { namespace blockchain {
             void match_orders( std::vector<signed_transaction>& matched,  asset::type quote, asset::type base, price_point& stats )
             { try {
                ilog( "match orders.." );
+               uint64_t initial_depth = 0;
+               if( base == asset::bts )
+               {
+                  initial_depth = _market_db.get_depth( quote );
+                  if( initial_depth <  head_block.total_shares/100 )
+                  {
+                     wlog( "initial depth of ${initial_depth} is less than 1% of supply ${supply}",
+                            ("initial_depth",initial_depth)("supply", head_block.total_shares) );
+                     return;
+                  }
+               }
+
                auto asks = _market_db.get_asks( quote, base );
                auto bids = _market_db.get_bids( quote, base );
                wlog( "asks: ${asks}", ("asks",asks) );
@@ -1040,7 +1061,9 @@ namespace bts { namespace blockchain {
         FC_ASSERT( b.trx_mroot    == b.calculate_merkle_root()                                 );
         FC_ASSERT( b.timestamp    < (fc::time_point::now() + fc::seconds(60))                  );
         FC_ASSERT( b.next_fee     == b.calculate_next_fee( get_fee_rate().get_rounded_amount(), b.block_size() ), "",
-                   ("b.next_fee",b.next_fee)("b.calculate_next_fee", b.calculate_next_fee( get_fee_rate().get_rounded_amount(), b.block_size())) );
+                   ("b.next_fee",b.next_fee)("b.calculate_next_fee", b.calculate_next_fee( get_fee_rate().get_rounded_amount(), b.block_size()))
+                   ("get_fee_rate",get_fee_rate().get_rounded_amount())("b.size",b.block_size()) 
+                   );
 
         if( b.block_num >= 1 )
         {

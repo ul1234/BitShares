@@ -29,7 +29,7 @@ namespace mail {
           :ser_del(nullptr)
           {}
 
-          ~server_impl()
+          virtual ~server_impl()
           {
              close();
           }
@@ -75,6 +75,14 @@ namespace mail {
                                                                      
           fc::future<void>                                            accept_loop_complete;
                                                                      
+        /// connection_delegate interface implementation:
+          /// \see connection_delegate interface description.
+          virtual bool on_message_transmission_started(connection& c, const message_header& mh) override
+            {
+            /// Probably nothing to do here.
+            return true;
+            }
+
           /**
            *  This is called every time a message is received from c, there are only two
            *  messages supported:  seek to time and broadcast.  When a message is 
@@ -84,7 +92,7 @@ namespace mail {
            *  The difficulty required adjusts every 5 minutes with the goal of maintaining
            *  an average data rate of 1.5 kb/sec from all connections.
            */
-          virtual void on_connection_message( connection& c, const message& m )
+          virtual void on_connection_message( connection& c, const message& m ) override
           {
                // TODO: perhaps do this ASYNC?
                // itr->second->handle_message( c.shared_from_this(), m );
@@ -117,7 +125,7 @@ namespace mail {
           }
 
 
-          virtual void on_connection_disconnected( connection& c )
+          virtual void on_connection_disconnected( connection& c ) override
           {
             try {
               ilog( "cleaning up connection after disconnect ${e} remaining connections ${c}", ("e", c.remote_endpoint())("c",connections.size()-1) );

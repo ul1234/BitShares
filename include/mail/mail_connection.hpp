@@ -11,6 +11,8 @@ namespace mail {
 
    class connection;
    struct message;
+   struct message_header;
+
    typedef std::shared_ptr<connection> connection_ptr;
 
    /** 
@@ -19,9 +21,23 @@ namespace mail {
    class connection_delegate
    {
       public:
-        virtual ~connection_delegate(){}; 
-        virtual void on_connection_message( connection& c, const message& m ){};
-        virtual void on_connection_disconnected( connection& c ){}
+        /** Called when given network connection started transmission of a message.
+            \param c  - connection object used to perform transmission on,
+            \param mh - received message header
+
+            Should return true if further read (of message body) should be continued.
+        */
+        virtual bool on_message_transmission_started(connection& c, const message_header& mh) = 0;
+        /** Called when given network connection has completed receiving a message and it is ready
+            for further processing.
+        */
+        virtual void on_connection_message( connection& c, const message& m ) = 0;
+        /// Called when connection has been lost.
+        virtual void on_connection_disconnected( connection& c ) = 0;
+
+      protected:
+        /// Only implementation is responsible for this object lifetime.
+        virtual ~connection_delegate() {}
    };
 
 

@@ -57,12 +57,12 @@ namespace bts {
           fc::future<void>                  _mail_connect_loop_complete;
 
           fc::promise<void>::ptr            _quit_promise;
+          fc::microseconds                  server_time_offset;
+          mail::connection                  _mail_con;
+          bool                              _mail_connected;
 
           void set_mining_intensity(int intensity) { _bitname_client->set_mining_intensity(intensity); }
           int  get_mining_intensity()              { return _bitname_client->get_mining_intensity(); }
-
-          mail::connection                  _mail_con;
-          bool                              _mail_connected;
 
           void        configure( const application_config& cfg );
           /// Common implementation of profile loading.
@@ -121,8 +121,19 @@ namespace bts {
              }
           }
 
-          // mail::connection...
-          virtual void on_connection_message( mail::connection& c, const mail::message& m )
+        /// mail::connection_delegate interface implementation:
+          /// \see mail::connection_delegate interface description.
+          virtual bool on_message_transmission_started(mail::connection& c,
+            const mail::message_header& mh) override
+          {
+            if(_delegate != nullptr)
+              return _delegate->receiving_mail_message();
+
+            return true;
+          }
+
+          /// \see mail::connection_delegate interface description.
+          virtual void on_connection_message( mail::connection& c, const mail::message& m ) override
           {
              if( m.type == bts::bitchat::encrypted_message::type )
              {
@@ -142,13 +153,18 @@ namespace bts {
                  server_time_offset = fc::time_point::now() - m.as<bts::bitchat::server_info_message>().server_time;
              }
           }
-          fc::microseconds server_time_offset;
-
+          
+          /// \see mail::connection_delegate interface description.
           virtual void on_connection_disconnected( mail::connection& c )
           {
-              _mail_connected = false;
-              start_mail_connect_loop();
+            if(_delegate != nullptr)
+              _delegate->message_transmission_failure();
+
+            _mail_connected = false;
+            start_mail_connect_loop();
           }
+
+        /// Other implementation helpers:
           void start_mail_connect_loop()
           {
           ilog("start_mail_connect_loop");

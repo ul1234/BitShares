@@ -929,7 +929,7 @@ namespace bts { namespace blockchain {
      *
      *  @throw exception if trx can not be applied to the current chain state.
      */
-    trx_eval blockchain_db::evaluate_signed_transaction( const signed_transaction& trx, bool ignore_fees  )       
+    trx_eval blockchain_db::evaluate_signed_transaction( const signed_transaction& trx, bool ignore_fees, bool is_market  )       
     {
        try {
            FC_ASSERT( trx.inputs.size() || trx.outputs.size() );
@@ -945,6 +945,7 @@ namespace bts { namespace blockchain {
            */
 
            trx_validation_state vstate( trx, this ); 
+           vstate.allow_short_long_matching = is_market;
            vstate.prev_block_id1 = get_stake();
            vstate.prev_block_id2 = get_stake2();
            vstate.validate();
@@ -988,7 +989,7 @@ namespace bts { namespace blockchain {
             // ignore fees for the market trxs and for the mining transaction... assuming there is a mining trx??
             if( i < ignore_first_n_fees )
             {
-               total_eval += evaluate_signed_transaction( trxs[i], true );
+               total_eval += evaluate_signed_transaction( trxs[i], true, true );
             }
             bts::address mining_addr;
             if( i == trxs.size() - 1 ) // last trx..

@@ -161,10 +161,12 @@ namespace bts { namespace blockchain {
         {
            auto stat = itr.value();
            stat.bid_depth += depth;
+           ilog( "insert bid ${b} with depth ${d}", ("b",m)("d",depth) );
            my->_depth.store( m.quote_unit, stat );
         }
         else
         {
+           ilog( "insert bid ${b} with depth ${d}", ("b",m)("d",depth) );
            my->_depth.store( m.quote_unit, depth_stats( depth, 0) );
         }
      }
@@ -180,9 +182,11 @@ namespace bts { namespace blockchain {
            auto stat = itr.value();
            stat.ask_depth += depth;
            my->_depth.store( m.quote_unit, stat );
+           ilog( "insert ask ${b} with depth ${d}", ("b",m)("d",depth) );
         }
         else
         {
+           ilog( "insert ask ${b} with depth ${d}", ("b",m)("d",depth) );
            my->_depth.store( m.quote_unit, depth_stats( 0, depth) );
         }
      }

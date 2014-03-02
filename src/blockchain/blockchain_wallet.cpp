@@ -116,7 +116,7 @@ namespace bts { namespace blockchain {
       class wallet_impl
       {
           public:
-              wallet_impl():_stake(0),_current_head_idx(0){}
+              wallet_impl():_stake(0),_current_head_idx(0),_exception_on_open(false){}
               std::string _wallet_base_password; // used for saving/loading the wallet
               std::string _wallet_key_password;  // used to access private keys
 
@@ -125,6 +125,7 @@ namespace bts { namespace blockchain {
               asset                                                      _current_fee_rate;
               uint64_t                                                   _stake;
               uint32_t                                                   _current_head_idx;
+              bool                                                       _exception_on_open;
 
               std::map<output_index, output_reference>                   _output_index_to_ref;
               std::unordered_map<output_reference, output_index>         _output_ref_to_index;
@@ -350,24 +351,41 @@ namespace bts { namespace blockchain {
    }
 
    void wallet::open( const fc::path& wallet_dat, const fc::string& password )
-   { try {
-      my->_wallet_dat           = wallet_dat;
-      my->_wallet_base_password = password;
+   {
+       try {
+           my->_wallet_dat           = wallet_dat;
+           my->_wallet_base_password = password;
+           my->_exception_on_open = false;
 
-      FC_ASSERT( fc::exists( wallet_dat ), "", ("wallet_dat",wallet_dat) )
+           FC_ASSERT( fc::exists( wallet_dat ), "", ("wallet_dat",wallet_dat) )
 
-      if( password == std::string() )
-      {
-         my->_data = fc::json::from_file<bts::blockchain::wallet_data>( wallet_dat );
-      }
-      else
-      {
-         std::vector<char> plain_txt = aes_load( wallet_dat, fc::sha512::hash( password.c_str(), password.size() ) );
-         FC_ASSERT( plain_txt.size() > 0 );
-         std::string str( plain_txt.begin(), plain_txt.end() );
-         my->_data = fc::json::from_string(str).as<wallet_data>();
-      }
-   } FC_RETHROW_EXCEPTIONS( warn, "unable to load wallet ${wal}", ("wal",wallet_dat) ) }
+           if( password == std::string() )
+           {
+               my->_data = fc::json::from_file<bts::blockchain::wallet_data>( wallet_dat );
+           }
+           else
+           {
+               std::vector<char> plain_txt = aes_load( wallet_dat, fc::sha512::hash( password.c_str(), password.size() ) );
+               FC_ASSERT( plain_txt.size() > 0 );
+               std::string str( plain_txt.begin(), plain_txt.end() );
+               my->_data = fc::json::from_string(str).as<wallet_data>();
+           }
+       }catch( fc::exception& er ) {
+           my->_exception_on_open = true;
+           FC_RETHROW_EXCEPTION( er, warn, "unable to load ${wal}", ("wal",wallet_dat) );
+       } catch( const std::exception& e ) {
+           my->_exception_on_open = true;
+           throw  fc::std_exception(
+               FC_LOG_MESSAGE( warn, "unable to load ${wal}", ("wal",wallet_dat) ), 
+               std::current_exception(), 
+               e.what() ) ; 
+       } catch( ... ) {  
+           my->_exception_on_open = true;
+           throw fc::unhandled_exception( 
+               FC_LOG_MESSAGE( warn, "unable to load ${wal}", ("wal",wallet_dat)), 
+               std::current_exception() ); 
+       }
+   }
 
    void wallet::create( const fc::path& wallet_dat, const fc::string& base_password, const fc::string& key_password, bool is_brain )
    { try {
@@ -379,6 +397,7 @@ namespace bts { namespace blockchain {
       my->_wallet_dat = wallet_dat;
       my->_wallet_base_password = base_password;
       my->_wallet_key_password  = key_password;
+      my->_exception_on_open = false;
       
       if( is_brain )
       {
@@ -433,6 +452,9 @@ namespace bts { namespace blockchain {
    void wallet::save()
    { try {
       ilog( "saving wallet\n" );
+      if(my->_exception_on_open)
+          return;
+
       auto wallet_json = fc::json::to_pretty_string( my->_data );
       std::vector<char> data( wallet_json.begin(), wallet_json.end() );
 
@@ -716,11 +738,11 @@ namespace bts { namespace blockchain {
 
    signed_transaction    wallet::short_sell( const asset& borrow_amnt, const price& ratio )
    { try {
-       auto   amnt = borrow_amnt * ratio;
+       auto   amnt = (borrow_amnt * ratio)*INITIAL_MARGIN_REQUIREMENT;
        FC_ASSERT( borrow_amnt.unit != asset::bts, "You cannot short sell BTS" );
        auto   change_address = new_recv_address("short sell change");
 
-       auto bts_in = amnt;
+       auto bts_in = amnt; 
 
        signed_transaction trx; 
        std::unordered_set<bts::address> req_sigs; 
@@ -822,12 +844,15 @@ namespace bts { namespace blockchain {
           }
           req_sigs.insert( bid_out.pay_address);
        }
-       
 
        my->sign_transaction( trx, req_sigs );
 
        return trx;
    } FC_RETHROW_EXCEPTIONS( warn, "unable to find bid", ("bid",bid_idx) ) }
+
+   /**
+    *  Helper method for canceling bid
+    */
    signed_transaction    wallet::cancel_bid( const output_reference& bid )
    { try {
        auto bid_idx_itr = my->_output_ref_to_index.find(bid);
@@ -893,9 +918,9 @@ namespace bts { namespace blockchain {
 
               if( leftover_debt.get_rounded_amount() )
               {
-                 freed_collateral.amount *= 7; // always increase margin when doing a cover...
-                 freed_collateral.amount /= 8; // always increase margin when doing a cover...
-                 if( freed_collateral > collat_in ) // cannot free more than we have to start
+              //   freed_collateral.amount *= 7; // always increase margin when doing a partial cover...
+              //   freed_collateral.amount /= 8; // always increase margin when doing a partial cover...
+                 if( freed_collateral >= collat_in ) // cannot free more than we have to start
                  {
                      freed_collateral = asset(0.0,asset::bts);
                  }
@@ -1028,20 +1053,20 @@ namespace bts { namespace blockchain {
    { try {
        bool found = false;
        auto head_block_num = chain.head_block_num();
-       ilog( "receive pts addr: ${recv_pts_addrs}", ("recv_pts_addrs",my->_data.recv_pts_addresses) );
+   //    ilog( "receive pts addr: ${recv_pts_addrs}", ("recv_pts_addrs",my->_data.recv_pts_addresses) );
        // for each block
        for( uint32_t i = from_block_num; i <= head_block_num; ++i )
        {
-          ilog( "block: ${i}", ("i",i ) );
+       //   ilog( "block: ${i}", ("i",i ) );
           auto blk = chain.fetch_full_block( i );
           // for each transaction
           for( uint32_t trx_idx = 0; trx_idx < blk.trx_ids.size(); ++trx_idx )
           {
               if( cb ) cb( i, head_block_num, trx_idx, blk.trx_ids.size() ); 
 
-              ilog( "trx: ${trx_idx}", ("trx_idx",trx_idx ) );
+              //ilog( "trx: ${trx_idx}", ("trx_idx",trx_idx ) );
               auto trx = chain.fetch_trx( trx_num( i, trx_idx ) ); //blk.trx_ids[trx_idx] );
-              ilog( "${id} \n\n  ${trx}\n\n", ("id",trx.id())("trx",trx) );
+              //ilog( "${id} \n\n  ${trx}\n\n", ("id",trx.id())("trx",trx) );
 
               for( uint32_t in_idx = 0; in_idx < trx.inputs.size(); ++in_idx )
               {
@@ -1219,8 +1244,8 @@ namespace bts { namespace blockchain {
                  std::cerr<< std::string(itr->second.as<claim_by_pts_output>().owner);
                  std::cerr<<"\n";
                  break;
-              default:
-                  std::cerr << "unsupported claim type "<<fc::variant(itr->second.claim_func).as_string() <<" \n";
+            //  default:
+            //      std::cerr << "unsupported claim type "<<fc::variant(itr->second.claim_func).as_string() <<" \n";
            }
        }
        std::cerr<<"\n";

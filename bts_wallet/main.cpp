@@ -650,6 +650,8 @@ class client : public chain_connection_delegate
 
          auto mark = chain.get_market( qunit, bunit );
 
+         std::cout << "Current Depth:  "  << chain.get_market_depth( qunit ) 
+                   << " Required Depth: " << chain.get_required_depth() <<"\n";
          std::cout << std::setw( 55 ) << ("      BIDS             ") << "  |";
          std::cout << std::setw( 55 ) << ("      ASKS             ") << "  |";
      //    std::cout << std::setw( 36 ) << ("     SHORTS ("+quote+")        ");
@@ -1207,7 +1209,7 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
             double   quote_price;
             pline >> quote_price;
             bts::blockchain::price short_price = asset( quote_price, quote_unit ) / asset( 1.0, asset::bts ); //( priced, unit, asset::bts ); //asset::bts, unit );
-            auto required_input = quote_amnt * short_price;
+            auto required_input = (quote_amnt * short_price) * INITIAL_MARGIN_REQUIREMENT;
 
             std::cout<<"current balance: "<<  std::string(main_thread->async( [=](){ return c->get_balance(asset::bts); } ).wait())<<"\n"; 
             std::cout<<"required collateral: "<< std::string(required_input) <<"\n"; 

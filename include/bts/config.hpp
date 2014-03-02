@@ -43,6 +43,8 @@
 #define REWARD_DELTA_PER_BLOCK        (INITIAL_REWARD / BLOCKS_WITH_REWARD)
 
 
+#define MIN_MARKET_DEPTH              100  // 1 / MIN_MARKET_DEPTH  ... 1%
+#define INITIAL_MARGIN_REQUIREMENT    10   // 10x
 
 
 #define COINBASE_WAIT_PERIOD          (BLOCKS_PER_HOUR*8) // blocks before a coinbase can be spent

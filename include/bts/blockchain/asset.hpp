@@ -19,10 +19,11 @@ namespace bts { namespace blockchain {
       {
           bts      = 0,  // 0.001 = 1 BitShare (smallest storable unit)
           usd      = 1,  // $0.001 = 1 BitUSD 
-          count, // TODO: move this to the end, for now this will shorten print statements
-          btc      = 4,
-          gld      = 2,
-          slv      = 3,
+          btc      = 2,
+          gld      = 3,
+          count    = 4, // TODO: move this to the end, for now this will shorten print statements
+          /*
+          slv      = 4,
           cny      = 5,
           gbp      = 6,
           eur      = 7, 
@@ -33,7 +34,7 @@ namespace bts { namespace blockchain {
           sek      = 12, // Sweedish Krona 
           hkd      = 13, // Hong Kong 
           wti      = 14, // Light Sweet Crude Oil
-          iii      = 15, // value of 1 of 1 billion shares in Invictus Innovations, Inc
+          */
       };
 
       static const fc::uint128& one();
@@ -56,6 +57,13 @@ namespace bts { namespace blockchain {
       {
          return *this * fc::uint128_t(mult,0);
       }
+      asset  operator /  ( uint64_t div )const
+      {
+         asset tmp(*this);
+         tmp.amount /= fc::uint128_t(div);
+         return tmp;
+      }
+
 
       operator std::string()const;
       uint64_t get_rounded_amount()const;
@@ -144,7 +152,7 @@ namespace fc
 
 #include <fc/reflect/reflect.hpp>
 FC_REFLECT_ENUM( bts::blockchain::asset::type, 
-  (bts) (btc) (gld) (slv) (usd) (cny) (gbp) (eur) (jpy) (chf) (aud) (cad) (sek) (hkd) (wti) (iii)
+  (bts) (usd) (btc) (gld) /*(slv) (usd) (cny) (gbp) (eur) (jpy) (chf) (aud) (cad) (sek) (hkd) (wti) */
 )
 FC_REFLECT( bts::blockchain::price, (ratio)(quote_unit)(base_unit) );
 FC_REFLECT( bts::blockchain::asset, (amount)(unit) );

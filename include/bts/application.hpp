@@ -47,11 +47,13 @@ namespace bts {
     virtual void received_email(const bitchat::decrypted_message& msg) = 0;
     /// Called when authorization request message has been received.
     virtual void received_request(const bitchat::decrypted_message& msg) = 0;
-    /** Called when already started message transmission has failed (ie because of connection lost).
+    /** Called when message transmission has been finished (independently to received_email which
+        is called only when mail message has been sent to 'this' client).
+        \param success - determines that already started message transmission has failed (ie because of connection lost).
         This is a 'failure' end-point scenario opened by receiving_mail_message, but can be called
         for any message transmission not only email messages.
     */
-    virtual void message_transmission_failure() = 0;
+    virtual void message_transmission_finished(bool success) = 0;
 
    protected:
      /** The implementation part is responsible for delegate object lifetime management, so bts code

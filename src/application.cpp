@@ -142,9 +142,7 @@ namespace bts {
                 {
                    bts::bitchat::decrypted_message dm;
                    if( pm.decrypt( *key, dm ) )
-                   {
                       bitchat_message_received( dm );
-                   }
                 }
                 _profile->set_last_sync_time( pm.timestamp );
              }
@@ -152,13 +150,16 @@ namespace bts {
              {
                  server_time_offset = fc::time_point::now() - m.as<bts::bitchat::server_info_message>().server_time;
              }
+
+             if(_delegate != nullptr)
+               _delegate->message_transmission_finished(true);
           }
           
           /// \see mail::connection_delegate interface description.
           virtual void on_connection_disconnected( mail::connection& c )
           {
-            if(_delegate != nullptr)
-              _delegate->message_transmission_failure();
+             if(_delegate != nullptr)
+               _delegate->message_transmission_finished(false);
 
             _mail_connected = false;
             start_mail_connect_loop();

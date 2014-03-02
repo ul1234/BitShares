@@ -116,7 +116,7 @@ namespace bts { namespace blockchain {
       class wallet_impl
       {
           public:
-              wallet_impl():_stake(0),_current_head_idx(0){}
+              wallet_impl():_stake(0),_current_head_idx(0),_open_exception_happen(false){}
               std::string _wallet_base_password; // used for saving/loading the wallet
               std::string _wallet_key_password;  // used to access private keys
 
@@ -125,6 +125,7 @@ namespace bts { namespace blockchain {
               asset                                                      _current_fee_rate;
               uint64_t                                                   _stake;
               uint32_t                                                   _current_head_idx;
+              bool                                                       _open_exception_happen;
 
               std::map<output_index, output_reference>                   _output_index_to_ref;
               std::unordered_map<output_reference, output_index>         _output_ref_to_index;
@@ -350,24 +351,41 @@ namespace bts { namespace blockchain {
    }
 
    void wallet::open( const fc::path& wallet_dat, const fc::string& password )
-   { try {
-      my->_wallet_dat           = wallet_dat;
-      my->_wallet_base_password = password;
+   {
+       try {
+           my->_wallet_dat           = wallet_dat;
+           my->_wallet_base_password = password;
+           my->_open_exception_happen = false;
 
-      FC_ASSERT( fc::exists( wallet_dat ), "", ("wallet_dat",wallet_dat) )
+           FC_ASSERT( fc::exists( wallet_dat ), "", ("wallet_dat",wallet_dat) )
 
-      if( password == std::string() )
-      {
-         my->_data = fc::json::from_file<bts::blockchain::wallet_data>( wallet_dat );
-      }
-      else
-      {
-         std::vector<char> plain_txt = aes_load( wallet_dat, fc::sha512::hash( password.c_str(), password.size() ) );
-         FC_ASSERT( plain_txt.size() > 0 );
-         std::string str( plain_txt.begin(), plain_txt.end() );
-         my->_data = fc::json::from_string(str).as<wallet_data>();
-      }
-   } FC_RETHROW_EXCEPTIONS( warn, "unable to load wallet ${wal}", ("wal",wallet_dat) ) }
+           if( password == std::string() )
+           {
+               my->_data = fc::json::from_file<bts::blockchain::wallet_data>( wallet_dat );
+           }
+           else
+           {
+               std::vector<char> plain_txt = aes_load( wallet_dat, fc::sha512::hash( password.c_str(), password.size() ) );
+               FC_ASSERT( plain_txt.size() > 0 );
+               std::string str( plain_txt.begin(), plain_txt.end() );
+               my->_data = fc::json::from_string(str).as<wallet_data>();
+           }
+       }catch( fc::exception& er ) {
+           my->_open_exception_happen = true;
+           FC_RETHROW_EXCEPTION( er, warn, "unable to load ${wal}", ("wal",wallet_dat) );
+       } catch( const std::exception& e ) {
+           my->_open_exception_happen = true;
+           throw  fc::std_exception(
+               FC_LOG_MESSAGE( warn, "unable to load ${wal}", ("wal",wallet_dat) ), 
+               std::current_exception(), 
+               e.what() ) ; 
+       } catch( ... ) {  
+           my->_open_exception_happen = true;
+           throw fc::unhandled_exception( 
+               FC_LOG_MESSAGE( warn, "unable to load ${wal}", ("wal",wallet_dat)), 
+               std::current_exception() ); 
+       }
+   }
 
    void wallet::create( const fc::path& wallet_dat, const fc::string& base_password, const fc::string& key_password, bool is_brain )
    { try {
@@ -379,6 +397,7 @@ namespace bts { namespace blockchain {
       my->_wallet_dat = wallet_dat;
       my->_wallet_base_password = base_password;
       my->_wallet_key_password  = key_password;
+      my->_open_exception_happen = false;
       
       if( is_brain )
       {
@@ -433,6 +452,9 @@ namespace bts { namespace blockchain {
    void wallet::save()
    { try {
       ilog( "saving wallet\n" );
+      if(my->_open_exception_happen)
+          return;
+
       auto wallet_json = fc::json::to_pretty_string( my->_data );
       std::vector<char> data( wallet_json.begin(), wallet_json.end() );
 

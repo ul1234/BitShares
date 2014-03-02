@@ -191,6 +191,8 @@ namespace bts { namespace blockchain {
           uint64_t      current_difficulty()const;
           uint64_t      available_coindays()const;
 
+          uint64_t      get_market_depth( asset::type quote )const;
+          uint64_t      get_required_depth()const;
           std::vector<price_point> get_market_history( asset::type quote, asset::type base, 
                                                       fc::time_point_sec from, fc::time_point_sec to, 
                                                       uint32_t blocks_per_point = 1 );

@@ -156,7 +156,7 @@ include_directories( fc/include )
 include_directories( $Boost_INCLUDE_DIR} )
 
 add_library( bshare ${sources} )
-target_link_libraries( bshare fc leveldb upnpc-static ${BDB_LIBRARY_RELEASE} ${PLATFORM_SPECIFIC_LIBS} ${rt_library} ${READLINE_LIBRARIES} ${CMAKE_DL_LIBS})
+target_link_libraries( bshare fc leveldb upnpc-static ${BDB_LIBRARY_RELEASE} ${ZLIB_LIBRARIES} ${PLATFORM_SPECIFIC_LIBS} ${rt_library} ${READLINE_LIBRARIES} ${CMAKE_DL_LIBS})
 
 # All include directories required to compile dependency headers will be automatically added 
 # from dependency list specified in target_link_libraries.

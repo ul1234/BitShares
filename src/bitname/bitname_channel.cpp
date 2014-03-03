@@ -16,8 +16,6 @@
 
 #include <unordered_map>
 
-#define PEER_ONLY_VALIDATION
-
 namespace bts { namespace bitname {
 
   using namespace bts::network;
@@ -779,20 +777,17 @@ namespace bts { namespace bitname {
 
           void submit_block( const name_block& block )
           { try {
-             #ifdef PEER_ONLY_VALIDATION
              _fork_db.cache_block( block );
              _new_block_info = true;
              _name_db.push_block( block ); // this throws on error
              _name_db.dump(); // DEBUG
-             #endif
+
              _trx_broadcast_mgr.invalidate_all(); // current inventory is now invalid
              _block_index_broadcast_mgr.clear_old_inventory(); // we can clear old inventory
              _trx_broadcast_mgr.clear_old_inventory(); // this inventory no longer matters
              _block_index_broadcast_mgr.validated( block.id(), block, true );
 
-             #ifdef PEER_ONLY_VALIDATION
              if( _delegate ) _delegate->name_block_added( block );
-             #endif
           } FC_RETHROW_EXCEPTIONS( warn, "error submitting block", ("block", block) ) }
     };
 

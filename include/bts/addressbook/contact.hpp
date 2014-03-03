@@ -133,6 +133,15 @@ namespace bts { namespace addressbook {
   };
   typedef struct wallet_identity0 wallet_identity;
 
+  enum authorization_status
+  {
+    unauthorized,
+    sent_request,
+    accepted,
+    denied,
+    blocked
+  };
+
   /**
    *  Contains the private information about a given contact
    *  that is only required by my local wallet, this information
@@ -140,7 +149,8 @@ namespace bts { namespace addressbook {
    */
   struct wallet_contact : public contact
   {
-      wallet_contact() : wallet_index(WALLET_INVALID_INDEX), privacy_setting(secret_contact), next_send_trx_id(0) {}
+      wallet_contact() : wallet_index(WALLET_INVALID_INDEX), authorization_status(unauthorized),
+        privacy_setting(secret_contact), next_send_trx_id(0) {}
       std::string get_display_name() const
       {
         std::string display_name;
@@ -157,30 +167,31 @@ namespace bts { namespace addressbook {
       }
 
       /** used to generate the extended private key for this contact */
-      uint32_t                               wallet_index;
-      fc::enum_type<uint8_t,privacy_level>   privacy_setting;
-      std::string                            first_name;
-      std::string                            last_name;
-      std::vector<char>                      icon_png; 
+      uint32_t                                    wallet_index;
+      fc::enum_type<uint8_t,authorization_status> authorization_status;
+      fc::enum_type<uint8_t,privacy_level>        privacy_setting;
+      std::string                                 first_name;
+      std::string                                 last_name;
+      std::vector<char>                           icon_png; 
 
-      std::string                            notes;
+      std::string                                 notes;
 
       /**
        *  Incremented everytime a new trx to this user is created 
        */
-      uint32_t                               next_send_trx_id;
+      uint32_t                                    next_send_trx_id;
 
       /**
        *  Addresses that this uesr has the private
        *  keys to.  This address is given to the
        *  contact who can use these keys to send us money.
        */
-      extended_public_key                    send_trx_address;
+      extended_public_key                         send_trx_address;
 
       /** channels this contact is expected to be listening on */
-      std::vector<uint16_t>                  bitchat_recv_channels; /// where this contact listens
-      std::vector<uint16_t>                  bitchat_broadcast_channels; /// where contact broadcasts
-      fc::ecc::private_key                   bitchat_recv_broadcast_key;
+      std::vector<uint16_t>                       bitchat_recv_channels; /// where this contact listens
+      std::vector<uint16_t>                       bitchat_broadcast_channels; /// where contact broadcasts
+      fc::ecc::private_key                        bitchat_recv_broadcast_key;
     private:
       std::string get_full_name() const { return first_name + " " + last_name; }
   };
@@ -204,6 +215,14 @@ FC_REFLECT_ENUM( bts::addressbook::contact_property_type,
     (date_property)
     (photo_property)
     (alias_property)
+)
+
+FC_REFLECT_ENUM( bts::addressbook::authorization_status,
+  (unauthorized)
+  (sent_request)
+  (accepted)
+  (denied)
+  (blocked)
 )
 
 FC_REFLECT( bts::addressbook::property_signature,
@@ -240,6 +259,7 @@ FC_REFLECT( bts::addressbook::contact,
 
 FC_REFLECT_DERIVED( bts::addressbook::wallet_contact, (bts::addressbook::contact),
      (wallet_index)
+     (authorization_status)
      (privacy_setting)
      (first_name)
      (last_name)

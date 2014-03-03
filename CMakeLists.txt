@@ -152,11 +152,14 @@ IF(APPLE)
   SET(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++11 -stdlib=libc++  -Wall" )
 ENDIF(APPLE)
 
-include_directories( fc/include )
-include_directories( $Boost_INCLUDE_DIR} )
+# NOT NEEDED !!! fc module has defined its public include dir in its target_include_path and will
+# be added automatically to this module include paths!!!
+# Otherwise include path is implicitly propagated also to other modules what is a mess
+#include_directories( fc/include )
+#include_directories( $Boost_INCLUDE_DIR} )
 
 add_library( bshare ${sources} )
-target_link_libraries( bshare fc leveldb upnpc-static ${BDB_LIBRARY_RELEASE} ${ZLIB_LIBRARIES} ${PLATFORM_SPECIFIC_LIBS} ${rt_library} ${READLINE_LIBRARIES} ${CMAKE_DL_LIBS})
+target_link_libraries( bshare fc leveldb upnpc-static ${BDB_LIBRARIES} ${ZLIB_LIBRARIES} ${PLATFORM_SPECIFIC_LIBS} ${rt_library} ${READLINE_LIBRARIES} ${CMAKE_DL_LIBS})
 
 # All include directories required to compile dependency headers will be automatically added 
 # from dependency list specified in target_link_libraries.

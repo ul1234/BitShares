@@ -200,7 +200,7 @@ namespace bts { namespace addressbook {
    */
   struct wallet_contact : public contact
   {
-      wallet_contact() : wallet_index(WALLET_INVALID_INDEX), authorization_status(unauthorized),
+      wallet_contact() : wallet_index(WALLET_INVALID_INDEX), auth_status(unauthorized),
         privacy_setting(secret_contact), next_send_trx_id(0) {}
       std::string get_display_name() const
       {
@@ -209,7 +209,7 @@ namespace bts { namespace addressbook {
 
       /** used to generate the extended private key for this contact */
       uint32_t                                    wallet_index;
-      fc::enum_type<uint8_t,authorization_status> authorization_status;
+      fc::enum_type<uint8_t,authorization_status> auth_status;
       fc::enum_type<uint8_t,privacy_level>        privacy_setting;
       std::string                                 first_name;
       std::string                                 last_name;
@@ -300,7 +300,7 @@ FC_REFLECT( bts::addressbook::contact,
 
 FC_REFLECT_DERIVED( bts::addressbook::wallet_contact, (bts::addressbook::contact),
      (wallet_index)
-     (authorization_status)
+     (auth_status)
      (privacy_setting)
      (first_name)
      (last_name)

@@ -56,13 +56,29 @@ namespace bts { namespace blockchain {
        std::vector<market_order> get_asks( asset::type quote_unit, asset::type base_unit )const;
        std::vector<margin_call>  get_calls( price call_price )const;
 
+       
+       /**
+        * assumes bid and ask of same price units 
+        **/
+       void set_spread( const price& bid, const price& ask );
+       price get_lowest_ask_price( asset::type quote_unit, asset::type base_unit );
+       price get_highest_bid_price( asset::type quote_unit, asset::type base_unit );
 
-       void insert_bid( const market_order& m );
-       void insert_ask( const market_order& m );
-       void remove_bid( const market_order& m );
-       void remove_ask( const market_order& m );
-       void insert_call( const margin_call& c );
-       void remove_call( const margin_call& c );
+       /** 
+        *  Returns the minimum of total volume of orders on either the bid or
+        *  ask side of the market.  
+        */
+       uint64_t get_depth( asset::type quote_unit );
+
+       /** @param depth - the amount of bts backing the order used to
+        * track minimum market depth to facilitate trading.
+        */
+       void insert_bid( const market_order& m, uint64_t depth );
+       void insert_ask( const market_order& m, uint64_t depth );
+       void remove_bid( const market_order& m, uint64_t depth );
+       void remove_ask( const market_order& m, uint64_t depth );
+       void insert_call( const margin_call& c, uint64_t depth );
+       void remove_call( const margin_call& c, uint64_t depth );
 
        /** @pre quote > base  */
        fc::optional<market_order> get_highest_bid( asset::type quote, asset::type base );

@@ -1,5 +1,7 @@
 #pragma once
 #include <bts/blockchain/blockchain_db.hpp>
+
+#include <functional>
 #include <unordered_map>
 
 namespace bts { namespace blockchain {
@@ -48,6 +50,9 @@ namespace bts { namespace blockchain {
       uint32_t            block_num; // block that included it, -1 if not included
       bool                valid; // is this transaction currently valid if it is not confirmed...
    };
+
+   /** takes 4 parameters, current block, last block, current trx, last trx */
+   typedef std::function<void(uint32_t,uint32_t,uint32_t,uint32_t)> scan_progress_callback;
 
    /**
     *  The wallet stores all signed_transactions that reference one of its
@@ -132,7 +137,7 @@ namespace bts { namespace blockchain {
            std::unordered_map<output_reference,trx_output> get_covered_shorts();
 
            void sign_transaction( signed_transaction& trx, const bts::address& addr );
-           bool scan_chain( blockchain_db& chain, uint32_t from_block_num = 0 );
+           bool scan_chain( blockchain_db& chain, uint32_t from_block_num = 0,  scan_progress_callback cb = scan_progress_callback() );
            void mark_as_spent( const output_reference& r );
            void dump();
 

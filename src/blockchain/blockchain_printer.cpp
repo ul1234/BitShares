@@ -20,30 +20,35 @@ namespace bts { namespace blockchain {
       {
           case claim_by_signature:
           {
-             ss << std::string(o.as<claim_by_signature_output>().owner) << "<br/>\n";
+             ss << "<code>"<<std::string(o.as<claim_by_signature_output>().owner) << "</code><br/>\n";
+             break;
+          }
+          case claim_by_pts:
+          {
+             ss << "<code>"<<std::string(o.as<claim_by_pts_output>().owner) << "</code><br/>\n";
              break;
           }
           case claim_by_bid:
           {
              claim_by_bid_output bid = o.as<claim_by_bid_output>();
-             ss << "pay to: "<<std::string(bid.pay_address)<<"<br/>\n";
-             ss << "price:  "<<std::string(bid.ask_price)<<"<br/>\n";
+             ss << "pay to: <code>"<<std::string(bid.pay_address)<<"</code><br/>\n";
+             ss << "price:  <code>"<<std::string(bid.ask_price)<<"</code><br/>\n";
         //     ss << "min:    "<<bid.min_trade<<"<br/>\n";
             break;
           }
           case claim_by_long:
           {
              claim_by_long_output bid = o.as<claim_by_long_output>();
-             ss << "pay to: "<<std::string(bid.pay_address)<<"<br/>\n";
-             ss << "price:  "<<std::string(bid.ask_price)<<"<br/>\n";
+             ss << "pay to: <code>"<<std::string(bid.pay_address)<<"</code><br/>\n";
+             ss << "price:  <code>"<<std::string(bid.ask_price)<<"</code><br/>\n";
           //   ss << "min:    "<<bid.min_trade<<"<br/>\n";
             break;
           }
           case claim_by_cover:
           {
              claim_by_cover_output cover = o.as<claim_by_cover_output>();
-             ss << "owner:   "<<std::string(cover.owner)<<"<br/>\n";
-             ss << "payoff:  "<<std::string(cover.payoff)<<"<br/>\n";
+             ss << "owner:   <code>"<<std::string(cover.owner)<<"</code><br/>\n";
+             ss << "payoff:  <code>"<<std::string(cover.payoff)<<"</code><br/>\n";
             break;
           }
       }

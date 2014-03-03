@@ -31,6 +31,17 @@ struct price_point_key
 
 FC_REFLECT( price_point_key, (quote)(base)(timestamp) )
 
+struct depth_stats
+{
+   depth_stats( uint64_t b = 0,
+                uint64_t a = 0 )
+   :bid_depth(0),ask_depth(0){}
+
+   uint64_t bid_depth;
+   uint64_t ask_depth;
+};
+FC_REFLECT( depth_stats, (bid_depth)(ask_depth) )
+
 namespace bts { namespace blockchain {
 
   namespace detail
@@ -44,10 +55,10 @@ namespace bts { namespace blockchain {
 
            db::level_pod_map<price_point_key, price_point> _price_history;
 
+           db::level_pod_map<asset::type,depth_stats> _depth;
      };
 
   } // namespace detail
-
 
 
   price_point& price_point::operator += ( const price_point& pp )
@@ -132,38 +143,131 @@ namespace bts { namespace blockchain {
      fc::create_directories( db_dir / "asks" );
      fc::create_directories( db_dir / "calls" );
      fc::create_directories( db_dir / "price_history" );
+     fc::create_directories( db_dir / "depth" );
 
      my->_bids.open( db_dir / "bids" );
      my->_asks.open( db_dir / "asks" );
      my->_calls.open( db_dir / "calls" );
      my->_price_history.open( db_dir / "price_history" );
+     my->_depth.open( db_dir / "depth" );
   } FC_RETHROW_EXCEPTIONS( warn, "unable to open market db ${dir}", ("dir",db_dir) ) }
 
-  void market_db::insert_bid( const market_order& m )
+  void market_db::insert_bid( const market_order& m, uint64_t depth )
   {
+     if( depth )
+     {
+        auto itr = my->_depth.find( m.quote_unit );
+        if( itr.valid() )
+        {
+           auto stat = itr.value();
+           stat.bid_depth += depth;
+           ilog( "insert bid ${b} with depth ${d}", ("b",m)("d",depth) );
+           my->_depth.store( m.quote_unit, stat );
+        }
+        else
+        {
+           ilog( "insert bid ${b} with depth ${d}", ("b",m)("d",depth) );
+           my->_depth.store( m.quote_unit, depth_stats( depth, 0) );
+        }
+     }
      my->_bids.store( m, 0 );
   }
-  void market_db::insert_ask( const market_order& m )
+  void market_db::insert_ask( const market_order& m, uint64_t depth )
   {
+     if( depth )
+     {
+        auto itr = my->_depth.find( m.quote_unit );
+        if( itr.valid() )
+        {
+           auto stat = itr.value();
+           stat.ask_depth += depth;
+           my->_depth.store( m.quote_unit, stat );
+           ilog( "insert ask ${b} with depth ${d}", ("b",m)("d",depth) );
+        }
+        else
+        {
+           ilog( "insert ask ${b} with depth ${d}", ("b",m)("d",depth) );
+           my->_depth.store( m.quote_unit, depth_stats( 0, depth) );
+        }
+     }
      my->_asks.store( m, 0 );
   }
-  void market_db::remove_bid( const market_order& m )
+  void market_db::remove_bid( const market_order& m, uint64_t depth )
   {
+     if( depth )
+     {
+        auto itr = my->_depth.find( m.quote_unit );
+        if( itr.valid() )
+        {
+           auto stat = itr.value();
+           FC_ASSERT( stat.bid_depth >= depth, "", ("stat",stat)("depth",depth) );
+           stat.bid_depth -= depth;
+           my->_depth.store( m.quote_unit, stat );
+        }
+     }
      my->_bids.remove(m);
   }
-  void market_db::remove_ask( const market_order& m )
+  void market_db::remove_ask( const market_order& m, uint64_t depth )
   {
+     if( depth )
+     {
+        auto itr = my->_depth.find( m.quote_unit );
+        if( itr.valid() )
+        {
+           auto stat = itr.value();
+           FC_ASSERT( stat.ask_depth >= depth, "", ("stat",stat)("depth",depth) );
+           stat.ask_depth -= depth;
+           my->_depth.store( m.quote_unit, stat );
+        }
+     }
      my->_asks.remove(m);
   }
-  void market_db::insert_call( const margin_call& c )
+  void market_db::insert_call( const margin_call& c, uint64_t depth )
   {
+     if( depth )
+     {
+        auto itr = my->_depth.find( c.call_price.quote_unit );
+        if( itr.valid() )
+        {
+           auto stat = itr.value();
+           stat.bid_depth += depth;
+           my->_depth.store( c.call_price.quote_unit, stat );
+        }
+        else
+        {
+           my->_depth.store( c.call_price.quote_unit, depth_stats( depth, 0) );
+        }
+     }
      my->_calls.store( c, 0 );
   }
-  void market_db::remove_call( const margin_call& c )
+
+  void market_db::remove_call( const margin_call& c, uint64_t depth )
   {
-     my->_calls.remove( c );
+     if( depth )
+     {
+        auto itr = my->_depth.find( c.call_price.quote_unit );
+        if( itr.valid() )
+        {
+           auto stat = itr.value();
+           FC_ASSERT( stat.bid_depth >= depth, "", ("stat",stat)("depth",depth) );
+           stat.bid_depth -= depth;
+           my->_depth.store( c.call_price.quote_unit, stat );
+        }
+     }
+     my->_calls.remove( c ); // TODO... this side effect is not unwond in 
+                             // in the event of an exception..
   }
 
+  uint64_t market_db::get_depth( asset::type quote_unit )
+  {
+     auto itr = my->_depth.find( quote_unit );
+     if( itr.valid() )
+     {
+        auto stat = itr.value();
+        return std::min( stat.bid_depth, stat.ask_depth );
+     }
+     return 0;
+  }
 
   void market_db::push_price_point( const price_point& pt )
   {

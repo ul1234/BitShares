@@ -105,23 +105,74 @@ namespace bts { namespace addressbook {
       std::vector<contact_property>   properties;
    };
 
+  /** Helper function to compose display name for wallet_identity and wallet_contact. Must be external
+      since these classes hierarachy is broken.
+  */
+  static inline std::string compose_display_name(const std::string& fName, const std::string& lName,
+    const contact& c)
+    {
+    std::string display_name;
+    bool hasAlias = false;
+
+    /// First compose text related to defined aliases.
+    if(fName.empty() == false && lName.empty() == false)
+    {
+      hasAlias = true;
+      display_name = fName;
+      display_name += ' ';
+      display_name += lName;
+    }
+    else
+    if(fName.empty() == false)
+    {
+      hasAlias = true;
+      display_name = fName;
+    }
+    else
+    if(lName.empty() == false)
+    {
+      hasAlias = true;
+      display_name = lName;
+    }
+
+    if(hasAlias)
+    {
+      display_name += " <";
+
+      if(c.dac_id_string.empty())
+      {
+        /** If alias has been defined display_name should contain just 6 first digits of pk textual
+            form to increase readability.
+        */
+        std::string pkText = c.public_key.to_base58();
+        assert(pkText.size() > 6);
+        display_name += pkText.substr(0, 6);
+      }
+      else
+      {
+        display_name += c.dac_id_string;
+      }
+
+      display_name += '>';
+    }
+    else
+    {
+      if(c.dac_id_string.empty())
+        display_name = c.public_key.to_base58();
+      else
+        display_name= c.dac_id_string;
+    }
+
+    return display_name;
+  }
+
   struct wallet_identity0 : public contact
   { //DLNFIX can we derive wallet_identity from wallet_contact instead to avoid code duplication?
-      wallet_identity0() : mining_effort(0.2) {}
+      wallet_identity0() : mining_effort(static_cast<float>(0.2)) {}
       std::string get_full_name() const { return first_name + " " + last_name; }
       std::string get_display_name() const
       {
-        std::string display_name;
-        bool hasAlias = first_name.empty() && last_name.empty();
-        if (hasAlias)
-        {
-          display_name = get_full_name();
-          display_name += " <";
-        }
-        display_name += dac_id_string;
-        if (hasAlias)
-          display_name += '>';
-        return display_name;
+        return compose_display_name(first_name, last_name, *this);
       }
 
       std::string          wallet_ident;      // used to generate the master public key for this identity
@@ -153,17 +204,7 @@ namespace bts { namespace addressbook {
         privacy_setting(secret_contact), next_send_trx_id(0) {}
       std::string get_display_name() const
       {
-        std::string display_name;
-        bool hasAlias = !(first_name.empty() && last_name.empty());
-        if (hasAlias)
-        {
-          display_name = get_full_name();
-          display_name += " <";
-        }
-        display_name += dac_id_string;
-        if (hasAlias)
-          display_name += '>';
-        return display_name;
+        return compose_display_name(first_name, last_name, *this);
       }
 
       /** used to generate the extended private key for this contact */

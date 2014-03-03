@@ -30,6 +30,7 @@ namespace bts { namespace blockchain {
                                 bool enforce_unspent_in = true,
                                 uint32_t  head_idx = -1
                                 );
+           bool allow_short_long_matching;
 
            trx_validation_state() : trx(signed_transaction()) {}
            

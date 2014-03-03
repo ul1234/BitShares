@@ -23,18 +23,44 @@ namespace bts {
       std::vector<std::string>      default_mail_nodes;
   };
 
+  /** Callback iface to be implemented at bts client side (ie KH GUI). This way client part can be
+      notified on incoming messages or connection state changes.
+      \warning It is possible to call these notification from another thread/fiber and client
+      implementation should be prepared for that (it is especially important for GUI part).
+  */
   class application_delegate
   {
-     public:
+  public:
+    virtual void connection_count_changed(unsigned int count) = 0;
+    /** Called when message transmission starts.
+        Returns true if message body transmission should continue.
+        \warning Only mail message transmission has been splitted into 2-phase notification since
+        it can be time consuming because of transferred mail body size.
+    */
+    virtual bool receiving_mail_message() = 0;
+    /// Called when chat message has been received.
+    virtual void received_text(const bitchat::decrypted_message& msg) = 0;
+    /** Called when email message has been received (this also ends receiving process started by
+        receiving_mail_message).
+        This is a 'success' end-point scenario opened by receiving_mail_message.
+    */
+    virtual void received_email(const bitchat::decrypted_message& msg) = 0;
+    /// Called when authorization request message has been received.
+    virtual void received_request(const bitchat::decrypted_message& msg) = 0;
+    /** Called when message transmission has been finished (independently to received_email which
+        is called only when mail message has been sent to 'this' client).
+        \param success - determines that already started message transmission has failed (ie because of connection lost).
+        This is a 'failure' end-point scenario opened by receiving_mail_message, but can be called
+        for any message transmission not only email messages.
+    */
+    virtual void message_transmission_finished(bool success) = 0;
 
-     virtual ~application_delegate(){}
-
-     virtual void connection_count_changed( int count ){}
-     virtual void received_text( const bitchat::decrypted_message& msg) {}
-     virtual void received_email( const bitchat::decrypted_message& msg) {}
-     virtual void received_request( const bitchat::decrypted_message& msg) {}
+   protected:
+     /** The implementation part is responsible for delegate object lifetime management, so bts code
+         doesn't need access to destructor.
+     */
+     virtual ~application_delegate() {}
   };
-  
 
   /**
    *  This class serves as the interface between the GUI and the back end

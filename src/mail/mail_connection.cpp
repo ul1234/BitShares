@@ -52,6 +52,9 @@ namespace mail {
                   char tmp[BUFFER_SIZE];
                   sock->read( tmp, BUFFER_SIZE );
                   memcpy( (char*)&m, tmp, sizeof(message_header) );
+                  if(con_del->on_message_transmission_started(self, m) == false)
+                    break;
+
                   m.data.resize( m.size + 16 ); //give extra 16 bytes to allow for padding added in send call
                   memcpy( (char*)m.data.data(), tmp + sizeof(message_header), LEFTOVER );
                   sock->read( m.data.data() + LEFTOVER, 16*((m.size -LEFTOVER + 15)/16) );

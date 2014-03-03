@@ -650,6 +650,8 @@ class client : public chain_connection_delegate
 
          auto mark = chain.get_market( qunit, bunit );
 
+         std::cout << "Current Depth:  "  << chain.get_market_depth( qunit ) 
+                   << " Required Depth: " << chain.get_required_depth() <<"\n";
          std::cout << std::setw( 55 ) << ("      BIDS             ") << "  |";
          std::cout << std::setw( 55 ) << ("      ASKS             ") << "  |";
      //    std::cout << std::setw( 36 ) << ("     SHORTS ("+quote+")        ");
@@ -975,6 +977,7 @@ void print_help()
     std::cout<<" lock   - lock your private keys \n";
     std::cout<<" importkey PRIV_KEY [label] [rescan]\n";
     std::cout<<" importwalletkey PRIV_KEY [label] [rescan]\n";
+    std::cout<<" import_bitcoin_wallet WALLET_DAT - load a bitcoin-qt or PTS wallet.\n";
     std::cout<<" balance         -  print the wallet balances\n";
     std::cout<<" newaddr [label] -  print a new wallet address\n";
 	  std::cout<<" listaddr        - print the wallet address(es)\n";
@@ -1206,7 +1209,7 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
             double   quote_price;
             pline >> quote_price;
             bts::blockchain::price short_price = asset( quote_price, quote_unit ) / asset( 1.0, asset::bts ); //( priced, unit, asset::bts ); //asset::bts, unit );
-            auto required_input = quote_amnt * short_price;
+            auto required_input = (quote_amnt * short_price) * INITIAL_MARGIN_REQUIREMENT;
 
             std::cout<<"current balance: "<<  std::string(main_thread->async( [=](){ return c->get_balance(asset::bts); } ).wait())<<"\n"; 
             std::cout<<"required collateral: "<< std::string(required_input) <<"\n"; 
@@ -1232,7 +1235,10 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
                 ilog( "opening ${d}", ("d", c->_datadir/"wallet.bts") );
                 c->_wallet.open( c->_datadir / "wallet.bts", password );
                 if( c->chain.head_block_num() != uint32_t(-1) )
+                {
+                    std::cout << "scanning chain...\n";
                     c->_wallet.scan_chain( c->chain );
+                }
             }
             else // create new wallet
             {
@@ -1307,7 +1313,9 @@ void process_commands( fc::thread* main_thread, std::shared_ptr<client> c )
              std::string password;
              std::getline( std::cin, password );
              main_thread->async( [=]() {
-                                 c->_wallet.import_bitcoin_wallet( fc::path(wallet_dat), password );
+                                    c->_wallet.import_bitcoin_wallet( fc::path(wallet_dat), password );
+                                    std::cout<<"rescanning chain...\n";
+                                    c->_wallet.scan_chain(c->chain);
                                  } ).wait();
          }
          else if( command == "lock" )

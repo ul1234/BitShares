@@ -104,7 +104,7 @@ namespace bts { namespace blockchain  {
 
   uint64_t block_header::min_fee()
   {
-     return (4000000*COIN/200)/(144*365*512*1024);
+     return (4000000*COIN/200)/(144*365*512*1024ll);
   }
 
   uint64_t block_header::calculate_next_fee( uint64_t prev_fee, uint64_t block_size )

@@ -9,7 +9,8 @@
 namespace bts  { namespace blockchain { 
 
 trx_validation_state::trx_validation_state( const signed_transaction& t, blockchain_db* d, bool enf, uint32_t h )
-:prev_block_id1(0),prev_block_id2(0),trx(t),total_cdd(0),uncounted_cdd(0),balance_sheet( asset::count ),db(d),enforce_unspent(enf),ref_head(h)
+:allow_short_long_matching(false),
+ prev_block_id1(0),prev_block_id2(0),trx(t),total_cdd(0),uncounted_cdd(0),balance_sheet( asset::count ),db(d),enforce_unspent(enf),ref_head(h)
 { 
   inputs  = d->fetch_inputs( t.inputs, ref_head );
   if( ref_head == std::numeric_limits<uint32_t>::max()  )
@@ -265,9 +266,10 @@ void trx_validation_state::validate_pts( const meta_trx_input& in )
    try {
       auto pts_claim = in.output.as<claim_by_pts_output>();
       auto pts_addrs = trx.get_signed_pts_addresses();
+      auto addrs = trx.get_signed_addresses();
 
       FC_ASSERT( pts_addrs.find( pts_claim.owner ) != pts_addrs.end(),
-                "Unable to find signature by ${owner}", ("owner",pts_claim.owner) );
+                "Unable to find signature by ${owner}", ("owner",pts_claim.owner)("signedby",pts_addrs)("addrs",addrs) );
 
       balance_sheet[(asset::type)in.output.amount.unit].in += in.output.amount;
 
@@ -410,6 +412,7 @@ void trx_validation_state::validate_long( const meta_trx_input& in )
     }
     else // someone else accepted the offer based on terms of the long
     {
+       FC_ASSERT( allow_short_long_matching );
        uint16_t split_order = find_unused_long_output( long_claim );
        if( split_order == output_not_found ) // must be a full order...
        {

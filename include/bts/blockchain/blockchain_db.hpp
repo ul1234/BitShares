@@ -191,6 +191,8 @@ namespace bts { namespace blockchain {
           uint64_t      current_difficulty()const;
           uint64_t      available_coindays()const;
 
+          uint64_t      get_market_depth( asset::type quote )const;
+          uint64_t      get_required_depth()const;
           std::vector<price_point> get_market_history( asset::type quote, asset::type base, 
                                                       fc::time_point_sec from, fc::time_point_sec to, 
                                                       uint32_t blocks_per_point = 1 );
@@ -205,7 +207,7 @@ namespace bts { namespace blockchain {
           *
           *  @throw exception if trx can not be applied to the current chain state.
           */
-         trx_eval   evaluate_signed_transaction( const signed_transaction& trx, bool ignore_fees = false );       
+         trx_eval   evaluate_signed_transaction( const signed_transaction& trx, bool ignore_fees = false, bool is_market = false );       
          trx_eval   evaluate_signed_transactions( const std::vector<signed_transaction>& trxs, uint64_t ignore_first_n = 0 );
 
          std::vector<signed_transaction> match_orders( std::vector<price_point>* order_stats = nullptr );

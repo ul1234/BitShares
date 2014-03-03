@@ -34,7 +34,7 @@ struct genesis_block_config
    genesis_block_config():supply(0),blockheight(0){}
    double                                            supply;
    uint64_t                                          blockheight;
-   std::vector< std::pair<bts::pts_address,double> > balances;
+   std::vector< std::pair<bts::pts_address,uint64_t> > balances;
 };
 FC_REFLECT( genesis_block_config, (supply)(balances) )
 
@@ -43,51 +43,51 @@ using namespace bts::blockchain;
 bts::blockchain::trx_block create_test_genesis_block()
 {
    try {
-   auto config = fc::json::from_file( "genesis.json" ).as<genesis_block_config>();
-   double total_supply = 0;
-   bts::blockchain::trx_block b;
-   bts::blockchain::signed_transaction coinbase;
-   coinbase.version = 0;
-   coinbase.timestamp = fc::time_point::now();
+      auto config = fc::json::from_file( "genesis.json" ).as<genesis_block_config>();
+      int64_t total_supply = 0;
+      bts::blockchain::trx_block b;
+      bts::blockchain::signed_transaction coinbase;
+      coinbase.version = 0;
+      coinbase.timestamp = fc::time_point::now();
 
-   uint8_t output_idx = 0;
-   for( auto itr = config.balances.begin(); itr != config.balances.end(); ++itr )
-   {
-      total_supply += itr->second;
-      ilog( "${i}", ("i",*itr) );
-      coinbase.outputs.push_back( trx_output( claim_by_pts_output( itr->first ), asset( itr->second, asset::bts ) ) );
-      if( output_idx == 0xff )
+      uint8_t output_idx = 0;
+      for( auto itr = config.balances.begin(); itr != config.balances.end(); ++itr )
       {
-         b.trxs.emplace_back( std::move(coinbase) );
-         coinbase.outputs.clear();
+         total_supply += itr->second;
+         ilog( "${i}", ("i",*itr) );
+         coinbase.outputs.push_back( trx_output( claim_by_pts_output( itr->first ), asset( itr->second, asset::bts ) ) );
+         if( output_idx == 0xff )
+         {
+            b.trxs.emplace_back( std::move(coinbase) );
+            coinbase.outputs.clear();
+         }
+         ++output_idx;
       }
-      ++output_idx;
-   }
 
-   b.version      = 0;
-   b.prev         = bts::blockchain::block_id_type();
-   b.block_num    = 0;
-   b.total_shares = int64_t(total_supply*COIN);
-   b.timestamp    = fc::time_point::from_iso_string("20131201T054434");
-   b.next_fee     = bts::blockchain::block_header::min_fee();
+      b.version      = 0;
+      b.prev         = bts::blockchain::block_id_type();
+      b.block_num    = 0;
+      b.total_shares = int64_t(total_supply);
+      b.timestamp    = fc::time_point::from_iso_string("20131201T054434");
+      b.next_fee     = bts::blockchain::block_header::min_fee();
 
-   //coinbase.valid_after = 0;
-   //coinbase.valid_blocks = 0;
-   std::cerr<<"Genesis Private Key: "<<std::string(test_genesis_private_key().get_secret() )<<"\n";
-   // TODO: init from PTS here...
-//   coinbase.outputs.push_back( 
-//      bts::blockchain::trx_output( bts::blockchain::claim_by_signature_output( bts::address(test_genesis_private_key().get_public_key()) ), bts::blockchain::asset(b.total_shares, bts::blockchain::asset::bts)) );
+      //coinbase.valid_after = 0;
+      //coinbase.valid_blocks = 0;
+      std::cerr<<"Genesis Private Key: "<<std::string(test_genesis_private_key().get_secret() )<<"\n";
+      // TODO: init from PTS here...
+   //   coinbase.outputs.push_back( 
+   //      bts::blockchain::trx_output( bts::blockchain::claim_by_signature_output( bts::address(test_genesis_private_key().get_public_key()) ), bts::blockchain::asset(b.total_shares, bts::blockchain::asset::bts)) );
 
-   ilog( "..." );
-   ilog( "..." );
-   b.trx_mroot   = b.calculate_merkle_root();
-   ilog( "..." );
-   fc::variant var(b);
-   ilog( "..." );
+      ilog( "..." );
+      ilog( "..." );
+      b.trx_mroot   = b.calculate_merkle_root();
+      ilog( "..." );
+      fc::variant var(b);
+      ilog( "..." );
 
-   auto str = fc::json::to_pretty_string(var); //b);
-   ilog( "block: \n${b}", ("b", str ) );
-   return b;
+      auto str = fc::json::to_pretty_string(var); //b);
+      ilog( "block: \n${b}", ("b", str ) );
+      return b;
    } 
    catch ( const fc::exception& e )
    {

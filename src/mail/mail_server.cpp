@@ -105,7 +105,9 @@ namespace mail {
             //       if( pm.validate_proof() )
                    if( m.size < 1024*1024*2 ) // 2 MB limit...
                    {
-                      _message_db.store( fc::time_point::now(), pm );
+                      fc::time_point received_time = fc::time_point::now();
+                      pm.timestamp = received_time;
+                      _message_db.store( received_time, pm );
                    }
                }
                else if( m.type == bts::bitchat::client_info_message::type )

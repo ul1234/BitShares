@@ -27,8 +27,7 @@ namespace bts { namespace network {
         proto = (channel_proto)(u & 0x000000ff);
      }
      /** 
-      *   @brief defines the protocol being being used on a
-      *          channel.
+      *   @brief defines the protocol being being used on a channel.
       */
      channel_proto proto;
      /**

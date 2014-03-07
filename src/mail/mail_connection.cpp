@@ -31,7 +31,7 @@ namespace mail {
           connection_delegate* con_del;
 
           fc::time_point _sync_time;
-          bts::db::level_map<fc::time_point,bts::bitchat::encrypted_message>*   _db;
+          bts::db::level_map<fc::time_point,bts::bitchat::encrypted_message>*   _mail_db;
 
           /** used to ensure that messages are written completely */
           fc::mutex              write_lock;
@@ -259,7 +259,7 @@ namespace mail {
           while( !my->exec_sync_loop_complete.canceled() )
           {
              //ilog( "sync time ${t}", ("t",my->_sync_time) );
-             auto itr = my->_db->lower_bound( my->_sync_time );
+             auto itr = my->_mail_db->lower_bound( my->_sync_time );
              if( !itr.valid() )
              {
               ilog( "no valid message found" );
@@ -289,7 +289,7 @@ namespace mail {
 
   void connection::set_database( bts::db::level_map<fc::time_point,bts::bitchat::encrypted_message>* db )
   {
-     my->_db = db;
+     my->_mail_db = db;
   }
 
 

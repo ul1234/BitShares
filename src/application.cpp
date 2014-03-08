@@ -78,7 +78,7 @@ namespace bts {
                 for( auto itr = _config->default_mail_nodes.begin(); itr != _config->default_mail_nodes.end(); ++itr )
                 {
                      try {
-                        ilog( "mail connect ${e}, sync_time=${t}", ("e",*itr)("t",_profile->get_last_sync_time()) );
+                        ilog( "mail connect ${e}, send sync_time=${t}", ("e",*itr)("t",_profile->get_last_sync_time()) );
                         _mail_con.connect(*itr);
                         _mail_con.set_last_sync_time( _profile->get_last_sync_time() );
 
@@ -149,6 +149,8 @@ namespace bts {
                 //because we use mailserver's receive time for timestamp now
                 if (pm.timestamp > _profile->get_last_sync_time())
                   _profile->set_last_sync_time( pm.timestamp );
+                else
+                  wlog("timestamp = ${t} < sync_time = ${st}",("t",pm.timestamp)("st",_profile->get_last_sync_time()));
              }
              if( m.type == bts::bitchat::server_info_message::type )
              {

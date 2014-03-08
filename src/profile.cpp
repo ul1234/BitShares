@@ -72,6 +72,7 @@ namespace bts {
   }
   void     profile::set_last_sync_time( const fc::time_point& n )
   {
+      ilog("time=${t}",("t",n));
       *my->_last_sync_time = n;
   }
 

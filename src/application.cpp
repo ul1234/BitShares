@@ -150,7 +150,10 @@ namespace bts {
                 if (pm.timestamp > _profile->get_last_sync_time())
                   _profile->set_last_sync_time( pm.timestamp );
                 else
-                  wlog("timestamp = ${t} < sync_time = ${st}",("t",pm.timestamp)("st",_profile->get_last_sync_time()));
+                  if (pm.timestamp == _profile->get_last_sync_time())
+                    ilog("timestamp = last_sync_time = ${t}",("t",pm.timestamp));
+                  else
+                    wlog("timestamp = ${t} < sync_time = ${st}",("t",pm.timestamp)("st",_profile->get_last_sync_time()));
              }
              if( m.type == bts::bitchat::server_info_message::type )
              {

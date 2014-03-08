@@ -259,7 +259,8 @@ namespace mail {
           while( !my->exec_sync_loop_complete.canceled() )
           {
              //ilog( "sync time ${t}", ("t",my->_sync_time) );
-             auto itr = my->_mail_db->lower_bound( my->_sync_time );
+             //send any messages after _sync_time
+             auto itr = my->_mail_db->lower_bound( my->_sync_time + fc::microseconds(1));
              if( !itr.valid() )
              {
               ilog( "no valid message found" );

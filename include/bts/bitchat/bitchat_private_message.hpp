@@ -8,6 +8,7 @@
 #include <fc/time.hpp>
 #include <fc/optional.hpp>
 #include <fc/io/enum_type.hpp>
+#include <bts/db/upgrade_leveldb.hpp>
 
 namespace bts { namespace bitchat {
     using network::channel_id;
@@ -42,17 +43,11 @@ namespace bts { namespace bitchat {
 
     struct decrypted_message;
 
-    /**
-     *  An encrypted message is encoded with a particular public key destination in
-     *  mind.  Each message establishes a new ECDH key pair and one-time shared secret 
-     *  to establish the blowfish decryption key.
-     *
-     *  TODO: add move semantics to encrypted_message
-     */
-    struct encrypted_message 
+    //legacy encrypted_message (had insufficient timestamp granularity)
+    struct encrypted_message0 
     {
         static const message_type type;
-        encrypted_message();
+        encrypted_message0();
         mutable uint32_t                              noncea; ///< collision a
         mutable uint32_t                              nonceb; ///< collision b
 
@@ -75,6 +70,49 @@ namespace bts { namespace bitchat {
         bool        decrypt( const fc::ecc::private_key& with, decrypted_message& m )const;
     };
 
+    /**
+     *  An encrypted message is encoded with a particular public key destination in
+     *  mind.  Each message establishes a new ECDH key pair and one-time shared secret 
+     *  to establish the blowfish decryption key.
+     *
+     *  TODO: add move semantics to encrypted_message
+     */
+    struct encrypted_message
+    {
+        static const message_type type;
+        encrypted_message();
+        encrypted_message(const encrypted_message0& msg) //upgrade from old encrypted_message format
+          {
+          noncea = msg.noncea;
+          nonceb = msg.nonceb;
+          nonce  = msg.nonce;
+          timestamp = msg.timestamp; //switch from time_point_sec to high accuracy time_point
+          dh_key = msg.dh_key;
+          check = msg.check;
+          data = msg.data;
+          }
+
+        mutable uint32_t                              noncea; ///< collision a
+        mutable uint32_t                              nonceb; ///< collision b
+
+        uint16_t                                      nonce; ///< increment timestamp after 63K tests
+        fc::time_point                                timestamp;
+        fc::ecc::public_key                           dh_key;
+        fc::uint160_t                                 check;
+        std::vector<char>                             data;
+
+        fc::uint128        id()const;
+
+        /**
+         *  This method will increment the nonce or timestamp until difficulty(id()) > tar_per_kb*(1+data.size()/1024).
+         *
+         *  @return a future object that can be used to cancel the proof of work, result true if target found.
+         */
+        bool        do_proof_work( uint64_t tar_per_kb );
+        bool        validate_proof()const; // checks to make sure the proof of work is valid
+        uint64_t    difficulty()const;
+        bool        decrypt( const fc::ecc::private_key& with, decrypted_message& m )const;
+    };
 
     /** content of private_message data */
     enum private_message_type
@@ -219,7 +257,7 @@ namespace bts { namespace bitchat {
        std::string     status_message;
     };
 
-} }  // namespace btc
+} }  // namespace bts::bitchat
 
 #include <fc/reflect/reflect.hpp>
 FC_REFLECT_ENUM( bts::bitchat::account_status, (unknown)(active)(away)(idle) )
@@ -237,7 +275,10 @@ FC_REFLECT_ENUM( bts::bitchat::compression_type, (no_compression)(smaz_compressi
 FC_REFLECT_ENUM( bts::bitchat::encryption_type, (no_encryption)(blowfish_encryption)(twofish_encryption)(aes_encryption) )
 FC_REFLECT_ENUM( bts::bitchat::authorization_status, (request)(accept)(deny)(block) )
 FC_REFLECT( bts::bitchat::attachment, (filename)(body) )
+
+FC_REFLECT( bts::bitchat::encrypted_message0, (noncea)(nonceb)(nonce)(timestamp)(dh_key)(check)(data) );
 FC_REFLECT( bts::bitchat::encrypted_message, (noncea)(nonceb)(nonce)(timestamp)(dh_key)(check)(data) );
+
 FC_REFLECT( bts::bitchat::decrypted_message, (msg_type)(data)(sig_time)(from_sig) )
 FC_REFLECT( bts::bitchat::private_text_message, (msg) )
 FC_REFLECT( bts::bitchat::private_email_message, (from_keyhotee_id)(to_list)(cc_list)(subject)(body)(attachments)(bcc_list) )

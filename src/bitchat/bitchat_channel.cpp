@@ -351,7 +351,7 @@ namespace bts { namespace bitchat {
   {
       //TODO: make 5 minute a constant in bts/config.hpp
       FC_ASSERT( fc::time_point::now() - m.timestamp  <  fc::seconds(60*5) );
-      FC_ASSERT( fc::time_point(m.timestamp) <= fc::time_point::now() );
+      FC_ASSERT( m.timestamp <= fc::time_point::now() );
 
       auto id = m.id();
       my->priv_msgs[ id ] = std::move(m);

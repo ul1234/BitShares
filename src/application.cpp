@@ -148,7 +148,10 @@ namespace bts {
                 //added sanity check, but now pm.timestamp should always be >= last_sync_time
                 //because we use mailserver's receive time for timestamp now
                 if (pm.timestamp > _profile->get_last_sync_time())
+                  {
                   _profile->set_last_sync_time( pm.timestamp );
+                  ilog("last_sync_time now: ${t}",("t",_profile->get_last_sync_time()));
+                  }
                 else
                   if (pm.timestamp == _profile->get_last_sync_time())
                     ilog("timestamp = last_sync_time = ${t}",("t",pm.timestamp));

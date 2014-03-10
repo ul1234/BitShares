@@ -136,35 +136,41 @@ namespace bts {
           /// \see mail::connection_delegate interface description.
           virtual void on_connection_message( mail::connection& c, const mail::message& m ) override
           {
-             if( m.type == bts::bitchat::encrypted_message::type )
-             {
-                auto pm = m.as<bts::bitchat::encrypted_message>();
-                for( auto key = _keys.begin(); key != _keys.end(); ++key )
-                {
-                   bts::bitchat::decrypted_message dm;
-                   if( pm.decrypt( *key, dm ) )
-                      bitchat_message_received( dm );
-                }
-                //added sanity check, but now pm.timestamp should always be >= last_sync_time
-                //because we use mailserver's receive time for timestamp now
-                if (pm.timestamp > _profile->get_last_sync_time())
+             try {
+               if( m.type == bts::bitchat::encrypted_message::type )
+               {
+                  auto pm = m.as<bts::bitchat::encrypted_message>();
+                  for( auto key = _keys.begin(); key != _keys.end(); ++key )
                   {
-                  _profile->set_last_sync_time( pm.timestamp );
-                  ilog("last_sync_time now: ${t}",("t",_profile->get_last_sync_time()));
+                     bts::bitchat::decrypted_message dm;
+                     if( pm.decrypt( *key, dm ) )
+                        bitchat_message_received( dm );
                   }
-                else
-                  if (pm.timestamp == _profile->get_last_sync_time())
+                  //added sanity check, but now pm.timestamp should always be >= last_sync_time
+                  //because we use mailserver's receive time for timestamp now
+                  if (pm.timestamp > _profile->get_last_sync_time())
+                    {
+                    _profile->set_last_sync_time( pm.timestamp );
+                    ilog("last_sync_time now: ${t}",("t",_profile->get_last_sync_time()));
+                    }
+                  else if (pm.timestamp == _profile->get_last_sync_time())
                     ilog("timestamp = last_sync_time = ${t}",("t",pm.timestamp));
                   else
                     wlog("timestamp = ${t} < sync_time = ${st}",("t",pm.timestamp)("st",_profile->get_last_sync_time()));
+               }
+               if( m.type == bts::bitchat::server_info_message::type )
+               {
+                   server_time_offset = fc::time_point::now() - m.as<bts::bitchat::server_info_message>().server_time;
+               }
              }
-             if( m.type == bts::bitchat::server_info_message::type )
+             catch (fc::exception e)
              {
-                 server_time_offset = fc::time_point::now() - m.as<bts::bitchat::server_info_message>().server_time;
+               if(_delegate != nullptr)
+                 _delegate->message_transmission_finished(true);
+               throw e;
              }
-
              if(_delegate != nullptr)
-               _delegate->message_transmission_finished(true);
+                _delegate->message_transmission_finished(true);
           }
           
           /// \see mail::connection_delegate interface description.

@@ -9,6 +9,7 @@ const message_type cache_inv_message::type = message_type::cache_inv_msg;
 const message_type get_cache_priv_message::type = message_type::get_cache_priv_msg;
 const message_type get_cache_inv_message::type = message_type::get_cache_inv_msg;
 const message_type encrypted_message::type = message_type::encrypted_msg;
+const message_type encrypted_message_ack::type = message_type::encrypted_msg_ack_msg;
 const message_type server_info_message::type = message_type::server_info_msg;
 const message_type client_info_message::type = message_type::client_info_msg;
 

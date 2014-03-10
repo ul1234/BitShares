@@ -23,7 +23,8 @@ namespace bts { namespace bitchat {
        get_cache_priv_msg  = 6, ///< sent to request an private message in the historic inventory
        encrypted_msg       = 7, ///< a message encrypted to unknown receip (sent in reponse to get_priv_msg)
        server_info_msg     = 8, ///< a message that gives clients server stats
-       client_info_msg     = 9  ///< a message that gives clients server stats
+       client_info_msg     = 9, ///< a message that gives clients server stats
+       encrypted_msg_ack_msg = 10 ///< in reply to an encrypted_msg, confirms the server queued the message
     };
 
     enum compression_type
@@ -113,6 +114,26 @@ namespace bts { namespace bitchat {
         uint64_t    difficulty()const;
         bool        decrypt( const fc::ecc::private_key& with, decrypted_message& m )const;
     };
+
+    enum encrypted_msg_send_error_type
+    {
+      no_error = 0,
+      unspecified_error = 1
+    };
+    struct encrypted_message_ack
+    {
+      static const message_type type;
+      encrypted_message_ack() {}
+      encrypted_message_ack(const encrypted_message_ack& other) :
+        error_code(other.error_code),
+        encrypted_msg_check(other.encrypted_msg_check)
+      {
+      }
+      fc::enum_type<fc::unsigned_int,encrypted_msg_send_error_type> error_code;
+      fc::uint160_t encrypted_msg_check;
+    };
+
+
 
     /** content of private_message data */
     enum private_message_type
@@ -286,3 +307,5 @@ FC_REFLECT( bts::bitchat::private_status_message, (status)(status_message) )
 FC_REFLECT( bts::bitchat::private_contact_request_message, (from_first_name)(from_last_name)(from_keyhotee_id)(request_param)
                                                             (greeting_message)(from_channel)(extended_pub_key)(status)(recipient) )
 
+FC_REFLECT_ENUM( bts::bitchat::encrypted_msg_send_error_type, (no_error)(unspecified_error))
+FC_REFLECT( bts::bitchat::encrypted_message_ack, (error_code)(encrypted_msg_check) )

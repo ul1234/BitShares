@@ -148,10 +148,14 @@ namespace mail {
         // and cause us all kinds of grief
         my->con_del = nullptr; 
 
-        close();
-        if( my->read_loop_complete.valid() )
+        try { close(); }
+        catch ( const fc::exception& e )
         {
-          my->read_loop_complete.wait();
+          wlog( "unhandled exception on close:\n${e}", ("e", e.to_detail_string()) );   
+        }
+        catch ( ... )
+        {
+          elog( "unhandled exception on close ${e}", ("e", fc::except_str()) );   
         }
         if( my->exec_sync_loop_complete.valid() )
         {
@@ -275,7 +279,7 @@ namespace mail {
                 ++itr;
              }
              fc::usleep( fc::seconds(15) );
-          }
+          } //while sync loop not canceled
         } 
         catch ( const fc::exception& e )
         {

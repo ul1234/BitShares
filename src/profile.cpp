@@ -80,6 +80,7 @@ namespace bts {
   }
   void     profile::set_last_sync_time( const fc::time_point& n )
   {
+      ilog("time=${t}",("t",n));
       *my->_last_sync_time = n;
   }
 
@@ -150,7 +151,10 @@ namespace bts {
       if( *my->_last_sync_time == fc::time_point() )
       {
           *my->_last_sync_time = fc::time_point::now() - fc::seconds(60*5);
+          ilog("set last_sync_time to ${t}",("t",*my->_last_sync_time));
       }
+      else
+          ilog("loaded last_sync_time = ${t}",("t",*my->_last_sync_time));
     ilog("finished opening profile");
   } FC_RETHROW_EXCEPTIONS( warn, "", ("profile_dir",profile_dir) ) }
 

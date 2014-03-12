@@ -33,7 +33,8 @@ namespace bts {
           application_impl()
           :_delegate(nullptr),
            _quit_promise( new fc::promise<void>() ),
-           _mail_con(this),_mail_connected(false)
+           _mail_con(this),
+           _mail_connected(false)
            {
            }
           std::vector<fc::ecc::private_key> _keys;
@@ -77,7 +78,7 @@ namespace bts {
                 for( auto itr = _config->default_mail_nodes.begin(); itr != _config->default_mail_nodes.end(); ++itr )
                 {
                      try {
-                        ilog( "mail connect ${e}", ("e",*itr) );
+                        ilog( "mail connect ${e}, send sync_time=${t}", ("e",*itr)("t",_profile->get_last_sync_time()) );
                         _mail_con.connect(*itr);
                         _mail_con.set_last_sync_time( _profile->get_last_sync_time() );
 
@@ -135,24 +136,41 @@ namespace bts {
           /// \see mail::connection_delegate interface description.
           virtual void on_connection_message( mail::connection& c, const mail::message& m ) override
           {
-             if( m.type == bts::bitchat::encrypted_message::type )
-             {
-                auto pm = m.as<bts::bitchat::encrypted_message>();
-                for( auto key = _keys.begin(); key != _keys.end(); ++key )
-                {
-                   bts::bitchat::decrypted_message dm;
-                   if( pm.decrypt( *key, dm ) )
-                      bitchat_message_received( dm );
-                }
-                _profile->set_last_sync_time( pm.timestamp );
+             try {
+               if( m.type == bts::bitchat::encrypted_message::type )
+               {
+                  auto pm = m.as<bts::bitchat::encrypted_message>();
+                  for( auto key = _keys.begin(); key != _keys.end(); ++key )
+                  {
+                     bts::bitchat::decrypted_message dm;
+                     if( pm.decrypt( *key, dm ) )
+                        bitchat_message_received( dm );
+                  }
+                  //added sanity check, but now pm.timestamp should always be >= last_sync_time
+                  //because we use mailserver's receive time for timestamp now
+                  if (pm.timestamp > _profile->get_last_sync_time())
+                    {
+                    _profile->set_last_sync_time( pm.timestamp );
+                    ilog("last_sync_time now: ${t}",("t",_profile->get_last_sync_time()));
+                    }
+                  else if (pm.timestamp == _profile->get_last_sync_time())
+                    ilog("timestamp = last_sync_time = ${t}",("t",pm.timestamp));
+                  else
+                    wlog("timestamp = ${t} < sync_time = ${st}",("t",pm.timestamp)("st",_profile->get_last_sync_time()));
+               }
+               if( m.type == bts::bitchat::server_info_message::type )
+               {
+                   server_time_offset = fc::time_point::now() - m.as<bts::bitchat::server_info_message>().server_time;
+               }
              }
-             if( m.type == bts::bitchat::server_info_message::type )
+             catch (fc::exception e)
              {
-                 server_time_offset = fc::time_point::now() - m.as<bts::bitchat::server_info_message>().server_time;
+               if(_delegate != nullptr)
+                 _delegate->message_transmission_finished(true);
+               throw e;
              }
-
              if(_delegate != nullptr)
-               _delegate->message_transmission_finished(true);
+                _delegate->message_transmission_finished(true);
           }
           
           /// \see mail::connection_delegate interface description.
@@ -522,7 +540,9 @@ namespace bts {
      bitchat::decrypted_message msg( email_no_bcc_list );
      msg.sign(from);
      auto cipher_message = msg.encrypt( to );
+     //note: this "sent" timestamp will be overwritten by cmail server's receive time for now
      cipher_message.timestamp = fc::time_point::now() + my->server_time_offset;
+     ilog( "send_email at ${t}",("t",cipher_message.timestamp));
      my->_mail_con.send( mail::message( cipher_message) );
      //my->_bitchat_client->send_message( msg, to, 0/* chan 0 */ );
 

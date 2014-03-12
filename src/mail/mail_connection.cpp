@@ -31,7 +31,7 @@ namespace mail {
           connection_delegate* con_del;
 
           fc::time_point _sync_time;
-          bts::db::level_map<fc::time_point,bts::bitchat::encrypted_message>*   _db;
+          bts::db::level_map<fc::time_point,bts::bitchat::encrypted_message>*   _mail_db;
 
           /** used to ensure that messages are written completely */
           fc::mutex              write_lock;
@@ -52,7 +52,7 @@ namespace mail {
                   char tmp[BUFFER_SIZE];
                   sock->read( tmp, BUFFER_SIZE );
                   memcpy( (char*)&m, tmp, sizeof(message_header) );
-                  if(con_del->on_message_transmission_started(self, m) == false)
+                  if(!con_del->on_message_transmission_started(self, m))
                     break;
 
                   m.data.resize( m.size + 16 ); //give extra 16 bytes to allow for padding added in send call
@@ -73,43 +73,23 @@ namespace mail {
             } 
             catch ( const fc::canceled_exception& e )
             {
-              if( con_del )
-              {
-                con_del->on_connection_disconnected( self );
-              }
-              else
-              {
-          //      wlog( "disconnected ${e}", ("e", e.to_detail_string() ) );
-              }
+              ilog( "disconnected ${e}", ("e", e.to_detail_string() ) );
             }
             catch ( const fc::eof_exception& e )
             {
-              if( con_del )
-              {
-                con_del->on_connection_disconnected( self );
-              }
-              else
-              {
-                wlog( "disconnected ${e}", ("e", e.to_detail_string() ) );
-              }
+              wlog( "disconnected ${e}", ("e", e.to_detail_string() ) );
             }
-            catch ( fc::exception& er )
+            catch ( fc::exception& e )
             {
-              if( con_del )
-              {
-                elog( "disconnected ${er}", ("er", er.to_detail_string() ) );
-                con_del->on_connection_disconnected( self );
-              }
-              else
-              {
-                elog( "disconnected ${e}", ("e", er.to_detail_string() ) );
-              }
-              FC_RETHROW_EXCEPTION( er, warn, "disconnected ${e}", ("e", er.to_detail_string() ) );
+              elog( "disconnected ${e}", ("e", e.to_detail_string() ) );
             }
             catch ( ... )
             {
-              // TODO: call con_del->????
-              FC_THROW_EXCEPTION( unhandled_exception, "disconnected: {e}", ("e", fc::except_str() ) );
+              elog( "unhandled_exception, disconnected: {e}", ("e", fc::except_str() ) );
+            }
+            if( con_del )
+            {
+              con_del->on_connection_disconnected( self );
             }
           }
      };
@@ -148,10 +128,14 @@ namespace mail {
         // and cause us all kinds of grief
         my->con_del = nullptr; 
 
-        close();
-        if( my->read_loop_complete.valid() )
+        try { close(); }
+        catch ( const fc::exception& e )
         {
-          my->read_loop_complete.wait();
+          wlog( "unhandled exception on close:\n${e}", ("e", e.to_detail_string()) );   
+        }
+        catch ( ... )
+        {
+          elog( "unhandled exception on close ${e}", ("e", fc::except_str()) );   
         }
         if( my->exec_sync_loop_complete.valid() )
         {
@@ -259,7 +243,8 @@ namespace mail {
           while( !my->exec_sync_loop_complete.canceled() )
           {
              //ilog( "sync time ${t}", ("t",my->_sync_time) );
-             auto itr = my->_db->lower_bound( my->_sync_time );
+             //send any messages after _sync_time
+             auto itr = my->_mail_db->lower_bound( my->_sync_time + fc::microseconds(1));
              if( !itr.valid() )
              {
               ilog( "no valid message found" );
@@ -274,7 +259,7 @@ namespace mail {
                 ++itr;
              }
              fc::usleep( fc::seconds(15) );
-          }
+          } //while sync loop not canceled
         } 
         catch ( const fc::exception& e )
         {
@@ -289,7 +274,7 @@ namespace mail {
 
   void connection::set_database( bts::db::level_map<fc::time_point,bts::bitchat::encrypted_message>* db )
   {
-     my->_db = db;
+     my->_mail_db = db;
   }
 
 

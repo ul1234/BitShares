@@ -4,14 +4,28 @@
 #include <fc/interprocess/mmap_struct.hpp>
 #include <bts/config.hpp>
 
-struct age_index
+struct age_index0
 {
-  age_index(){}
-  age_index( fc::time_point_sec ts, const fc::uint128& id )
-  :timestamp(ts),message_id(id){}
+  age_index0(){}
+  age_index0( fc::time_point_sec ts, const fc::uint128& id ) : timestamp(ts), message_id(id) {}
 
   fc::time_point_sec timestamp;
   fc::uint128        message_id;
+};
+FC_REFLECT( age_index0, (timestamp)(message_id) );
+
+struct age_index
+{
+  age_index(){}
+  age_index(const age_index0 old)
+       {
+       timestamp = old.timestamp;
+       message_id = old.message_id;
+       }
+  age_index( fc::time_point ts, const fc::uint128& id ) : timestamp(ts), message_id(id) {}
+
+  fc::time_point timestamp;
+  fc::uint128    message_id;
 };
 FC_REFLECT( age_index, (timestamp)(message_id) );
 
@@ -48,7 +62,7 @@ namespace bts { namespace bitchat {
 
           void purge_old()
           { try {
-             fc::time_point_sec expired = fc::time_point::now() - fc::seconds( BITCHAT_CACHE_WINDOW_SEC );
+             fc::time_point expired = fc::time_point::now() - fc::seconds( BITCHAT_CACHE_WINDOW_SEC );
              auto itr = _age_index.begin();
              while( itr.valid() )
              {
@@ -93,7 +107,25 @@ namespace bts { namespace bitchat {
   { try {
        fc::create_directories( db_dir / "message_cache" );
        my->_cache_by_id.open( db_dir / "message_cache" / "by_id"  );
-       my->_age_index.open( db_dir / "message_cache" / "age_index"  );
+       fc::path age_index_path(db_dir / "message_cache" / "age_index1");
+       if (fc::exists(age_index_path))
+       {
+          my->_age_index.open( db_dir / "message_cache" / "age_index1"  );
+       }
+       else //update old database to new format that uses time_point
+       {
+          db::level_pod_map<age_index0,uint32_t> old_age_index;
+          old_age_index.open( db_dir / "message_cache" / "age_index"  );
+          my->_age_index.open( db_dir / "message_cache" / "age_index1"  );
+          auto old_iter = old_age_index.begin();
+          while (old_iter.valid())
+          {
+             age_index new_age_index(old_iter.key());
+             my->_age_index.store(new_age_index,old_iter.value());
+             ++old_iter;
+          }
+
+       }
        my->_stats.open( db_dir / "message_cache" / "stats", true ); 
 
 
@@ -125,15 +157,13 @@ namespace bts { namespace bitchat {
   } FC_RETHROW_EXCEPTIONS( warn, "", ("msg",msg) ) }
 
   std::vector<fc::uint128> message_cache::get_inventory( const fc::time_point& start_time, const fc::time_point& end_time )
-  {
-      fc::time_point_sec endtime(end_time);
-      
+  {      
       std::vector<fc::uint128> invent;
       auto itr = my->_age_index.lower_bound( age_index(start_time,fc::uint128()) );
       while( itr.valid() )
       {
           auto key = itr.key();
-          if( key.timestamp > endtime ) 
+          if( key.timestamp > end_time ) 
           {
              return invent;
           }

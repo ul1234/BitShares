@@ -277,25 +277,25 @@ namespace bts { namespace bitchat {
           void handle_priv_msg( const connection_ptr& c, chan_data& cd, encrypted_message&& msg )
           {
              ilog( "${msg}", ("msg",msg) );
-              auto mid = msg.id();
+              auto msg_id = msg.id();
               // TODO: verify that we requested this message
               
               FC_ASSERT( msg.validate_proof() );
               FC_ASSERT( msg.difficulty() >= target_difficulty );
 
               // track messages that I've requested and make sure that no one sends us a msg we haven't requested
-              if( priv_msgs.find(mid) == priv_msgs.end() )
+              if( priv_msgs.find(msg_id) == priv_msgs.end() )
               {
 
                  // must not be more than 30 minutes old
                  if( (fc::time_point::now() - msg.timestamp) < fc::seconds(60*30) &&
                       msg.timestamp < (fc::time_point::now()+fc::seconds(60*5)) ) 
                  {
-                    new_msgs.push_back( mid ); // store so message can be broadcast... but only if time is right
-                    msg_time_index[fc::time_point::now()] = mid;
+                    new_msgs.push_back( msg_id ); // store so message can be broadcast... but only if time is right
+                    msg_time_index[fc::time_point::now()] = msg_id;
                  }   
 
-                 const encrypted_message& m = (priv_msgs[mid] = std::move(msg));
+                 const encrypted_message& m = (priv_msgs[msg_id] = std::move(msg));
 
                  _message_cache.cache( m );
 
@@ -351,7 +351,7 @@ namespace bts { namespace bitchat {
   {
       //TODO: make 5 minute a constant in bts/config.hpp
       FC_ASSERT( fc::time_point::now() - m.timestamp  <  fc::seconds(60*5) );
-      FC_ASSERT( fc::time_point(m.timestamp) <= fc::time_point::now() );
+      FC_ASSERT( m.timestamp <= fc::time_point::now() );
 
       auto id = m.id();
       my->priv_msgs[ id ] = std::move(m);

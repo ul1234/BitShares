@@ -105,13 +105,17 @@ namespace mail {
             //       if( pm.validate_proof() )
                    if( m.size < 1024*1024*2 ) // 2 MB limit...
                    {
-                      _message_db.store( fc::time_point::now(), pm );
+                      fc::time_point received_time = fc::time_point::now();
+                      pm.timestamp = received_time;
+                      _message_db.store( received_time, pm );
                    }
                }
                else if( m.type == bts::bitchat::client_info_message::type )
                {
                    auto ci = m.as<bts::bitchat::client_info_message>();
                    ilog( "sync from time ${t}  server time ${st}", ("t", ci.sync_time )("st",fc::time_point::now()) );
+                   if (ci.sync_time < c.get_last_sync_time())
+                     wlog("client requested earlier sync time: ${t} < ${oldt}",("t",ci.sync_time)("oldt",c.get_last_sync_time()));
                    c.set_last_sync_time( ci.sync_time );
                    if( c.get_last_sync_time() != fc::time_point() )
                    {

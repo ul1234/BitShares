@@ -9,8 +9,8 @@ namespace mail {
 
   struct message_header
   {
-     uint32_t  size;
-     uint32_t  type;
+     uint32_t  size; //number of bytes in message
+     uint32_t  type; //type of message, used to properly unpack different msg types, also basis for msg versioning
   };
   #define MAIL_PACKED_MESSAGE_HEADER 8
   #define MAIL_MESSAGE_HEADER_SIZE_FIELD_SIZE 4

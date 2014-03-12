@@ -724,7 +724,7 @@ namespace bts { namespace bitname {
               
               // TODO: validate that all ids reported have the min proof of work for a name.
 
-              ilog( "received ${x} block headers", ("msg",msg.headers.size() ) );
+              ilog( "received ${msg} block headers", ("msg",msg.headers.size() ) );
               _fork_db.cache_header( msg.first );
               _new_block_info = true;
               name_id_type prev_id = msg.first.id();

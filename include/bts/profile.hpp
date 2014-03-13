@@ -103,6 +103,8 @@ namespace bts {
       bitchat::message_db_ptr       get_pending_db()const;
       bitchat::message_db_ptr       get_sent_db()const;
       bitchat::message_db_ptr       get_chat_db()const;
+      bitchat::message_db_ptr       get_request_db()const;
+      bitchat::message_db_ptr       get_auth_db()const;
       addressbook::addressbook_ptr  get_addressbook()const;
       keychain                      get_keychain()const;
       std::wstring                  get_name()const;

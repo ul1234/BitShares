@@ -227,9 +227,16 @@ namespace mail {
   {
      if( get_socket()->get_socket().is_open() )
      {
-         return my->remote_ep = get_socket()->get_socket().remote_endpoint();
+        try {
+          return my->remote_ep = get_socket()->get_socket().remote_endpoint();
+        }
+        catch (std::exception)
+        {
+        ilog("socket's remote endpoint threw an exception, just return cached endpoint");
+        }
      }
-     // TODO: document why we are not throwing an exception if there is no remote endpoint?
+     // Even if the socket is closed, we still need to return the endpoint, because this is used
+     // to lookup the associated connection object in the connections map to destruct it.
      return my->remote_ep;
   }
 

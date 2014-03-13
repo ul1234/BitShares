@@ -166,7 +166,7 @@ namespace bts {
              catch (fc::exception e)
              {
                if(_delegate != nullptr)
-                 _delegate->message_transmission_finished(true);
+                 _delegate->message_transmission_finished(false);
                throw e;
              }
              if(_delegate != nullptr)
@@ -174,13 +174,19 @@ namespace bts {
           }
           
           /// \see mail::connection_delegate interface description.
-          virtual void on_connection_disconnected( mail::connection& c )
+          virtual void on_connection_disconnected(mail::connection& c) override
           {
              if(_delegate != nullptr)
                _delegate->message_transmission_finished(false);
 
             _mail_connected = false;
             start_mail_connect_loop();
+          }
+
+          virtual void on_message_transmission_failed() override
+          {
+            if(_delegate != nullptr)
+              _delegate->message_transmission_finished(false);
           }
 
         /// Other implementation helpers:

@@ -128,6 +128,11 @@ namespace mail {
                }
           }
 
+          virtual void on_message_transmission_failed() override
+          {
+            /// Nothing to do here
+          }
+
 
           virtual void on_connection_disconnected( connection& c ) override
           {

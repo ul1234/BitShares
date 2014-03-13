@@ -32,6 +32,9 @@ namespace mail {
             for further processing.
         */
         virtual void on_connection_message( connection& c, const message& m ) = 0;
+        /// Called when reading a transmitted message caused an exception (not connection related).
+        virtual void on_message_transmission_failed() = 0;
+
         /// Called when connection has been lost.
         virtual void on_connection_disconnected( connection& c ) = 0;
 
@@ -39,8 +42,6 @@ namespace mail {
         /// Only implementation is responsible for this object lifetime.
         virtual ~connection_delegate() {}
    };
-
-
 
    /**
     *  Manages a connection to a remote p2p node. A connection

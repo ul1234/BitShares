@@ -54,24 +54,25 @@ namespace mail {
                   char tmp[BUFFER_SIZE];
                   sock->read( tmp, BUFFER_SIZE );
                   memcpy( (char*)&m, tmp, sizeof(message_header) );
-                  if(con_del->on_message_transmission_started(self, m) == false)
+                  if(!con_del->on_message_transmission_started(self, m))
                     break;
 
                   m.data.resize( m.size + 16 ); //give extra 16 bytes to allow for padding added in send call
                   memcpy( (char*)m.data.data(), tmp + sizeof(message_header), LEFTOVER );
                   sock->read( m.data.data() + LEFTOVER, 16*((m.size -LEFTOVER + 15)/16) );
 
-                  try { // message handling errors are warnings... 
+                  try { // message handling errors are warnings...
                     con_del->on_connection_message( self, m );
                   } 
+                  /// Dedicated catches needed to distinguish from general fc::exception
                   catch ( fc::canceled_exception& e ) { throw e; }
                   catch ( fc::eof_exception& e ) { throw e; }
                   catch ( fc::exception& e ) 
                   { 
                     /// Here loop should be continued so exception should be just caught locally.
-                    wlog( "disconnected ${er}", ("er", e.to_detail_string() ) );
+                    wlog( "message transmission failed ${er}", ("er", e.to_detail_string() ) );
                     if(con_del != nullptr)
-                      con_del->on_connection_disconnected(self);
+                      con_del->on_message_transmission_failed();
                   }
                }
             } 
@@ -87,13 +88,13 @@ namespace mail {
               if( con_del )
                 con_del->on_connection_disconnected( self );
             }
-            catch ( fc::exception& er )
+            catch ( fc::exception& e )
             {
-              elog( "disconnected ${er}", ("er", er.to_detail_string() ) );
+              elog( "disconnected ${er}", ("er", e.to_detail_string() ) );
               if( con_del )
                 con_del->on_connection_disconnected( self );
 
-              FC_RETHROW_EXCEPTION( er, warn, "disconnected ${e}", ("e", er.to_detail_string() ) );
+              FC_RETHROW_EXCEPTION( e, warn, "disconnected ${e}", ("e", e.to_detail_string() ) );
             }
             catch ( ... )
             {
@@ -141,11 +142,11 @@ namespace mail {
         try { close(); }
         catch ( const fc::exception& e )
         {
-          wlog( "unhandled exception on close:\n${e}", ("e", e.to_detail_string()) );   
+          wlog( "unhandled exception on close:\n${e}", ("e", e.to_detail_string()) );
         }
         catch ( ... )
         {
-          elog( "unhandled exception on close ${e}", ("e", fc::except_str()) );   
+          elog( "unhandled exception on close ${e}", ("e", fc::except_str()) );
         }
         if( my->exec_sync_loop_complete.valid() )
         {
@@ -237,9 +238,16 @@ namespace mail {
   {
      if( get_socket()->get_socket().is_open() )
      {
-         return my->remote_ep = get_socket()->get_socket().remote_endpoint();
+        try {
+          return my->remote_ep = get_socket()->get_socket().remote_endpoint();
+        }
+        catch (std::exception)
+        {
+        ilog("socket's remote endpoint threw an exception, just return cached endpoint");
+        }
      }
-     // TODO: document why we are not throwing an exception if there is no remote endpoint?
+     // Even if the socket is closed, we still need to return the endpoint, because this is used
+     // to lookup the associated connection object in the connections map to destruct it.
      return my->remote_ep;
   }
 

@@ -35,6 +35,12 @@ namespace bts {
             bitchat::message_db_ptr                         _pending_db;
             bitchat::message_db_ptr                         _sent_db;
             bitchat::message_db_ptr                         _chat_db;
+            // current authorization requests - requiring user action (accept, reject, block),
+            //    not handled queries are stored and loaded every time when start the application
+            //  so there is no need to search the entire database _auth_db
+            bitchat::message_db_ptr                         _request_db;
+            // database of all served requests of authorization
+            bitchat::message_db_ptr                         _auth_db;
             db::level_map<std::string, addressbook::wallet_identity>            _idents;
             std::wstring                                    _profile_name;
             
@@ -60,6 +66,8 @@ namespace bts {
     my->_pending_db  = std::make_shared<bitchat::message_db>();
     my->_sent_db  = std::make_shared<bitchat::message_db>();
     my->_chat_db = std::make_shared<bitchat::message_db>();
+    my->_request_db= std::make_shared<bitchat::message_db>();
+    my->_auth_db = std::make_shared<bitchat::message_db>();
   }
   
 
@@ -113,6 +121,8 @@ namespace bts {
       fc::create_directories( profile_dir / "mail" / "pending" );
       fc::create_directories( profile_dir / "mail" / "sent" );
       fc::create_directories( profile_dir / "chat" );
+      fc::create_directories( profile_dir / "request" );
+      fc::create_directories( profile_dir / "authorization" );
 
       ilog("loading master key file:" KEYHOTEE_MASTER_KEY_FILE);
       auto profile_cfg_key         = fc::sha512::hash( password.c_str(), password.size() );
@@ -135,6 +145,8 @@ namespace bts {
       my->_pending_db->open( profile_dir / "mail" / "pending", profile_cfg_key );
       my->_sent_db->open( profile_dir / "mail" / "sent", profile_cfg_key );
       my->_chat_db->open( profile_dir / "chat", profile_cfg_key );
+      my->_request_db->open( profile_dir / "request", profile_cfg_key );
+      my->_auth_db->open( profile_dir / "authorization", profile_cfg_key );
       my->_last_sync_time.open( profile_dir / "mail" / "last_recv", true );
       if( *my->_last_sync_time == fc::time_point() )
       {
@@ -202,6 +214,8 @@ namespace bts {
   bitchat::message_db_ptr profile::get_pending_db() const { return my->_pending_db; }
   bitchat::message_db_ptr profile::get_sent_db() const { return my->_sent_db; }
   bitchat::message_db_ptr profile::get_chat_db() const { return my->_chat_db; }
+  bitchat::message_db_ptr profile::get_request_db() const {return my->_request_db; }
+  bitchat::message_db_ptr profile::get_auth_db() const {return my->_auth_db; }
 
   addressbook::addressbook_ptr profile::get_addressbook() const { return my->_addressbook; }
 

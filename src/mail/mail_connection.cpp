@@ -45,6 +45,8 @@ namespace mail {
           {
             const int BUFFER_SIZE = 16;
             const int LEFTOVER = BUFFER_SIZE - sizeof(message_header);
+            assert(BUFFER_SIZE >= sizeof(message_header));
+
             try {
                message m;
                while( true )
@@ -59,37 +61,46 @@ namespace mail {
                   memcpy( (char*)m.data.data(), tmp + sizeof(message_header), LEFTOVER );
                   sock->read( m.data.data() + LEFTOVER, 16*((m.size -LEFTOVER + 15)/16) );
 
-                  try { // message handling errors are warnings... 
+                  try { // message handling errors are warnings...
                     con_del->on_connection_message( self, m );
                   } 
-                  catch ( fc::canceled_exception& e ) { throw; }
-                  catch ( fc::eof_exception& e ) { throw; }
+                  /// Dedicated catches needed to distinguish from general fc::exception
+                  catch ( fc::canceled_exception& e ) { throw e; }
+                  catch ( fc::eof_exception& e ) { throw e; }
                   catch ( fc::exception& e ) 
                   { 
-                     wlog( "disconnected ${er}", ("er", e.to_detail_string() ) );
-                     // TODO: log and potentiall disconnect... for now just warn.
+                    /// Here loop should be continued so exception should be just caught locally.
+                    wlog( "message transmission failed ${er}", ("er", e.to_detail_string() ) );
+                    if(con_del != nullptr)
+                      con_del->on_message_transmission_failed();
                   }
                }
             } 
             catch ( const fc::canceled_exception& e )
             {
-              ilog( "disconnected ${e}", ("e", e.to_detail_string() ) );
+              wlog( "disconnected ${e}", ("e", e.to_detail_string() ) );
+              if( con_del )
+                con_del->on_connection_disconnected( self );
             }
             catch ( const fc::eof_exception& e )
             {
               wlog( "disconnected ${e}", ("e", e.to_detail_string() ) );
+              if( con_del )
+                con_del->on_connection_disconnected( self );
             }
             catch ( fc::exception& e )
             {
-              elog( "disconnected ${e}", ("e", e.to_detail_string() ) );
+              elog( "disconnected ${er}", ("er", e.to_detail_string() ) );
+              if( con_del )
+                con_del->on_connection_disconnected( self );
+
+              FC_RETHROW_EXCEPTION( e, warn, "disconnected ${e}", ("e", e.to_detail_string() ) );
             }
             catch ( ... )
             {
-              elog( "unhandled_exception, disconnected: {e}", ("e", fc::except_str() ) );
-            }
-            if( con_del )
-            {
-              con_del->on_connection_disconnected( self );
+              if( con_del )
+                con_del->on_connection_disconnected( self );
+              FC_THROW_EXCEPTION( unhandled_exception, "disconnected: {e}", ("e", fc::except_str() ) );
             }
           }
      };
@@ -131,11 +142,11 @@ namespace mail {
         try { close(); }
         catch ( const fc::exception& e )
         {
-          wlog( "unhandled exception on close:\n${e}", ("e", e.to_detail_string()) );   
+          wlog( "unhandled exception on close:\n${e}", ("e", e.to_detail_string()) );
         }
         catch ( ... )
         {
-          elog( "unhandled exception on close ${e}", ("e", fc::except_str()) );   
+          elog( "unhandled exception on close ${e}", ("e", fc::except_str()) );
         }
         if( my->exec_sync_loop_complete.valid() )
         {

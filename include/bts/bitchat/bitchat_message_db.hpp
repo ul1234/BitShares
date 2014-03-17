@@ -20,7 +20,7 @@ namespace bts { namespace bitchat {
 
   struct message_header
   {
-      message_header():read_mark(false){}
+      message_header():state_mark(0x00){}
 
       fc::enum_type<uint32_t,private_message_type>   type;
       fc::time_point_sec                             received_time;
@@ -31,7 +31,16 @@ namespace bts { namespace bitchat {
       fc::ecc::compact_signature                     from_sig;
       fc::time_point_sec                             from_sig_time;
       fc::time_point_sec                             ack_time;   // the time the ack for this msg was received
-      bool                                           read_mark;  // whether or not the user has read the message
+      uint8_t                                        state_mark;  // set of mark: 0x01 - read, 0x02 - replied, 0x04 - forwarded
+
+      void setRead()      {state_mark = state_mark | 0x01;}
+      void setUnread()    {state_mark = state_mark & 0xFE;}
+      void setReplied()   {state_mark = state_mark | 0x02;}
+      void setForwarded() {state_mark = state_mark | 0x04;}
+
+      bool isRead() const       {return (state_mark & 0x01) != 0;}
+      bool isReplied() const    {return (state_mark & 0x02) != 0;}
+      bool isForwarded() const  {return (state_mark & 0x04) != 0;}
   };
   
   /**
@@ -117,6 +126,6 @@ FC_REFLECT( bts::bitchat::message_header,
     (from_sig)
     (from_sig_time)
     (ack_time)
-    (read_mark)
+    (state_mark)
     (status)
     )

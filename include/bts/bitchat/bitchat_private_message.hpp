@@ -217,6 +217,7 @@ namespace bts { namespace bitchat {
        std::string                        body;
        std::vector<attachment>            attachments;
        std::vector<fc::ecc::public_key>   bcc_list;
+       fc::optional<fc::uint256>          src_msg_id; /// id of the message to which replied or forwarded
     };
 
 

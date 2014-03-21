@@ -32,15 +32,22 @@ namespace bts { namespace bitchat {
       fc::time_point_sec                             from_sig_time;
       fc::time_point_sec                             ack_time;   // the time the ack for this msg was received
       uint8_t                                        state_mark;  // set of mark: 0x01 - read, 0x02 - replied, 0x04 - forwarded
+                                                                  // draft_box - temporary information that the current message is a reply or a forwarded
+                                                                  // 0x10 - reply, 0x20 - message forwarded
 
       void setRead()      {state_mark = state_mark | 0x01;}
       void setUnread()    {state_mark = state_mark & 0xFE;}
       void setReplied()   {state_mark = state_mark | 0x02;}
       void setForwarded() {state_mark = state_mark | 0x04;}
+      void setTempReply() {state_mark = state_mark | 0x10;}
+      void setTempForwa() {state_mark = state_mark | 0x20;}
+      void clearTemp()    {state_mark = state_mark & 0xCF;}
 
       bool isRead() const       {return (state_mark & 0x01) != 0;}
       bool isReplied() const    {return (state_mark & 0x02) != 0;}
       bool isForwarded() const  {return (state_mark & 0x04) != 0;}
+      bool isTempReply() const  {return (state_mark & 0x10) != 0;}
+      bool isTempForwa() const  {return (state_mark & 0x20) != 0;}
   };
   
   /**

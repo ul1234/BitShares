@@ -47,6 +47,8 @@ namespace bts {
     virtual void received_email(const bitchat::decrypted_message& msg) = 0;
     /// Called when authorization request message has been received.
     virtual void received_request(const bitchat::decrypted_message& msg) = 0;
+    /// Called when unsupported message has been received.
+    virtual void received_unsupported_msg(const bitchat::decrypted_message& msg) = 0;
     /** Called when message transmission has been finished (independently to received_email which
         is called only when mail message has been sent to 'this' client).
         \param success - determines that already started message transmission has failed (ie because of connection lost).
@@ -112,7 +114,7 @@ namespace bts {
       bool  is_mail_connected()const;
       void  send_contact_request( const bitchat::private_contact_request_message& reqmsg,
                                   const fc::ecc::public_key& to, const fc::ecc::private_key& from );
-      void  send_email( const bitchat::private_email_message& email, 
+      void  send_email( const bitchat::private_email_message1& email, 
                         const fc::ecc::public_key& to, const fc::ecc::private_key& from );
       void  send_text_message( const bitchat::private_text_message& txtmsg, 
                                const fc::ecc::public_key& to, const fc::ecc::private_key& from );

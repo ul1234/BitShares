@@ -19,6 +19,7 @@ const private_message_type private_email_message::type = email_msg;
 const private_message_type private_contact_request_message::type = contact_request_msg;
 const private_message_type private_contact_auth_message::type = contact_auth_msg;
 const private_message_type private_status_message::type = status_msg;
+const private_message_type private_email_message1::type = email_msg1;
 
 //==========================================================         encrypted_message0
 encrypted_message0::encrypted_message0()

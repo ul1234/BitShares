@@ -206,6 +206,8 @@ namespace bts {
             if( _profile ) _profile->cache( msg );
             switch( msg.msg_type )
             {
+              case bitchat::private_message_type::unknown_msg:
+                break;
               case bitchat::private_message_type::text_msg:
               {
                 auto txt = msg.as<bitchat::private_text_message>();
@@ -227,6 +229,22 @@ namespace bts {
                 ilog( "request message ${msg}", ("msg", request) );
                 if( _delegate ) _delegate->received_request( msg );
                 break;
+              }
+              case bitchat::private_message_type::contact_auth_msg:
+                break;
+              case bitchat::private_message_type::status_msg:
+                break;
+              case bitchat::private_message_type::email_msg1:
+              {
+                auto email = msg.as<bitchat::private_email_message1>();
+                ilog( "email message 1 ${msg}", ("msg",email) );
+                if( _delegate ) _delegate->received_email( msg );
+                break;
+              }
+              default:
+              {
+                ilog("received unsupported message");
+                if( _delegate ) _delegate->received_unsupported_msg( msg );
               }
             }
           }
@@ -535,13 +553,13 @@ namespace bts {
     FC_RETHROW_EXCEPTIONS( warn, "" )
   }
 
-  void  application::send_email( const bitchat::private_email_message& email, 
+  void  application::send_email( const bitchat::private_email_message1& email, 
                                  const fc::ecc::public_key& to, const fc::ecc::private_key& from )
   { try {
      FC_ASSERT( my->_config );
      //DLNFIX Later change to using derived class which has bcc_list as requested by bytemaster,
      //       but this is safer for now.
-     bitchat::private_email_message email_no_bcc_list(email);
+     bitchat::private_email_message1 email_no_bcc_list(email);
      email_no_bcc_list.bcc_list.clear();
      bitchat::decrypted_message msg( email_no_bcc_list );
      msg.sign(from);

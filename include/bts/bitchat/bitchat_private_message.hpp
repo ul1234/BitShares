@@ -122,7 +122,8 @@ namespace bts { namespace bitchat {
        email_msg            = 2,
        contact_request_msg  = 3,
        contact_auth_msg     = 4,
-       status_msg           = 5
+       status_msg           = 5,
+       email_msg1           = 6 /// for private_email_message1
     };
 
     /**
@@ -217,9 +218,27 @@ namespace bts { namespace bitchat {
        std::string                        body;
        std::vector<attachment>            attachments;
        std::vector<fc::ecc::public_key>   bcc_list;
-       fc::optional<fc::uint256>          src_msg_id; /// id of the message to which replied or forwarded
     };
 
+    struct private_email_message1 : public private_email_message
+    {
+      private_email_message1(){}
+
+      private_email_message1(const private_email_message& msg) //upgrade from old private_email_message format
+      {
+        from_keyhotee_id  = msg.from_keyhotee_id;
+        to_list           = msg.to_list;
+        cc_list           = msg.cc_list;
+        subject           = msg.subject;
+        body              = msg.body;
+        attachments       = msg.attachments;
+        bcc_list          = msg.bcc_list;
+      }
+
+      static const private_message_type  type;
+
+      fc::optional<fc::uint256>          src_msg_id; /// id of the message to which replied or forwarded
+    };
 
     struct private_contact_auth_message 
     {
@@ -271,7 +290,7 @@ FC_REFLECT_ENUM( bts::bitchat::message_type,
        (get_cache_priv_msg)
        (encrypted_msg) )
 
-FC_REFLECT_ENUM( bts::bitchat::private_message_type, (unknown_msg)(text_msg)(email_msg)(contact_request_msg)(contact_auth_msg)(status_msg) )
+FC_REFLECT_ENUM( bts::bitchat::private_message_type, (unknown_msg)(text_msg)(email_msg)(contact_request_msg)(contact_auth_msg)(status_msg)(email_msg1) )
 FC_REFLECT_ENUM( bts::bitchat::compression_type, (no_compression)(smaz_compression)(lzma_compression) )
 FC_REFLECT_ENUM( bts::bitchat::encryption_type, (no_encryption)(blowfish_encryption)(twofish_encryption)(aes_encryption) )
 FC_REFLECT_ENUM( bts::bitchat::authorization_status, (request)(accept)(deny)(block) )
@@ -282,7 +301,10 @@ FC_REFLECT( bts::bitchat::encrypted_message, (noncea)(nonceb)(nonce)(timestamp)(
 
 FC_REFLECT( bts::bitchat::decrypted_message, (msg_type)(data)(sig_time)(from_sig) )
 FC_REFLECT( bts::bitchat::private_text_message, (msg) )
+
 FC_REFLECT( bts::bitchat::private_email_message, (from_keyhotee_id)(to_list)(cc_list)(subject)(body)(attachments)(bcc_list) )
+FC_REFLECT_DERIVED( bts::bitchat::private_email_message1, (bts::bitchat::private_email_message), (src_msg_id) )
+
 FC_REFLECT( bts::bitchat::private_status_message, (status)(status_message) )
 FC_REFLECT( bts::bitchat::private_contact_request_message, (from_first_name)(from_last_name)(from_keyhotee_id)(request_param)
                                                             (greeting_message)(from_channel)(extended_pub_key)(status)(recipient) )

@@ -153,7 +153,7 @@ uint64_t  name_hash( const std::string& n )
   fc::sha256 h = fc::sha256::hash( asciiName.c_str(), asciiName.size() );
 
   // compress it down to 64 bits
-  return fc::city_hash64( (char*)&h, sizeof(h) );
+  return fc::hash64( (char*)&h, sizeof(h) );
 }
 
 } } 

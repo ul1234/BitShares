@@ -19,7 +19,7 @@ namespace bts { namespace bitname {
   short_name_id_type name_header::short_id()const
   {
      auto long_id = id();
-     return fc::city_hash64( (char*)&long_id, sizeof(long_id) );
+     return (short_name_id_type)long_id._hash[1] << 32 | long_id._hash[0];
   }
 
 

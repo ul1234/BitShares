@@ -114,8 +114,12 @@ namespace bts { namespace bitchat {
                                            fc::optional<fc::ecc::public_key_data> from_key  = fc::optional<fc::ecc::public_key_data>());
        
        std::vector<char>            fetch_data(  const fc::uint256& digest );
+
+       message_header               fetch_header(const fc::uint256& digest);
      private:
        std::unique_ptr<detail::message_db_impl> my;
+
+       void update_digest_to_header(const fc::path& dbdir);
   };
 
   typedef std::shared_ptr<message_db> message_db_ptr;

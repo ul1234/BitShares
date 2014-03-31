@@ -38,6 +38,7 @@ namespace bts { namespace bitchat {
        public:
           db::level_pod_map<message_header,uint32_t>    _index;
           db::level_pod_map<fc::uint256,std::vector<char> > _digest_to_data;
+          db::level_pod_map<fc::uint256, message_header>    _digest_to_header;
      };
 
   } // namespace detail
@@ -54,7 +55,23 @@ namespace bts { namespace bitchat {
         fc::create_directories(dbdir);
         my->_index.open(dbdir/"index");
         my->_digest_to_data.open(dbdir/"digest_to_data");
+        if(!fc::is_directory(dbdir/"digest_to_header"))
+          update_digest_to_header(dbdir);
+        else
+          my->_digest_to_header.open(dbdir/"digest_to_header");
   } FC_RETHROW_EXCEPTIONS( warn, "", ("dir", dbdir)("key",key)("create",create)) }
+
+  void message_db::update_digest_to_header(const fc::path& dbdir)
+  {
+    my->_digest_to_header.open(dbdir/"digest_to_header");
+    auto itr = my->_index.begin();
+    while( itr.valid() )
+    {
+      auto cur_val = itr.key();
+      my->_digest_to_header.store(cur_val.digest, cur_val);
+      ++itr;
+    }
+  }
 
   message_header message_db::store_message(const decrypted_message& msg,
                                            const message_header* previous_msg_header )
@@ -78,6 +95,7 @@ namespace bts { namespace bitchat {
 
       // TODO: consider using city128 rather than 256 to reduce index size
       my->_digest_to_data.store( header.digest, msg.data );
+      my->_digest_to_header.store( header.digest, header );
       return header;
   } FC_RETHROW_EXCEPTIONS( warn, "", ("msg",msg) ) }
  
@@ -86,6 +104,7 @@ namespace bts { namespace bitchat {
   {
       my->_index.remove(msg_header);    
       my->_digest_to_data.remove(msg_header.digest);
+      my->_digest_to_header.remove(msg_header.digest);
   }
 
   //update field in header only. If you modify a field in the msg_header that's
@@ -93,11 +112,13 @@ namespace bts { namespace bitchat {
   void message_db::store_message_header(const message_header& msg_header)
   {
       my->_index.store(msg_header,0);
+      my->_digest_to_header.store(msg_header.digest, msg_header);
   } 
 
   void message_db::remove_message_header(const message_header& msg_header)
   {
       my->_index.remove(msg_header);
+      my->_digest_to_header.remove(msg_header.digest);
   } 
 
   std::vector<message_header>  message_db::fetch_headers( private_message_type t, 
@@ -147,5 +168,12 @@ namespace bts { namespace bitchat {
      return my->_digest_to_data.fetch(digest);
   } FC_RETHROW_EXCEPTIONS( warn, "", ("digest",digest ) ) }
 
+  message_header message_db::fetch_header(const fc::uint256& digest)
+  {
+    try
+    {
+      return my->_digest_to_header.fetch(digest);
+    } FC_RETHROW_EXCEPTIONS( warn, "", ("digest",digest))
+  }
 
 } } // bts::bitchat

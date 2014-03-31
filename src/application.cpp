@@ -148,15 +148,16 @@ namespace bts {
                   }
                   //added sanity check, but now pm.timestamp should always be >= last_sync_time
                   //because we use mailserver's receive time for timestamp now
+                  //except in case when we first create a new profile (we use local time then)
                   if (pm.timestamp > _profile->get_last_sync_time())
                     {
-                    _profile->set_last_sync_time( pm.timestamp );
                     ilog("last_sync_time now: ${t}",("t",_profile->get_last_sync_time()));
                     }
                   else if (pm.timestamp == _profile->get_last_sync_time())
                     ilog("timestamp = last_sync_time = ${t}",("t",pm.timestamp));
                   else
                     wlog("timestamp = ${t} < sync_time = ${st}",("t",pm.timestamp)("st",_profile->get_last_sync_time()));
+                  _profile->set_last_sync_time( pm.timestamp );
                }
                if( m.type == bts::bitchat::server_info_message::type )
                {

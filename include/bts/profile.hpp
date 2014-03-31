@@ -39,17 +39,11 @@ namespace bts {
    */
   struct profile_config
   {
-      profile_config()
-      :birth_month(0),birth_day_of_month(0),birth_year(0){}
+      profile_config() {}
 
       std::string firstname;
       std::string middlename;
       std::string lastname;
-      std::string birth_state;
-      uint8_t     birth_month;
-      uint8_t     birth_day_of_month;
-      uint16_t    birth_year;
-      std::string governmentid;
       std::string brainkey;
   };
 
@@ -126,10 +120,5 @@ FC_REFLECT( bts::profile_config,
   (firstname)
   (middlename)
   (lastname)
-  (birth_state)
-  (birth_month)
-  (birth_day_of_month)
-  (birth_year)
-  (governmentid)
   (brainkey)
 )

@@ -88,9 +88,8 @@ namespace bts {
     std::function<void(double)> progress )
   { try {
        fc::sha512::encoder encoder;
-       fc::raw::pack( encoder, password );
        fc::raw::pack( encoder, cfg );
-       auto seed             = encoder.result();
+       auto seed = encoder.result();
 
        /// note: this could take a minute
        auto stretched_seed   = keychain::stretch_seed( seed, progress );

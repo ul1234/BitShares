@@ -51,7 +51,7 @@ namespace bts {
   }
   extended_private_key  keychain::get_identity_key( const std::string& ident )
   {
-    return ext_priv_key.child( fc::city_hash64(ident.c_str(),ident.size()),false );
+    return ext_priv_key.child( fc::hash64(ident.c_str(),ident.size()),false );
   }
 
   extended_private_key  keychain::get_private_account( const std::string& ident, uint32_t i )

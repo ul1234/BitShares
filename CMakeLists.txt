@@ -13,6 +13,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/fc/GitVersionGen")
 INCLUDE(GetGitRevisionDescription)
 
 get_git_head_revision(GIT_REFSPEC GIT_SHA2)
+get_git_unix_timestamp(GIT_UNIX_TIMESTAMP2)
 
 add_subdirectory( vendor/miniupnp/miniupnpc )
 

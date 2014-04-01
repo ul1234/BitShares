@@ -114,13 +114,15 @@ namespace mail {
                {
                    auto ci = m.as<bts::bitchat::client_info_message>();
                    ilog( "sync from time ${t}  server time ${st}", ("t", ci.sync_time )("st",fc::time_point::now()) );
+                   //this is a warning that the client has asked for a sync time earlier than it's last sync time (shouldn't happen)
                    if (ci.sync_time < c.get_last_sync_time())
                      wlog("client requested earlier sync time: ${t} < ${oldt}",("t",ci.sync_time)("oldt",c.get_last_sync_time()));
+                   //if client requested a sync time in the future, just send them mail from last 5 days to get their sync_time fixed
+                   // (the client will use the timestamp of the messages it receives to update it's sync_time)
+                   if (ci.sync_time > fc::time_point::now())
+                     ci.sync_time = fc::time_point::now() - fc::days(5);
                    c.set_last_sync_time( ci.sync_time );
-                   if( c.get_last_sync_time() != fc::time_point() )
-                   {
-                      c.exec_sync_loop();
-                   }
+                   c.exec_sync_loop();
                }
                else
                {

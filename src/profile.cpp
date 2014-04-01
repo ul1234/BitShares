@@ -147,9 +147,9 @@ namespace bts {
       my->_request_db->open( profile_dir / "request", profile_cfg_key );
       my->_auth_db->open( profile_dir / "authorization", profile_cfg_key );
       my->_last_sync_time.open( profile_dir / "mail" / "last_recv", true );
-      if( *my->_last_sync_time == fc::time_point() )
+      if( *my->_last_sync_time == fc::time_point())
       {
-          *my->_last_sync_time = fc::time_point::now() - fc::seconds(60*5);
+          *my->_last_sync_time = fc::time_point::now() - fc::days(5);
           ilog("set last_sync_time to ${t}",("t",*my->_last_sync_time));
       }
       else

@@ -137,9 +137,9 @@ namespace bts { namespace bitchat {
      while( itr.valid() )
      {
         auto cur_val = itr.key();
-        if( cur_val.received_time >= from_time )
+        if (cur_val.received_time >= static_cast<const fc::time_point&>(from_time))
         {
-            if( cur_val.received_time <= to_time )
+          if (cur_val.received_time <= static_cast<const fc::time_point&>(to_time))
             {
                if( to_key && *to_key != cur_val.to_key )
                {

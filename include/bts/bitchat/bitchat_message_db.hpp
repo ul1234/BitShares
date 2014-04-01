@@ -23,14 +23,14 @@ namespace bts { namespace bitchat {
       message_header():state_mark(0x00){}
 
       fc::enum_type<uint32_t,private_message_type>   type;
-      fc::time_point_sec                             received_time;
+      fc::time_point                                 received_time;
       fc::ecc::public_key_data                       to_key;
       fc::ecc::public_key_data                       from_key;
       fc::uint256                                    digest;
       fc::enum_type<uint8_t,message_status>          status;
       fc::ecc::compact_signature                     from_sig;
-      fc::time_point_sec                             from_sig_time;
-      fc::time_point_sec                             ack_time;   // the time the ack for this msg was received
+      fc::time_point                                 from_sig_time;
+      fc::time_point                                 ack_time;   // the time the ack for this msg was received
       uint8_t                                        state_mark;  // set of mark: 0x01 - read, 0x02 - replied, 0x04 - forwarded
                                                                   // draft_box - temporary information that the current message is a reply or a forwarded
                                                                   // 0x10 - reply, 0x20 - message forwarded

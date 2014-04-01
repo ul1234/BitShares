@@ -161,10 +161,10 @@ namespace bts { namespace bitchat {
         /** type of the decrypted, uncompressed message */
         fc::enum_type<fc::unsigned_int,private_message_type>  msg_type;
         std::vector<char>                                     data;
-                                                         
-        fc::time_point_sec                                    sig_time; 
+
+        fc::time_point                                        sig_time;
         fc::optional<fc::ecc::compact_signature>              from_sig;
-                                                               
+
         fc::optional<fc::ecc::public_key>                     from_key;
         fc::optional<fc::ecc::private_key>                    decrypt_key;
     };

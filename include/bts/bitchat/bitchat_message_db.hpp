@@ -44,6 +44,7 @@ namespace bts { namespace bitchat {
       void clearTemp()    {state_mark = state_mark & 0xCF;}
 
       bool isRead() const       {return (state_mark & 0x01) != 0;}
+      bool isUnread() const     {return (state_mark & 0x01) != 1;}
       bool isReplied() const    {return (state_mark & 0x02) != 0;}
       bool isForwarded() const  {return (state_mark & 0x04) != 0;}
       bool isTempReply() const  {return (state_mark & 0x10) != 0;}

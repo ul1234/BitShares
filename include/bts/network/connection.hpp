@@ -17,8 +17,8 @@ namespace bts { namespace network {
    class connection_delegate
    {
       public:
-        virtual ~connection_delegate(){}; 
-        virtual void on_connection_message( connection& c, const message& m ){};
+        virtual ~connection_delegate(){} 
+        virtual void on_connection_message( connection& c, const message& m ){}
         virtual void on_connection_disconnected( connection& c ){}
    };
 

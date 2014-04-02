@@ -1,6 +1,7 @@
 #include <bts/pts_address.hpp>
 #include <bts/small_hash.hpp>
 #include <fc/crypto/base58.hpp>
+#include <fc/crypto/elliptic.hpp>
 #include <fc/crypto/ripemd160.hpp>
 #include <fc/exception/exception.hpp>
 
@@ -23,12 +24,21 @@ namespace bts
       }
    }
 
-   pts_address::pts_address( const fc::ecc::public_key& pub )
+   pts_address::pts_address( const fc::ecc::public_key& pub, bool compressed, uint8_t version )
    {
-       auto dat      = pub.serialize_ecc_point();
-       auto sha2     = fc::sha256::hash(dat.data, sizeof(dat) );
+       fc::sha256 sha2;
+       if( compressed )
+       {
+           auto dat = pub.serialize();
+           sha2     = fc::sha256::hash(dat.data, sizeof(dat) );
+       }
+       else
+       {
+           auto dat = pub.serialize_ecc_point();
+           sha2     = fc::sha256::hash(dat.data, sizeof(dat) );
+       }
        auto rep      = fc::ripemd160::hash((char*)&sha2,sizeof(sha2));
-       addr.data[0]  = 56;
+       addr.data[0]  = version;
        memcpy( addr.data+1, (char*)&rep, sizeof(rep) );
        auto check    = fc::sha256::hash( addr.data, sizeof(rep)+1 );
        check = fc::sha256::hash(check); // double
@@ -37,11 +47,11 @@ namespace bts
 
    /**
     *  Checks the address to verify it has a 
-    *  valid checksum and prefix.
+    *  valid checksum
     */
    bool pts_address::is_valid()const
    {
-       if( addr.data[0]  != 56 ) return false;
+//       if( addr.data[0]  != 56 ) return false;
        auto check    = fc::sha256::hash( addr.data, sizeof(fc::ripemd160)+1 );
        check = fc::sha256::hash(check); // double
        return memcmp( addr.data+1+sizeof(fc::ripemd160), (char*)&check, 4 ) == 0;

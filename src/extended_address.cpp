@@ -112,7 +112,7 @@ namespace bts
       fc::raw::unpack( ds, *this    );
       fc::raw::unpack( ds, checksum );
 
-      FC_ASSERT( checksum == fc::city_hash64( data.data(), sizeof(*this) ) );
+      FC_ASSERT( checksum == fc::hash64( data.data(), sizeof(*this) ) );
 
    } FC_RETHROW_EXCEPTIONS( warn, "decoding address ${address}", ("address",base58str) ) }
 
@@ -130,7 +130,7 @@ namespace bts
    {
 
       std::vector<char> data = fc::raw::pack(*this);
-      uint32_t checksum = uint32_t(fc::city_hash64( data.data(), data.size() ));
+      uint32_t checksum = uint32_t(fc::hash64( data.data(), data.size() ));
 
       data.resize( data.size() + 4 );
       memcpy( data.data() + data.size() - 4, (char*)&checksum, sizeof(checksum) );

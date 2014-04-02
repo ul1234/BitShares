@@ -36,7 +36,7 @@ namespace bts { namespace network {
            }
            void clear_old( const fc::time_point& old )
            {
-             for( auto itr = _known_keys.begin(); itr != known_keys.end(); )
+             for( auto itr = _known_keys.begin(); itr != _known_keys.end(); )
              {
                 if( *itr < old )
                 {

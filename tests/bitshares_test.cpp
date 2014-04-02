@@ -38,7 +38,7 @@ bts::blockchain::trx_block create_test_genesis_block()
 
    // TODO: init from PTS here...
    coinbase.outputs.push_back( 
-      trx_output( claim_by_signature_output( bts::address(test_genesis_private_key().get_public_key()) ), 100*COIN, asset::bts) );
+      trx_output( claim_by_signature_output( bts::address(test_genesis_private_key().get_public_key()) ), asset(100., asset::bts)) );
 
    b.trxs.emplace_back( std::move(coinbase) );
    b.trx_mroot   = b.calculate_merkle_root();

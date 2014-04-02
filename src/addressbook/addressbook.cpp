@@ -1,3 +1,4 @@
+#include <fc/array.hpp>
 #include <bts/addressbook/addressbook.hpp>
 #include <bts/db/level_pod_map.hpp>
 #include <fc/reflect/variant.hpp>

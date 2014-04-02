@@ -1,8 +1,8 @@
 #pragma once
-#include <fc/reflect/reflect.hpp>
-#include <fc/crypto/elliptic.hpp>
 #include <fc/array.hpp>
 #include <string>
+
+namespace fc { namespace ecc { class public_key; } }
 
 namespace bts
 {
@@ -13,8 +13,9 @@ namespace bts
    {
        pts_address(); ///< constructs empty / null address
        pts_address( const std::string& base58str );   ///< converts to binary, validates checksum
-       pts_address( const fc::ecc::public_key& pub ); ///< converts to binary
+       pts_address( const fc::ecc::public_key& pub, bool compressed = false, uint8_t version=56 ); ///< converts to binary
 
+       uint8_t version()const { return addr.at(0); }
        bool is_valid()const;
 
        operator std::string()const; ///< converts to base58 + checksum
@@ -27,14 +28,6 @@ namespace bts
    inline bool operator <  ( const pts_address& a, const pts_address& b ) { return a.addr <  b.addr; }
 
 } // namespace bts
-
-FC_REFLECT( bts::pts_address, (addr) )
-
-namespace fc 
-{ 
-   void to_variant( const bts::pts_address& var,  fc::variant& vo );
-   void from_variant( const fc::variant& var,  bts::pts_address& vo );
-}
 
 namespace std
 {
@@ -50,3 +43,14 @@ namespace std
          }
    };
 }
+
+
+#include <fc/reflect/reflect.hpp>
+FC_REFLECT( bts::pts_address, (addr) )
+
+namespace fc 
+{ 
+   void to_variant( const bts::pts_address& var,  fc::variant& vo );
+   void from_variant( const fc::variant& var,  bts::pts_address& vo );
+}
+

@@ -29,7 +29,7 @@ namespace mail {
           :ser_del(nullptr)
           {}
 
-          ~server_impl()
+          virtual ~server_impl()
           {
              close();
           }
@@ -75,6 +75,14 @@ namespace mail {
                                                                      
           fc::future<void>                                            accept_loop_complete;
                                                                      
+        /// connection_delegate interface implementation:
+          /// \see connection_delegate interface description.
+          virtual bool on_message_transmission_started(connection& c, const message_header& mh) override
+            {
+            /// Probably nothing to do here.
+            return true;
+            }
+
           /**
            *  This is called every time a message is received from c, there are only two
            *  messages supported:  seek to time and broadcast.  When a message is 
@@ -84,7 +92,7 @@ namespace mail {
            *  The difficulty required adjusts every 5 minutes with the goal of maintaining
            *  an average data rate of 1.5 kb/sec from all connections.
            */
-          virtual void on_connection_message( connection& c, const message& m )
+          virtual void on_connection_message( connection& c, const message& m ) override
           {
                // TODO: perhaps do this ASYNC?
                // itr->second->handle_message( c.shared_from_this(), m );
@@ -97,18 +105,24 @@ namespace mail {
             //       if( pm.validate_proof() )
                    if( m.size < 1024*1024*2 ) // 2 MB limit...
                    {
-                      _message_db.store( fc::time_point::now(), pm );
+                      fc::time_point received_time = fc::time_point::now();
+                      pm.timestamp = received_time;
+                      _message_db.store( received_time, pm );
                    }
                }
                else if( m.type == bts::bitchat::client_info_message::type )
                {
                    auto ci = m.as<bts::bitchat::client_info_message>();
                    ilog( "sync from time ${t}  server time ${st}", ("t", ci.sync_time )("st",fc::time_point::now()) );
+                   //this is a warning that the client has asked for a sync time earlier than it's last sync time (shouldn't happen)
+                   if (ci.sync_time < c.get_last_sync_time())
+                     wlog("client requested earlier sync time: ${t} < ${oldt}",("t",ci.sync_time)("oldt",c.get_last_sync_time()));
+                   //if client requested a sync time in the future, just send them mail from last 5 days to get their sync_time fixed
+                   // (the client will use the timestamp of the messages it receives to update it's sync_time)
+                   if (ci.sync_time > fc::time_point::now())
+                     ci.sync_time = fc::time_point::now() - fc::days(5);
                    c.set_last_sync_time( ci.sync_time );
-                   if( c.get_last_sync_time() != fc::time_point() )
-                   {
-                      c.exec_sync_loop();
-                   }
+                   c.exec_sync_loop();
                }
                else
                {
@@ -116,8 +130,13 @@ namespace mail {
                }
           }
 
+          virtual void on_message_transmission_failed() override
+          {
+            /// Nothing to do here
+          }
 
-          virtual void on_connection_disconnected( connection& c )
+
+          virtual void on_connection_disconnected( connection& c ) override
           {
             try {
               ilog( "cleaning up connection after disconnect ${e} remaining connections ${c}", ("e", c.remote_endpoint())("c",connections.size()-1) );

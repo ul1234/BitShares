@@ -1,9 +1,8 @@
 #pragma once
-#include <fc/reflect/reflect.hpp>
-#include <fc/crypto/elliptic.hpp>
 #include <fc/array.hpp>
 #include <string>
 
+namespace fc { namespace ecc { class public_key; } }
 
 namespace bts
 {
@@ -25,8 +24,9 @@ namespace bts
     *
     *  It is stored as 20 bytes.
     */
-   struct address
+   class address
    {
+      public:
        address(); ///< constructs empty / null address
        address( const std::string& base58str );   ///< converts to binary, validates checksum
        address( const fc::ecc::public_key& pub ); ///< converts to binary
@@ -44,7 +44,6 @@ namespace bts
 
 } // namespace bts
 
-FC_REFLECT( bts::address, (addr) )
 
 namespace fc 
 { 
@@ -66,3 +65,6 @@ namespace std
          }
    };
 }
+
+#include <fc/reflect/reflect.hpp>
+FC_REFLECT( bts::address, (addr) )

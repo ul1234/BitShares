@@ -39,17 +39,11 @@ namespace bts {
    */
   struct profile_config
   {
-      profile_config()
-      :birth_month(0),birth_day_of_month(0),birth_year(0){}
+      profile_config() {}
 
       std::string firstname;
       std::string middlename;
       std::string lastname;
-      std::string birth_state;
-      uint8_t     birth_month;
-      uint8_t     birth_day_of_month;
-      uint16_t    birth_year;
-      std::string governmentid;
       std::string brainkey;
   };
 
@@ -80,11 +74,16 @@ namespace bts {
       void  open( const fc::path& profile_dir, const std::string& password );
 
       std::vector<addressbook::wallet_identity>   identities()const;
+
+      void                                        removeIdentity( const std::string& id);
+
+      bool                                        isIdentityPresent( const std::string& id);
+
       void                                        store_identity( const addressbook::wallet_identity& id );
       /** 
        * @throw key_not_found_exception if no such identity has been created
        */
-      addressbook::wallet_identity                get_identity(const std::string& wallet_id )const;
+      addressbook::wallet_identity                get_identity(const std::string& dac_id_string )const;
       
       /**
        *  Checks the transaction to see if any of the inp
@@ -98,6 +97,8 @@ namespace bts {
       bitchat::message_db_ptr       get_pending_db()const;
       bitchat::message_db_ptr       get_sent_db()const;
       bitchat::message_db_ptr       get_chat_db()const;
+      bitchat::message_db_ptr       get_request_db()const;
+      bitchat::message_db_ptr       get_auth_db()const;
       addressbook::addressbook_ptr  get_addressbook()const;
       keychain                      get_keychain()const;
       std::wstring                  get_name()const;
@@ -119,10 +120,5 @@ FC_REFLECT( bts::profile_config,
   (firstname)
   (middlename)
   (lastname)
-  (birth_state)
-  (birth_month)
-  (birth_day_of_month)
-  (birth_year)
-  (governmentid)
   (brainkey)
 )

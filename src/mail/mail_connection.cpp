@@ -31,7 +31,7 @@ namespace mail {
           connection_delegate* con_del;
 
           fc::time_point _sync_time;
-          bts::db::level_map<fc::time_point,bts::bitchat::encrypted_message>*   _db;
+          bts::db::level_map<fc::time_point,bts::bitchat::encrypted_message>*   _mail_db;
 
           /** used to ensure that messages are written completely */
           fc::mutex              write_lock;
@@ -45,6 +45,8 @@ namespace mail {
           {
             const int BUFFER_SIZE = 16;
             const int LEFTOVER = BUFFER_SIZE - sizeof(message_header);
+            assert(BUFFER_SIZE >= sizeof(message_header));
+
             try {
                message m;
                while( true )
@@ -52,60 +54,52 @@ namespace mail {
                   char tmp[BUFFER_SIZE];
                   sock->read( tmp, BUFFER_SIZE );
                   memcpy( (char*)&m, tmp, sizeof(message_header) );
+                  if(!con_del->on_message_transmission_started(self, m))
+                    break;
+
                   m.data.resize( m.size + 16 ); //give extra 16 bytes to allow for padding added in send call
                   memcpy( (char*)m.data.data(), tmp + sizeof(message_header), LEFTOVER );
                   sock->read( m.data.data() + LEFTOVER, 16*((m.size -LEFTOVER + 15)/16) );
 
-                  try { // message handling errors are warnings... 
+                  try { // message handling errors are warnings...
                     con_del->on_connection_message( self, m );
                   } 
-                  catch ( fc::canceled_exception& e ) { throw; }
-                  catch ( fc::eof_exception& e ) { throw; }
+                  /// Dedicated catches needed to distinguish from general fc::exception
+                  catch ( fc::canceled_exception& e ) { throw e; }
+                  catch ( fc::eof_exception& e ) { throw e; }
                   catch ( fc::exception& e ) 
                   { 
-                     wlog( "disconnected ${er}", ("er", e.to_detail_string() ) );
-                     // TODO: log and potentiall disconnect... for now just warn.
+                    /// Here loop should be continued so exception should be just caught locally.
+                    wlog( "message transmission failed ${er}", ("er", e.to_detail_string() ) );
+                    if(con_del != nullptr)
+                      con_del->on_message_transmission_failed();
                   }
                }
             } 
             catch ( const fc::canceled_exception& e )
             {
+              wlog( "disconnected ${e}", ("e", e.to_detail_string() ) );
               if( con_del )
-              {
                 con_del->on_connection_disconnected( self );
-              }
-              else
-              {
-          //      wlog( "disconnected ${e}", ("e", e.to_detail_string() ) );
-              }
             }
             catch ( const fc::eof_exception& e )
             {
+              wlog( "disconnected ${e}", ("e", e.to_detail_string() ) );
               if( con_del )
-              {
                 con_del->on_connection_disconnected( self );
-              }
-              else
-              {
-                wlog( "disconnected ${e}", ("e", e.to_detail_string() ) );
-              }
             }
-            catch ( fc::exception& er )
+            catch ( fc::exception& e )
             {
+              elog( "disconnected ${er}", ("er", e.to_detail_string() ) );
               if( con_del )
-              {
-                elog( "disconnected ${er}", ("er", er.to_detail_string() ) );
                 con_del->on_connection_disconnected( self );
-              }
-              else
-              {
-                elog( "disconnected ${e}", ("e", er.to_detail_string() ) );
-              }
-              FC_RETHROW_EXCEPTION( er, warn, "disconnected ${e}", ("e", er.to_detail_string() ) );
+
+              FC_RETHROW_EXCEPTION( e, warn, "disconnected ${e}", ("e", e.to_detail_string() ) );
             }
             catch ( ... )
             {
-              // TODO: call con_del->????
+              if( con_del )
+                con_del->on_connection_disconnected( self );
               FC_THROW_EXCEPTION( unhandled_exception, "disconnected: {e}", ("e", fc::except_str() ) );
             }
           }
@@ -145,10 +139,14 @@ namespace mail {
         // and cause us all kinds of grief
         my->con_del = nullptr; 
 
-        close();
-        if( my->read_loop_complete.valid() )
+        try { close(); }
+        catch ( const fc::exception& e )
         {
-          my->read_loop_complete.wait();
+          wlog( "unhandled exception on close:\n${e}", ("e", e.to_detail_string()) );
+        }
+        catch ( ... )
+        {
+          elog( "unhandled exception on close ${e}", ("e", fc::except_str()) );
         }
         if( my->exec_sync_loop_complete.valid() )
         {
@@ -240,9 +238,16 @@ namespace mail {
   {
      if( get_socket()->get_socket().is_open() )
      {
-         return my->remote_ep = get_socket()->get_socket().remote_endpoint();
+        try {
+          return my->remote_ep = get_socket()->get_socket().remote_endpoint();
+        }
+        catch (std::exception)
+        {
+        ilog("socket's remote endpoint threw an exception, just return cached endpoint");
+        }
      }
-     // TODO: document why we are not throwing an exception if there is no remote endpoint?
+     // Even if the socket is closed, we still need to return the endpoint, because this is used
+     // to lookup the associated connection object in the connections map to destruct it.
      return my->remote_ep;
   }
 
@@ -256,7 +261,8 @@ namespace mail {
           while( !my->exec_sync_loop_complete.canceled() )
           {
              //ilog( "sync time ${t}", ("t",my->_sync_time) );
-             auto itr = my->_db->lower_bound( my->_sync_time );
+             //send any messages after _sync_time
+             auto itr = my->_mail_db->lower_bound( my->_sync_time + fc::microseconds(1));
              if( !itr.valid() )
              {
               ilog( "no valid message found" );
@@ -271,7 +277,7 @@ namespace mail {
                 ++itr;
              }
              fc::usleep( fc::seconds(15) );
-          }
+          } //while sync loop not canceled
         } 
         catch ( const fc::exception& e )
         {
@@ -286,7 +292,7 @@ namespace mail {
 
   void connection::set_database( bts::db::level_map<fc::time_point,bts::bitchat::encrypted_message>* db )
   {
-     my->_db = db;
+     my->_mail_db = db;
   }
 
 

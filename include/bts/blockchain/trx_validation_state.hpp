@@ -30,8 +30,9 @@ namespace bts { namespace blockchain {
                                 bool enforce_unspent_in = true,
                                 uint32_t  head_idx = -1
                                 );
+           bool allow_short_long_matching;
 
-           trx_validation_state(){}
+           trx_validation_state() : trx(signed_transaction()) {}
            
            /** tracks the sum of all inputs and outputs for a particular
             * asset type in the balance_sheet 
@@ -73,6 +74,11 @@ namespace bts { namespace blockchain {
             * capture it by reference later.
             */
            const signed_transaction            trx; // TODO make reference?
+           uint64_t total_cdd;
+           uint64_t uncounted_cdd;
+
+           uint32_t prev_block_id1; // block ids that count for CDD
+           uint32_t prev_block_id2; // block ids that count for CDD
            std::vector<meta_trx_input>         inputs;
                                              
            std::vector<asset_balance>          balance_sheet; // validate 0 sum 
@@ -118,6 +124,7 @@ namespace bts { namespace blockchain {
 
            void validate_input( const meta_trx_input& );
            void validate_signature( const meta_trx_input& );
+           void validate_pts( const meta_trx_input& );
            void validate_bid( const meta_trx_input& );
            void validate_long( const meta_trx_input& );
            void validate_cover( const meta_trx_input& );
@@ -127,6 +134,7 @@ namespace bts { namespace blockchain {
            void validate_password( const meta_trx_input& );
 
            void validate_output( const trx_output& );
+           void validate_pts( const trx_output& );
            void validate_signature( const trx_output& );
            void validate_bid( const trx_output& );
            void validate_long( const trx_output& );

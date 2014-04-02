@@ -18,6 +18,9 @@
 #include <algorithm>
 #include <sstream>
 
+namespace fc {
+  template<> struct get_typename<std::vector<uint160>>    { static const char* name()  { return "std::vector<uint160>";  } };
+} // namespace fc
 
 struct trx_stat
 {
@@ -76,15 +79,24 @@ namespace bts { namespace blockchain {
                {
                   auto cbb = trx_out.as<claim_by_bid_output>();
                   market_order order( cbb.ask_price, o );
-                  _market_db.remove_bid( order );
-                  _market_db.remove_ask( order );
+                  _market_db.remove_bid( order, 0 );
+                  if( trx_out.amount.unit == asset::bts )
+                     _market_db.remove_ask( order, trx_out.amount.get_rounded_amount() );
+                  else
+                     _market_db.remove_ask( order, 0 );
                }
 
                if( trx_out.claim_func == claim_by_long )
                {
                   auto cbl = trx_out.as<claim_by_long_output>();
                   market_order order( cbl.ask_price, o );
-                  _market_db.remove_bid( order );
+                  _market_db.remove_bid( order, trx_out.amount.get_rounded_amount() );
+               }
+               if( trx_out.claim_func == claim_by_cover )
+               {
+                  auto cbc = trx_out.as<claim_by_cover_output>();
+                  margin_call order( cbc.get_call_price( trx_out.amount ), o );
+                  _market_db.remove_call( order, trx_out.amount.get_rounded_amount() );
                }
             }
 
@@ -118,22 +130,33 @@ namespace bts { namespace blockchain {
                   if( t.outputs[i].claim_func == claim_by_bid )
                   {
                      claim_by_bid_output cbb = t.outputs[i].as<claim_by_bid_output>();
-                     if( cbb.is_bid(t.outputs[i].unit) )
+                     if( cbb.is_bid(t.outputs[i].amount.unit) )
                      {
                         elog( "Insert Bid: ${bid}", ("bid",market_order(cbb.ask_price, output_reference( t.id(), i )) ) );
-                        _market_db.insert_bid( market_order(cbb.ask_price, output_reference( t.id(), i )) );
+                        _market_db.insert_bid( market_order(cbb.ask_price, output_reference( t.id(), i )), 0 );
                      }
                      else
                      {
                         elog( "Insert Ask: ${bid}", ("bid",market_order(cbb.ask_price, output_reference( t.id(), i )) ) );
-                        _market_db.insert_ask( market_order(cbb.ask_price, output_reference( t.id(), i )) );
+                        _market_db.insert_ask( market_order(cbb.ask_price, output_reference( t.id(), i )), 
+                                               t.outputs[i].amount.get_rounded_amount() );
                      }
                   }
                   else if( t.outputs[i].claim_func == claim_by_long )
                   {
                     auto cbl = t.outputs[i].as<claim_by_long_output>();
                     elog( "Insert Short Ask: ${bid}", ("bid",market_order(cbl.ask_price, output_reference( t.id(), i )) ) );
-                    _market_db.insert_bid( market_order(cbl.ask_price, output_reference( t.id(), i )) );
+
+                    /// TODO: should I divide the depth amount by the margin ratio to keep things weighted fairly?
+                    _market_db.insert_bid( market_order(cbl.ask_price, output_reference( t.id(), i )), 
+                                           t.outputs[i].amount.get_rounded_amount() );
+                  }
+                  else if( t.outputs[i].claim_func == claim_by_cover )
+                  {
+                    /// TODO: should I divide the depth amount by the margin ratio to keep things weighted fairly?
+                     auto cbc = t.outputs[i].as<claim_by_cover_output>();
+                     _market_db.insert_call( margin_call( cbc.get_call_price(t.outputs[i].amount), output_reference( t.id(), i ) ),
+                                             t.outputs[i].amount.get_rounded_amount() );
                   }
                }
             }
@@ -156,9 +179,25 @@ namespace bts { namespace blockchain {
             /**
              *  Pushes a new transaction into matched that pairs all bids/asks for a single quote/base pair
              */
-            void match_orders( std::vector<signed_transaction>& matched,  asset::type quote, asset::type base )
+            void match_orders( std::vector<signed_transaction>& matched,  asset::type quote, asset::type base, price_point& stats )
             { try {
                ilog( "match orders.." );
+               uint64_t initial_depth = 0;
+               if( base == asset::bts )
+               {
+                  initial_depth = _market_db.get_depth( quote );
+                  if( initial_depth <  head_block.total_shares/100 )
+                  {
+                     wlog( "initial depth of ${initial_depth} is less than 1% of supply ${supply}",
+                            ("initial_depth",initial_depth)("supply", head_block.total_shares) );
+                     return;
+                  }
+               }
+               /** track how much of the order book has been consumed and stop if consumed depth 
+                * would be greater than 10% of initial depth.
+                */
+               uint64_t consumed_depth = 0;
+
                auto asks = _market_db.get_asks( quote, base );
                auto bids = _market_db.get_bids( quote, base );
                wlog( "asks: ${asks}", ("asks",asks) );
@@ -167,11 +206,15 @@ namespace bts { namespace blockchain {
                fc::optional<trx_output>             ask_change;    // stores a claim_by_bid or claim_by_long
                fc::optional<trx_output>             bid_change;    // stores a claim_by_bid
 
+               ilog( "." );
                address                              bid_payout_address; // current bid owner
                address                              ask_payout_address;
 
                signed_transaction market_trx;
-               market_trx.timestamp = fc::time_point::now();
+               // don't put a timestamp on the order matching, it should be 0 because it is implied
+               // that it is part of the block generation
+               //market_trx.timestamp = fc::time_point::now();
+               ilog( "." );
 
                const uint64_t zero = 0ull;
                asset pay_asker( zero, quote );
@@ -180,6 +223,7 @@ namespace bts { namespace blockchain {
                asset collateral_amount(zero,base);
                asset bidder_change(zero,quote); // except for longs?
                asset asker_change(zero,base);
+               ilog( "." );
 
 
                /** asks are sorted from low to high, so we start
@@ -198,8 +242,31 @@ namespace bts { namespace blockchain {
                trx_output working_ask;
                trx_output working_bid;
 
-               if( ask_itr != asks.end() ) working_ask = get_output( ask_itr->location );
-               if( bid_itr != bids.rend() ) working_bid = get_output( bid_itr->location );
+               stats.from_block   = head_block.block_num;
+               stats.to_block     = stats.from_block + 1;
+               stats.from_time    = head_block.timestamp;
+               stats.to_time      = head_block.timestamp;
+               stats.quote_volume = pay_asker; // asker has bts, wants usd... usd is quote
+               stats.base_volume  = pay_bidder; // bidder has usd, wants bts... bts is base
+
+               if( ask_itr != asks.end() )
+               {
+                    working_ask   = get_output( ask_itr->location );
+                    if( working_ask.claim_func == claim_by_bid )
+                       stats.low_ask = working_ask.as<claim_by_bid_output>().ask_price;
+               }
+               if( bid_itr != bids.rend() )
+               {
+                   working_bid = get_output( bid_itr->location );
+
+                   if( working_ask.claim_func == claim_by_bid )
+                      stats.high_bid = working_ask.as<claim_by_bid_output>().ask_price;
+                   else if( working_ask.claim_func == claim_by_long )
+                      stats.high_bid = working_ask.as<claim_by_long_output>().ask_price;
+               }
+               stats.open_bid = stats.high_bid;
+               stats.open_ask = stats.low_ask;
+               
 
                bool has_change = false;
 
@@ -229,7 +296,7 @@ namespace bts { namespace blockchain {
                      auto long_claim = working_bid.as<claim_by_long_output>();
                      if( long_claim.ask_price < ask_claim.ask_price )
                      {
-                        ilog( "\n\n                                  BID ${BID}  >>>>   ASK ${ASK}\n\n", ("BID",long_claim.ask_price)("ASK",ask_claim.ask_price) );
+                        ilog( "\n\n  BID ${BID}  >>>>   ASK ${ASK}\n\n", ("BID",long_claim.ask_price)("ASK",ask_claim.ask_price) );
                         break; // exit the while loop, no more trades can occur
                      }
                      has_change = true;
@@ -238,13 +305,16 @@ namespace bts { namespace blockchain {
                      // for the purposes of shorts and longs, one asset type is BTS and the other
                      // is one of the BitAssets which I will just call 'usd' for clairty.
                      // The bids are an offer to take a short position which means they have an input
-                     // of BTS but are really offering USD to buy BTS... they BTS purchased with this
+                     // of BTS but are really offering USD to buy BTS... the BTS purchased with this
                      // "new" USD is then placed into the collateral.
+                     
+                     // the actual amount of USD available to a short position is only 10% of the
+                     // input (depending upon the INITIAL_MARGIN_REQUIREMENT)
 
-                     asset bid_amount_bts = working_bid.get_amount(); // * long_claim.ask_price;
-                     asset bid_amount_usd = bid_amount_bts * long_claim.ask_price;
+                     asset bid_amount_bts = working_bid.amount; // collateral... 
+                     asset bid_amount_usd = (bid_amount_bts/INITIAL_MARGIN_REQUIREMENT) * long_claim.ask_price;
 
-                     asset ask_amount_bts = working_ask.get_amount(); // * long_claim.ask_price;
+                     asset ask_amount_bts = working_ask.amount;
                      asset ask_amount_usd = ask_amount_bts * ask_claim.ask_price;
 
                      ilog( "ask_usd ${ask_usd}   bid_usd ${bid_usd}", ("ask_usd",ask_amount_usd)("bid_usd",bid_amount_usd) );
@@ -253,37 +323,40 @@ namespace bts { namespace blockchain {
 
                      if( ask_amount_usd < bid_amount_usd )
                      { // then we have filled the ask
-                         pay_asker         += ask_amount_usd;
-                         loan_amount       += ask_amount_usd;
-                         collateral_amount += ask_amount_bts +  ask_amount_usd * long_claim.ask_price;
+                         pay_asker          += ask_amount_usd;
+                         stats.quote_volume += ask_amount_usd;
+                         loan_amount        += ask_amount_usd;
+                         auto consumed_collateral = ((ask_amount_usd * long_claim.ask_price)*INITIAL_MARGIN_REQUIREMENT);
+                         collateral_amount  += ask_amount_bts + consumed_collateral;
                          ilog( "bid amount bts ${bid_bts}  - ${pay_asker} * ${price} = ${result}",
-                               ("bid_bts",bid_amount_bts)("pay_asker",pay_asker)("price",long_claim.ask_price)("result",pay_asker*long_claim.ask_price) );
-                         bidder_change     = bid_amount_bts - (ask_amount_usd * long_claim.ask_price);
+                               ("bid_bts",bid_amount_bts)("pay_asker",pay_asker)
+                               ("price",long_claim.ask_price)("result",pay_asker*long_claim.ask_price) );
+                         bidder_change     = bid_amount_bts - consumed_collateral; 
 
                         // ask_change.reset();
-                         working_ask.amount = 0;
-                         // TODO: trunctate here??? 
-                         working_bid.amount = bidder_change.get_rounded_amount();
-                        // bid_change       = working_bid;
+                         working_ask.amount = asset(ULLCONST(0),working_ask.amount.unit);
+                         working_bid.amount = bidder_change;
 
                          market_trx.inputs.push_back( ask_itr->location );
-                         if( pay_asker.amount > static_cast<uint64_t>(0ull) )
+                         if( pay_asker.amount > ULLCONST(0) )
                             market_trx.outputs.push_back( trx_output( claim_by_signature_output( ask_claim.pay_address ), pay_asker) );
-                         pay_asker = asset(static_cast<uint64_t>(0ull),pay_asker.unit);
+                         pay_asker = asset(ULLCONST(0),pay_asker.unit);
                          ++ask_itr;
                          if( ask_itr != asks.end() )  working_ask = get_output( ask_itr->location );
                      }
                      else // we have filled the bid (short sell) 
                      {
-                         pay_asker         += bid_amount_usd;
-                         loan_amount       += bid_amount_usd;
-                         collateral_amount += bid_amount_bts + (bid_amount_usd * ask_claim.ask_price);
+                         pay_asker          += bid_amount_usd;
+                         stats.quote_volume += bid_amount_usd;
+                         loan_amount        += bid_amount_usd;
+                         collateral_amount  += bid_amount_bts + (bid_amount_usd * ask_claim.ask_price);
                          ilog( "ask_amount_bts ${bid_bts}  - ${loan_amount} * ${price} = ${result}",
-                               ("bid_bts",ask_amount_bts)("loan_amount",loan_amount)("price",ask_claim.ask_price)("result",loan_amount*ask_claim.ask_price) );
+                               ("bid_bts",ask_amount_bts)("loan_amount",loan_amount)
+                               ("price",ask_claim.ask_price)("result",loan_amount*ask_claim.ask_price) );
                          asker_change       = ask_amount_bts - (bid_amount_usd* ask_claim.ask_price);
 
-                         working_bid.amount = 0;
-                         working_ask.amount     = asker_change.get_rounded_amount();
+                         working_bid.amount = asset(ULLCONST(0),working_bid.amount.unit);
+                         working_ask.amount = asker_change;
                         // working_ask_tmp_amount = asker_change;
                          ask_change             = working_ask;
 
@@ -291,20 +364,20 @@ namespace bts { namespace blockchain {
                          market_trx.outputs.push_back( 
                                  trx_output( claim_by_cover_output( loan_amount, long_claim.pay_address ), collateral_amount) );
 
-                         loan_amount       = asset(static_cast<uint64_t>(0ull),loan_amount.unit);
+                         loan_amount       = asset(ULLCONST(0),loan_amount.unit);
                          collateral_amount = asset();
                          ++bid_itr;
                          if( bid_itr != bids.rend() ) working_bid = get_output( bid_itr->location );
 
-                         if( working_ask.amount < 10 )
+                         if( working_ask.amount.get_rounded_amount() == 0 )
                          {
                             market_trx.inputs.push_back( ask_itr->location );
                             ilog( "ASK CLAIM ADDR ${A} amnt ${a}", ("A",ask_claim.pay_address)("a",pay_asker) );
-                            if( pay_asker != asset(static_cast<uint64_t>(0ull),pay_asker.unit) )
+                            if( pay_asker != asset(ULLCONST(0),pay_asker.unit) )
                             {
                                 market_trx.outputs.push_back( trx_output( claim_by_signature_output( ask_claim.pay_address ), pay_asker) );
                             }
-                            pay_asker = asset(pay_asker.unit);
+                            pay_asker = asset(ULLCONST(0),pay_asker.unit);
                             ++ask_itr;
                             if( ask_itr != asks.end() )  working_ask = get_output( ask_itr->location );
                          }
@@ -323,10 +396,10 @@ namespace bts { namespace blockchain {
                      // we will assume bids are in usd and asks are in bts for naming convention
                      // purposes.
                      
-                     asset bid_amount_usd = working_bid.get_amount();
+                     asset bid_amount_usd = working_bid.amount;
                      asset bid_amount_bts = bid_amount_usd * bid_claim.ask_price;
 
-                     asset ask_amount_bts = working_ask.get_amount();
+                     asset ask_amount_bts = working_ask.amount;
                      asset ask_amount_usd = ask_amount_bts * ask_claim.ask_price;
                      ilog( "bid in ${b} expected ${e}", ("b",bid_amount_usd)("e",bid_amount_bts) );
                      ilog( "ask in ${a} expected ${e}", ("a",ask_amount_bts)("e",ask_amount_usd) );
@@ -335,62 +408,66 @@ namespace bts { namespace blockchain {
                      { // then we have filled the ask
                         ilog("ilog ${x} < ${y}???", ("x",ask_amount_usd.amount)("y",bid_amount_usd.amount));
                         pay_asker          += ask_amount_usd;
+                        stats.quote_volume += ask_amount_usd;
                         ilog(".");
                         auto delta_bidder  = ask_amount_usd * bid_claim.ask_price;
                         pay_bidder         += delta_bidder; 
+                        stats.base_volume  += delta_bidder;
                         bidder_change      = bid_amount_usd - delta_bidder * bid_claim.ask_price;
 
                         ask_change.reset();
-                        working_ask.amount = 0;
-                        working_bid.amount = bidder_change.get_rounded_amount();
+                        working_ask.amount = asset(ULLCONST(0),working_ask.amount.unit);
+                        working_bid.amount = bidder_change;//.get_rounded_amount();
                         bid_change = working_bid;
 
                         market_trx.inputs.push_back( ask_itr->location );
                         ilog( "ASK CLAIM ADDR ${A} amnt ${a}", ("A",ask_claim.pay_address)("a",pay_asker) );
                         ilog( "BID CHANGE ${C}", ("C", working_bid ) );
-                        if( pay_asker > asset(static_cast<uint64_t>(0ull),pay_asker.unit) )
+                        if( pay_asker > asset(ULLCONST(0),pay_asker.unit) )
                         {
                           market_trx.outputs.push_back( trx_output( claim_by_signature_output( ask_claim.pay_address ), pay_asker) );
                         }
-                        pay_asker = asset(pay_asker.unit);
+                        pay_asker = asset(ULLCONST(0),pay_asker.unit);
                         ++ask_itr;
                         if( ask_itr != asks.end() )  working_ask = get_output( ask_itr->location );
                      }
                      else // then we have filled the bid or we have filled BOTH
                      {
                         ilog(".");
-                        pay_bidder    += bid_amount_bts;
+                        pay_bidder         += bid_amount_bts;
+                        stats.base_volume  += bid_amount_bts;
                         ilog(".");
                         auto delta_asker =  bid_amount_bts * ask_claim.ask_price;
                         pay_asker     += delta_asker;
+                        stats.quote_volume += delta_asker;
 
-                        working_bid.amount = 0;
+                        working_bid.amount.amount = 0;
 
                         if( bid_amount_usd.get_rounded_amount() != ask_amount_usd.get_rounded_amount() )
                         {
                            asker_change  = ask_amount_bts -  delta_asker * ask_claim.ask_price;
-                           working_ask.amount = asker_change.get_rounded_amount();
+                           working_ask.amount = asker_change;//.get_rounded_amount();
                         }
                         else
                         {
-                           working_ask.amount = 0;
+                           working_ask.amount.amount = 0;
                         }
 
                         market_trx.inputs.push_back( bid_itr->location );
                         ilog( "BID CLAIM ADDR ${A} ${a}", ("A",bid_claim.pay_address)("a",pay_bidder) );
                         market_trx.outputs.push_back( trx_output( claim_by_signature_output( bid_claim.pay_address ), pay_bidder) );
-                        pay_bidder = asset(static_cast<uint64_t>(0ull),pay_bidder.unit);
+                        pay_bidder = asset(ULLCONST(0),pay_bidder.unit);
 
                         ++bid_itr;
                         if( bid_itr != bids.rend() ) working_bid = get_output( bid_itr->location );
 
-                        if( working_ask.amount < 10 )
+                        if( working_ask.amount.get_rounded_amount() == 0 )
                         {
                            market_trx.inputs.push_back( ask_itr->location );
                            ilog( "ASK CLAIM ADDR ${A} amnt ${a}", ("A",ask_claim.pay_address)("a",pay_asker) );
-                           if( pay_asker.amount > 0 )
+                           if( pay_asker.get_rounded_amount() > 0 )
                               market_trx.outputs.push_back( trx_output( claim_by_signature_output( ask_claim.pay_address ), pay_asker) );
-                           pay_asker = asset(static_cast<uint64_t>(0ull),pay_asker.unit);
+                           pay_asker = asset(ULLCONST(0),pay_asker.unit);
                            ++ask_itr;
                            if( ask_itr != asks.end() )  working_ask = get_output( ask_itr->location );
                         }
@@ -402,7 +479,28 @@ namespace bts { namespace blockchain {
                                 "", ("bid", working_bid) );  
                   }
                } // while( ... ) 
-               if( has_change && working_ask.amount > 10  )
+
+               if( ask_itr != asks.end() )
+               {
+                    working_ask   = get_output( ask_itr->location );
+                    if( working_ask.claim_func == claim_by_bid )
+                       stats.high_ask = working_ask.as<claim_by_bid_output>().ask_price;
+               }
+               if( bid_itr != bids.rend() )
+               {
+                   working_bid = get_output( bid_itr->location );
+
+                   if( working_ask.claim_func == claim_by_bid )
+                      stats.low_bid = working_ask.as<claim_by_bid_output>().ask_price;
+                   else if( working_ask.claim_func == claim_by_long )
+                      stats.low_bid = working_ask.as<claim_by_long_output>().ask_price;
+               }
+               stats.close_bid = stats.low_bid;
+               stats.close_ask = stats.high_ask;
+
+
+               // We are done with all of the asks, but not the bids as margin calls may use the bids...
+               if( has_change && working_ask.amount.get_rounded_amount() > 0 )
                {
                   FC_ASSERT( ask_itr != asks.end() );
                   if( pay_asker.amount > 0 )
@@ -412,10 +510,221 @@ namespace bts { namespace blockchain {
                      market_trx.outputs.push_back( trx_output( claim_by_signature_output( ask_payout_address ), pay_asker ) );
                   }
                }
-               if( has_change && working_bid.amount > 10 )
+
+               //===================  START MARGIN CALL SECTION ==========================
+               if( base == asset::bts && bid_itr != bids.rend())
+               {
+                  ilog( "." );
+                  price call_price;
+                  if( working_bid.claim_func == claim_by_long )
+                     call_price = working_bid.as<claim_by_long_output>().ask_price;
+                  else
+                     call_price = working_bid.as<claim_by_bid_output>().ask_price;
+                  
+                  // all of these margin positions must accept the highest bid
+                  auto margin_positions = _market_db.get_calls( call_price );
+                  ilog( "\n\nMARGIN POSITIONS:\n${p}\n\n", ("p", margin_positions ) );
+
+                  trx_output            working_call;
+                  claim_by_cover_output cover_claim;
+
+                  auto call_itr = margin_positions.begin();
+                  if( call_itr != margin_positions.end() )
+                  {
+                     working_call = get_output( call_itr->location );
+                     cover_claim  = working_call.as<claim_by_cover_output>();
+                  }
+
+                  while(  call_itr != margin_positions.end() && 
+                          bid_itr  != bids.rend()                   )
+                  {
+                      if( working_bid.claim_func == claim_by_long )
+                      {
+                         auto long_claim = working_bid.as<claim_by_long_output>();
+                         call_price         = long_claim.ask_price;
+                         bid_payout_address = long_claim.pay_address;
+
+                         auto bid_usd = (working_bid.amount/INITIAL_MARGIN_REQUIREMENT) * call_price;
+                         auto payoff  = working_call.amount * call_price;
+                         if( payoff > cover_claim.payoff ) payoff = cover_claim.payoff;
+
+                         if( payoff > bid_usd )
+                         { // consume the full bid, leaving a balance on the call
+                            loan_amount         += bid_usd;
+                            collateral_amount   += working_bid.amount + bid_usd * call_price;
+                            working_call.amount -= bid_usd * call_price;
+                            cover_claim.payoff  -= bid_usd;
+
+                            // add bid as input, and give the bidder their new cover position
+                            market_trx.inputs.push_back( bid_itr->location );
+                            market_trx.outputs.push_back( 
+                                       trx_output( claim_by_cover_output(loan_amount, bid_payout_address), collateral_amount) );
+                            collateral_amount = asset();
+                            loan_amount = asset( 0.0, quote );
+
+                            // goto next bid
+                            ++bid_itr;
+                            if( bid_itr != bids.rend() ) working_bid = get_output( bid_itr->location );
+                         }
+                         else if( payoff < bid_usd )
+                         { 
+                            // consume the full call, leave change in the bid
+                            auto cover_amount    = payoff * call_price;
+                            working_call.amount -= cover_amount;
+                            loan_amount         += payoff; 
+                            auto used_collateral = (cover_amount * call_price) * INITIAL_MARGIN_REQUIREMENT;
+                            collateral_amount   += cover_amount + used_collateral; 
+                            working_bid.amount  -= used_collateral; 
+
+                            market_trx.inputs.push_back( call_itr->location );
+                            if( working_call.amount.get_rounded_amount() > 0 )
+                            {
+                               // TODO.. charge a 5% fee
+                               market_trx.outputs.push_back( 
+                                                   trx_output( claim_by_signature_output( cover_claim.owner ), working_call.amount ) );
+                            }
+                            ++call_itr;
+                            if( call_itr != margin_positions.end() )
+                            {
+                               working_call = get_output( call_itr->location );
+                               cover_claim  = working_call.as<claim_by_cover_output>();
+                            }
+                         }
+                         else // payoff == bidusd 
+                         { // consume full call and bid..
+                            auto cover_amount    = bid_usd * call_price;
+                            loan_amount         += bid_usd;
+                            collateral_amount   += working_bid.amount + cover_amount; 
+                            working_call.amount -= cover_amount;
+
+                            market_trx.outputs.push_back( 
+                                       trx_output( claim_by_cover_output( loan_amount, bid_payout_address ), collateral_amount) );
+
+                           
+                            if( working_call.amount.get_rounded_amount() > 0 )
+                            {
+                               // TODO.. charge a 5% fee
+                               market_trx.outputs.push_back( 
+                                       trx_output( claim_by_signature_output( cover_claim.owner ), working_call.amount ) );
+                            }
+
+                            market_trx.inputs.push_back( call_itr->location );
+                            market_trx.inputs.push_back( bid_itr->location );
+
+                            ++bid_itr;
+                            if( bid_itr != bids.rend() ) working_bid = get_output( bid_itr->location );
+
+                            ++call_itr;
+                            if( call_itr != margin_positions.end() )
+                            {
+                               working_call = get_output( call_itr->location );
+                               cover_claim  = working_call.as<claim_by_cover_output>();
+                            }
+                         }
+                      }
+                      else // claim by bid
+                      {
+                         auto bid_claim     = working_bid.as<claim_by_bid_output>();
+                         call_price         = bid_claim.ask_price;
+                         bid_payout_address = bid_claim.pay_address;
+
+                         auto bid_usd = working_bid.amount;
+                         auto payoff = working_call.amount * call_price;
+                         if( payoff > cover_claim.payoff ) payoff = cover_claim.payoff;
+
+                         if( payoff > bid_usd )
+                         { // pay the full bid, leaving change in the cover
+                            working_call.amount -= bid_usd * call_price;
+                            cover_claim.payoff  -= bid_usd;
+                            pay_bidder          += bid_usd * call_price;
+                            stats.base_volume   += bid_usd * call_price;
+
+                            market_trx.outputs.push_back( 
+                                   trx_output( claim_by_signature_output( bid_payout_address ), pay_bidder ) );
+
+                            // goto next bid
+                            ++bid_itr;
+                            if( bid_itr != bids.rend() ) working_bid = get_output( bid_itr->location );
+                            pay_bidder = asset( 0.0, quote );
+                         }
+                         else if( payoff < bid_usd )
+                         { // pay the full cover, leaving change in the bid
+                            pay_bidder          += payoff * call_price;
+                            stats.base_volume   += payoff * call_price;
+                            working_call.amount -= payoff * call_price;
+
+                            market_trx.inputs.push_back( call_itr->location );
+                            if( working_call.amount.get_rounded_amount() > 0 )
+                            {
+                               // TODO.. charge a 5% fee
+                               market_trx.outputs.push_back( 
+                                                   trx_output( claim_by_signature_output( cover_claim.owner ), working_call.amount ) );
+                            }
+                            ++call_itr;
+                            if( call_itr != margin_positions.end() )
+                            {
+                               working_call = get_output( call_itr->location );
+                               cover_claim  = working_call.as<claim_by_cover_output>();
+                            }
+                         }
+                         else // payoff == bid_usd
+                         { // pay them both... 
+                            working_call.amount -= bid_usd * call_price;
+                            cover_claim.payoff  -= bid_usd;
+                            pay_bidder          += bid_usd * call_price;
+                            stats.base_volume   += bid_usd * call_price;
+                            working_bid.amount  -= bid_usd; 
+
+                            market_trx.outputs.push_back( 
+                                   trx_output( claim_by_signature_output( bid_payout_address ), pay_bidder ) );
+
+                            if( working_call.amount.get_rounded_amount() > 0 )
+                            {
+                               // TODO... charge a 5% fee
+                               market_trx.outputs.push_back( 
+                                       trx_output( claim_by_signature_output( cover_claim.owner ), working_call.amount ) );
+                            }
+
+                            market_trx.inputs.push_back( call_itr->location );
+                            market_trx.inputs.push_back( bid_itr->location );
+
+                            ++bid_itr;
+                            if( bid_itr != bids.rend() ) working_bid = get_output( bid_itr->location );
+                            pay_bidder = asset( 0.0, quote );
+
+                            ++call_itr;
+                            if( call_itr != margin_positions.end() )
+                            {
+                               working_call = get_output( call_itr->location );
+                               cover_claim  = working_call.as<claim_by_cover_output>();
+                            }
+                         }
+                      }
+                  } // loop over margin positions..
+
+                  if( margin_positions.end() != call_itr ) // 
+                  {
+                     auto orig = get_output(call_itr->location);
+                     if( orig.amount != working_call.amount )
+                     {
+                        // then we have some change in the margin call... apparently there
+                        // were not enough bids... 
+                        market_trx.inputs.push_back( call_itr->location );
+                        market_trx.outputs.push_back( trx_output( cover_claim,  working_call.amount ) );
+                     }
+                  }
+               }
+               //================   END MARGIN CALL SECTION ===============================
+               
+
+
+               //ilog( "has change ${C}  working_bid ${b}", ("C",has_change)( "b",working_bid ) );
+
+               if( has_change && working_bid.amount.get_rounded_amount() > 0 )
                {
                   FC_ASSERT( bid_itr != bids.rend() );
-                  if( collateral_amount.amount > 10 )
+                  ilog( "collateral_amount ${c}", ("c", collateral_amount ) );
+                  if( collateral_amount.get_rounded_amount() > 0 )
                   {
                      market_trx.inputs.push_back( bid_itr->location );
                      market_trx.outputs.push_back( working_bid );
@@ -423,12 +732,17 @@ namespace bts { namespace blockchain {
                   }
                   else if( working_bid.claim_func == claim_by_bid )
                   {
-                     if( pay_bidder.amount > 10 )
+                     ilog( "pay bidder ${b}", ("b",pay_bidder) );
+                     if( pay_bidder.get_rounded_amount() > 0 )
                      {
                         market_trx.inputs.push_back( bid_itr->location );
                         market_trx.outputs.push_back( working_bid );
                         market_trx.outputs.push_back( trx_output( claim_by_signature_output( bid_payout_address ), pay_bidder ) );
                      }
+                  }
+                  else
+                  {
+                     ilog( "\n\n             SOMETHING WENT WRONG                \n\n" );
                   }
                }
               
@@ -565,6 +879,12 @@ namespace bts { namespace blockchain {
        return fb;
     } FC_RETHROW_EXCEPTIONS( warn, "block ${block}", ("block",block_num) ) }
 
+    signed_transaction blockchain_db::fetch_transaction( const transaction_id_type& id )
+    { try {
+          auto trx_num = fetch_trx_num(id);
+          return fetch_trx( trx_num );
+    } FC_RETHROW_EXCEPTIONS( warn, "", ("id",id) ) }
+
 
     std::vector<meta_trx_input> blockchain_db::fetch_inputs( const std::vector<trx_input>& inputs, uint32_t head )
     {
@@ -618,7 +938,7 @@ namespace bts { namespace blockchain {
      *
      *  @throw exception if trx can not be applied to the current chain state.
      */
-    trx_eval blockchain_db::evaluate_signed_transaction( const signed_transaction& trx )       
+    trx_eval blockchain_db::evaluate_signed_transaction( const signed_transaction& trx, bool ignore_fees, bool is_market  )       
     {
        try {
            FC_ASSERT( trx.inputs.size() || trx.outputs.size() );
@@ -634,6 +954,9 @@ namespace bts { namespace blockchain {
            */
 
            trx_validation_state vstate( trx, this ); 
+           vstate.allow_short_long_matching = is_market;
+           vstate.prev_block_id1 = get_stake();
+           vstate.prev_block_id2 = get_stake2();
            vstate.validate();
 
            trx_eval e;
@@ -642,7 +965,7 @@ namespace bts { namespace blockchain {
               // all transactions must pay at least some fee 
               if( vstate.balance_sheet[asset::bts].out >= vstate.balance_sheet[asset::bts].in )
               {
-                 // TODO: verify minimum fee
+                
                  FC_ASSERT( vstate.balance_sheet[asset::bts].out <= vstate.balance_sheet[asset::bts].in, 
                             "All transactions must pay some fee",
                  ("out", vstate.balance_sheet[asset::bts].out)("in",vstate.balance_sheet[asset::bts].in )
@@ -651,21 +974,68 @@ namespace bts { namespace blockchain {
               else
               {
                  e.fees = vstate.balance_sheet[asset::bts].in - vstate.balance_sheet[asset::bts].out;
+                 if( !ignore_fees )
+                 {
+                    FC_ASSERT( e.fees.get_rounded_amount() >= (get_fee_rate() * trx.size()).get_rounded_amount() );
+                 }
               }
            }
+           e.total_spent += vstate.balance_sheet[asset::bts].in.get_rounded_amount() + vstate.balance_sheet[asset::bts].collat_in.get_rounded_amount();
+           e.coindays_destroyed = vstate.total_cdd;
+           e.invalid_coindays_destroyed = vstate.uncounted_cdd;
            return e;
        } FC_RETHROW_EXCEPTIONS( warn, "error evaluating transaction ${t}", ("t", trx) );
     }
 
 
 
-    trx_eval blockchain_db::evaluate_signed_transactions( const std::vector<signed_transaction>& trxs )
+    trx_eval blockchain_db::evaluate_signed_transactions( const std::vector<signed_transaction>& trxs, uint64_t ignore_first_n_fees )
     {
       try {
         trx_eval total_eval;
-        for( auto itr = trxs.begin(); itr != trxs.end(); ++itr )
+        for( uint32_t i = 0; i < trxs.size(); ++i )
         {
-            total_eval += evaluate_signed_transaction( *itr );
+            // ignore fees for the market trxs and for the mining transaction... assuming there is a mining trx??
+            if( i < ignore_first_n_fees )
+            {
+               total_eval += evaluate_signed_transaction( trxs[i], true, true );
+            }
+            bts::address mining_addr;
+            if( i == trxs.size() - 1 ) // last trx..
+            {
+               if( trxs.back().inputs.size() == 0 )
+               {
+                  if( trxs.size() > 1 ) 
+                  {
+                     if( trxs[i-1].outputs.size() == 1 ) // mining trx can only have 1 output
+                     {
+                        if( trxs[i-1].outputs[0].claim_func == claim_by_signature ) // mining trx must be claim by sig
+                        {
+                           mining_addr =  trxs[i-1].outputs[0].as<claim_by_signature_output>().owner;
+                           FC_ASSERT( trxs.back().outputs.size() == 1 ); // only allowed 1 output
+                           FC_ASSERT( trxs.back().outputs.back().as<claim_by_signature_output>().owner == mining_addr ); // must match
+
+                           auto prev_eval = evaluate_signed_transaction( trxs[i-1], true );
+
+                           auto rew = (total_eval.fees.get_rounded_amount() * prev_eval.coindays_destroyed )/
+                                                total_eval.coindays_destroyed;
+                           asset mining_reward(rew, asset::bts); 
+                           // calculate mining reward... 
+                           FC_ASSERT( trxs.back().outputs.back().amount == mining_reward );
+                        }
+                     }
+                  }
+               }
+               if( mining_addr == bts::address() ) // process like normal
+               {
+                  total_eval += evaluate_signed_transaction( trxs[i], false );
+               }
+            }
+            else 
+            {
+               total_eval += evaluate_signed_transaction( trxs[i], 
+                                    (i == trxs.size()-1) || (i < ignore_first_n_fees) );
+            }
         }
         ilog( "summary: ${totals}", ("totals",total_eval) );
         return total_eval;
@@ -694,21 +1064,52 @@ namespace bts { namespace blockchain {
     void blockchain_db::push_block( const trx_block& b )
     {
       try {
-        FC_ASSERT( b.version                           == 0                         );
-        FC_ASSERT( b.trxs.size()                       > 0                          );
-        FC_ASSERT( b.block_num                         == head_block_num() + 1      );
-        FC_ASSERT( b.prev                              == my->head_block_id         );
-        FC_ASSERT( b.trx_mroot                         == b.calculate_merkle_root() );
+        FC_ASSERT( b.version      == 0                                                         );
+        FC_ASSERT( b.trxs.size()  > 0                                                          );
+        FC_ASSERT( b.block_num    == head_block_num() + 1                                      );
+        FC_ASSERT( b.prev         == my->head_block_id                                         );
+        FC_ASSERT( b.trx_mroot    == b.calculate_merkle_root()                                 );
+        FC_ASSERT( b.timestamp    < (fc::time_point::now() + fc::seconds(60))                  );
+        FC_ASSERT( b.next_fee     == b.calculate_next_fee( get_fee_rate().get_rounded_amount(), b.block_size() ), "",
+                   ("b.next_fee",b.next_fee)("b.calculate_next_fee", b.calculate_next_fee( get_fee_rate().get_rounded_amount(), b.block_size()))
+                   ("get_fee_rate",get_fee_rate().get_rounded_amount())("b.size",b.block_size()) 
+                   );
+
+        if( b.block_num >= 1 )
+        {
+           FC_ASSERT( b.timestamp    > fc::time_point(my->head_block.timestamp) + fc::seconds(30) );
+           FC_ASSERT( b.get_difficulty() >= b.get_required_difficulty( 
+                                                 my->head_block.next_difficulty,
+                                                 my->head_block.avail_coindays ), "",
+                      ("required_difficulty",b.get_required_difficulty( my->head_block.next_difficulty, my->head_block.avail_coindays )  )
+                      ("block_difficulty", b.get_difficulty() ) );
+        }
 
         //validate_issuance( b, my->head_block /*aka new prev*/ );
         validate_unique_inputs( b.trxs );
 
+        std::vector<price_point> order_stats;
+        // the order matching must be deterministic and the first set of transactions in 
+        // every block.
+        std::vector<signed_transaction> matched = match_orders( &order_stats );
+        FC_ASSERT( matched.size() <= b.trxs.size() );
+        for( uint32_t i = 0; i < matched.size(); ++i )
+        {
+           FC_ASSERT( matched[i].id() == b.trxs[i].id(), "", ("i",i)("matched",matched) );
+        }
+
         // evaluate all trx and sum the results
-        trx_eval total_eval = evaluate_signed_transactions( b.trxs );
+        trx_eval total_eval = evaluate_signed_transactions( b.trxs, matched.size() );
         
         wlog( "total_fees: ${tf}", ("tf", total_eval.fees ) );
 
         my->store( b );
+
+        for( auto pt : order_stats )
+        {
+           my->_market_db.push_price_point( pt );
+        }
+
         my->blk_id2num.store( b.id(), b.block_num );
         
       } FC_RETHROW_EXCEPTIONS( warn, "unable to push block", ("b", b) );
@@ -733,14 +1134,16 @@ namespace bts { namespace blockchain {
      *  Generates transactions that match all compatiable bids, asks, and shorts for
      *  all possible asset combinations and returns the result.
      */
-    std::vector<signed_transaction> blockchain_db::match_orders()
+    std::vector<signed_transaction> blockchain_db::match_orders( std::vector<price_point>* stats )
     { try {
        std::vector<signed_transaction> matched;
        for( uint32_t base = asset::bts; base < asset::count; ++base )
        {
           for( uint32_t quote = base+1; quote < asset::count; ++quote )
           {
-              my->match_orders( matched, asset::type(quote), asset::type(base) );
+              price_point pt;
+              my->match_orders( matched, asset::type(quote), asset::type(base), pt );
+              if( stats ) stats->push_back( pt );
           }
        }
        return matched;
@@ -755,54 +1158,75 @@ namespace bts { namespace blockchain {
     {
       try {
          std::vector<signed_transaction> trxs = match_orders();
-         trxs.insert( trxs.end(), in_trxs.begin(), in_trxs.end() );
+         size_t num_orders = trxs.size();
 
          std::vector<trx_stat>  stats;
-         stats.reserve(trxs.size());
+         stats.reserve(in_trxs.size());
+         ilog( "." );
          for( uint32_t i = 0; i < in_trxs.size(); ++i )
          {
             ilog( "trx: ${t} signed by ${s}", ( "t",in_trxs[i])("s",in_trxs[i].get_signed_addresses() ) );
          }
+         ilog( "." );
          
          // filter out all trx that generate coins from nothing or don't pay fees
-         for( uint32_t i = 0; i < trxs.size(); ++i )
+         for( uint32_t i = 0; i < in_trxs.size(); ++i )
          {
             try 
             {
                 trx_stat s;
-                s.eval = evaluate_signed_transaction( trxs[i] );
+                s.eval = evaluate_signed_transaction( in_trxs[i] );
+                ilog( "eval: ${eval}", ("eval",s.eval) );
 
                // TODO: enforce fees
-               // if( s.eval.fees.amount == fc::uint128_t(0) )
-               // {
-               //   wlog( "ignoring transaction ${trx} because it doesn't pay fees\n\n state: ${s}", 
-               //         ("trx",trxs[i])("s",s.eval) );
-               //   continue;
-               // }
-                s.trx_idx = i;
+                if( s.eval.fees.get_rounded_amount() < (get_fee_rate() * in_trxs[i].size()).get_rounded_amount() )
+                {
+                  wlog( "ignoring transaction ${trx} because it doesn't pay minimum fee ${f}\n\n state: ${s}", 
+                        ("trx",in_trxs[i])("s",s.eval)("f", get_fee_rate()*in_trxs[i].size()) );
+                  continue;
+                }
+                s.trx_idx = i + trxs.size(); // market trx will go first...
                 stats.push_back( s );
             } 
             catch ( const fc::exception& e )
             {
-               wlog( "unable to use trx ${t}\n ${e}", ("t", trxs[i] )("e",e.to_detail_string()) );
+               wlog( "unable to use trx ${t}\n ${e}", ("t", in_trxs[i] )("e",e.to_detail_string()) );
             }
          }
+         ilog( "." );
 
-         // order the trx by fees
+         // order the trx by fees (don't sort the market orders which are added next)
          std::sort( stats.begin(), stats.end() ); 
          for( uint32_t i = 0; i < stats.size(); ++i )
          {
            ilog( "sort ${i} => ${n}", ("i", i)("n",stats[i]) );
          }
+         ilog( "." );
 
+         // consume the outputs from the market order first
+         std::unordered_set<output_reference> consumed_outputs;
+         for( auto itr = trxs.begin(); itr != trxs.end(); ++itr )
+         {
+            for( uint32_t in = 0; in < itr->inputs.size(); ++in )
+            {
+               FC_ASSERT( consumed_outputs.insert( itr->inputs[in].output_ref).second, 
+                          "output can only be referenced once", ("in",in)("output_ref",itr->inputs[in].output_ref) )
+            }
+         }
+         trxs.insert( trxs.end(), in_trxs.begin(), in_trxs.end() );
+         ilog( "trxs: ${t}", ("t",trxs) );
 
          // calculate the block size as we go
          fc::datastream<size_t>  block_size;
          uint32_t conflicts = 0;
 
-         asset total_fees;
+         asset    total_fees;
+         uint64_t total_cdd = 0;
+         uint64_t invalid_cdd = 0;
+         uint64_t total_spent  = 0;
 
-         std::unordered_set<output_reference> consumed_outputs;
+         ilog( "." );
+         // insert other transactions
          for( size_t i = 0; i < stats.size(); ++i )
          {
             const signed_transaction& trx = trxs[stats[i].trx_idx]; 
@@ -828,12 +1252,18 @@ namespace bts { namespace blockchain {
                   break;
                }
                FC_ASSERT( i < stats.size() );
-               ilog( "total fees ${tf} += ${fees}", 
+               ilog( "total fees ${tf} += ${fees},  total cdd ${tcdd} += ${cdd}", 
                      ("tf", total_fees)
-                     ("fees",stats[i].eval.fees) );
-               total_fees += stats[i].eval.fees;
+                     ("fees",stats[i].eval.fees)
+                     ("tcdd",total_cdd)
+                     ("cdd",stats[i].eval.coindays_destroyed) );
+               total_fees   += stats[i].eval.fees;
+               total_cdd    += stats[i].eval.coindays_destroyed;
+               invalid_cdd  += stats[i].eval.invalid_coindays_destroyed;
+               total_spent  += stats[i].eval.total_spent;
             }
          }
+         ilog( "." );
 
          // at this point we have a list of trxs to include in the block that is sorted by
          // fee and has a set of unique inputs that have all been validated against the
@@ -845,7 +1275,10 @@ namespace bts { namespace blockchain {
         // wlog( "miner fees: ${t}", ("t", miner_fees) );
 
          trx_block new_blk;
-         new_blk.trxs.reserve( 1 + stats.size() - conflicts ); 
+         new_blk.trxs.reserve( 1 + stats.size() - conflicts + num_orders ); 
+
+         // add all orders first
+         new_blk.trxs.insert( new_blk.trxs.begin(), trxs.begin(), trxs.begin() + num_orders );
 
          // add all other transactions to the block
          for( size_t i = 0; i < stats.size(); ++i )
@@ -857,10 +1290,28 @@ namespace bts { namespace blockchain {
          }
 
          new_blk.timestamp                 = fc::time_point::now();
+         FC_ASSERT( new_blk.timestamp > my->head_block.timestamp );
+
          new_blk.block_num                 = head_block_num() + 1;
          new_blk.prev                      = my->head_block_id;
          new_blk.total_shares              = my->head_block.total_shares - total_fees.amount.high_bits(); 
-         new_blk.total_coindays_destroyed  = my->head_block.total_coindays_destroyed; // TODO: Prev Block.CDD + CDD
+
+         new_blk.next_difficulty           = my->head_block.next_difficulty;
+         if( my->head_block.block_num > 144 )
+         {
+             auto     oldblock = fetch_block( my->head_block.block_num - 144 ); 
+             auto     delta_time = my->head_block.timestamp - oldblock.timestamp;
+             uint64_t avg_sec_per_block = delta_time.count() / 144000000;
+
+             auto cur_tar = my->head_block.next_difficulty;
+             new_blk.next_difficulty = (cur_tar * 300 /* 300 sec per block */) / avg_sec_per_block;
+         }
+         new_blk.total_cdd                 = total_cdd; 
+
+         new_blk.avail_coindays            = my->head_block.avail_coindays 
+                                             - total_cdd 
+                                             + my->head_block.total_shares - total_spent
+                                             - invalid_cdd;
 
          new_blk.trx_mroot = new_blk.calculate_merkle_root();
 
@@ -868,6 +1319,12 @@ namespace bts { namespace blockchain {
 
       } FC_RETHROW_EXCEPTIONS( warn, "error generating new block" );
     }
+
+    uint64_t      blockchain_db::get_market_depth( asset::type quote )const
+    {
+      return my->_market_db.get_depth( quote );
+    }
+    uint64_t      blockchain_db::get_required_depth()const { return total_shares() / 100; }
 
     market_data blockchain_db::get_market( asset::type quote, asset::type base )
     {
@@ -879,15 +1336,14 @@ namespace bts { namespace blockchain {
            if( working_bid.claim_func == claim_by_long )
            {
               claim_by_long_output long_claim = working_bid.as<claim_by_long_output>();
-              d.shorts.push_back( short_data( long_claim.ask_price, working_bid.amount  ) );
-              d.bids.push_back( bid_data( long_claim.ask_price, 
-                                          (asset(working_bid.amount,asset::bts)*long_claim.ask_price ).get_rounded_amount()) );
+              d.shorts.push_back( short_data( long_claim.ask_price, working_bid.amount.get_rounded_amount()  ) );
+              d.bids.push_back( bid_data( long_claim.ask_price, (working_bid.amount*long_claim.ask_price).get_rounded_amount()) );
               d.bids.back().is_short = true;
            }
            else
            {
               claim_by_bid_output bid_claim = working_bid.as<claim_by_bid_output>();
-              d.bids.push_back( bid_data( bid_claim.ask_price, working_bid.amount ) );
+              d.bids.push_back( bid_data( bid_claim.ask_price, working_bid.amount.get_rounded_amount() ) );
            }
        }
 
@@ -896,7 +1352,7 @@ namespace bts { namespace blockchain {
        {
            auto working_ask = my->get_output( itr->location );
            claim_by_bid_output ask_claim = working_ask.as<claim_by_bid_output>();
-           d.asks.push_back( ask_data( ask_claim.ask_price, working_ask.amount ) );
+           d.asks.push_back( ask_data( ask_claim.ask_price, working_ask.amount.get_rounded_amount() ) );
        }
        return d;
     }
@@ -927,10 +1383,39 @@ namespace bts { namespace blockchain {
     {
        return my->head_block_id._hash[0];
     }
-    asset    blockchain_db::get_fee_rate()const
+    uint64_t blockchain_db::get_stake2()
     {
-       return asset(static_cast<uint64_t>(1000ull), asset::bts);
+       if( head_block_num() <= 1 ) return 0;
+       if( head_block_num() == uint32_t(-1) ) return 0;
+       return fetch_block( head_block_num() - 1 ).id()._hash[0];
     }
+    uint64_t blockchain_db::current_difficulty()const
+    {
+       return my->head_block.next_difficulty;
+    }
+    uint64_t blockchain_db::total_shares()const
+    {
+       return my->head_block.total_shares;
+    }
+    uint64_t blockchain_db::available_coindays()const
+    {
+       return my->head_block.avail_coindays;
+    }
+    asset blockchain_db::get_fee_rate()const
+    {
+       ilog( "next fee: ${f}", ("f",my->head_block.next_fee) );
+       ilog( "next fee: ${f}", ("f",asset( uint64_t(my->head_block.next_fee), asset::bts )) );
+       return asset( uint64_t(my->head_block.next_fee), asset::bts );
+    }
+
+    std::vector<price_point> blockchain_db::get_market_history( asset::type quote, asset::type base, 
+                                                fc::time_point_sec from, fc::time_point_sec to, 
+                                                uint32_t blocks_per_point  )
+    { try {
+       FC_ASSERT( quote != base );
+       if( quote > base ) std::swap( quote, base );
+       return my->_market_db.get_history( quote, base, from, to, blocks_per_point );
+    } FC_RETHROW_EXCEPTIONS( warn, "", ("quote",quote)("base",base)("from",from)("to",to)("blocks_per_point",blocks_per_point) ) }
 
 }  } // bts::blockchain
 

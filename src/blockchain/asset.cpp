@@ -17,7 +17,7 @@
 namespace bts { namespace blockchain {
 
   asset::asset( const std::string& s )
-  {
+  { 
      std::stringstream ss(s);
      double a;
      ss >> a;
@@ -25,6 +25,10 @@ namespace bts { namespace blockchain {
      ss >> u;
      amount = fc::uint128( a * COIN, 0 );
      unit = fc::variant(u).as<asset::type>();
+     try {
+        std::string tmp(*this);
+        tmp.size();
+     } FC_RETHROW_EXCEPTIONS( warn, "unable to covert *this back to string", ("str",s) )
   }
 
   asset::asset( uint32_t amnt, asset::type t )
@@ -60,10 +64,12 @@ namespace bts { namespace blockchain {
 
   asset::operator std::string()const
   {
+     try {
      auto rounded_amnt = get_rounded_amount();
      std::string int_part = fc::to_string(uint64_t(rounded_amnt/COIN) );
      uint64_t fract = uint64_t(rounded_amnt % COIN + COIN);
-     return  int_part  + "." + fc::to_string(fract).substr(1) + " " + std::string(fc::reflector<asset::type>::to_string( unit ));
+     return  int_part  + "." + fc::to_string(fract).substr(1) + " " + std::string(unit); //fc::reflector<asset::type>::to_string( unit );
+     } FC_RETHROW_EXCEPTIONS( warn, "unable to convert asset to string" )
      /*
      fc::uint128 fraction( amount.low_bits() );
      fraction *= BASE10_PRECISION;
@@ -134,7 +140,12 @@ namespace bts { namespace blockchain {
      amount -= o.amount;
      if( amount > old.amount ) 
      {
-       FC_THROW_EXCEPTION( exception, "asset addition underflow  ${a} - ${b} = ${c}", 
+        if( get_rounded_amount() == 0 )
+        {
+            amount = 0;
+            return *this;
+        }
+        FC_THROW_EXCEPTION( exception, "asset addition underflow  ${a} - ${b} = ${c}", 
                             ("a", old)("b",o)("c",*this) );
      }
      return *this;
@@ -150,15 +161,20 @@ namespace bts { namespace blockchain {
       static fc::uint128 i(-1);
       return i;
   }
+
   price::price( const std::string& s )
   {
-     /*
      std::stringstream ss(s);
-     std::string a,b,q;
-     char d;
-     ss >> a >> b >> q >> d;
-     */
+     std::string quote, base, units;
+     double a;
+     ss >> a >> units; 
+     quote = units.substr(0,3);
+     base = units.substr(4,3);
+     ratio      = fc::uint128( uint64_t(a), uint64_t(-1) * (a - uint64_t(a)) ); 
+     quote_unit = fc::variant(quote).as<asset::type>();
+     base_unit  = fc::variant(base).as<asset::type>();
   }
+
   price::price( double a, asset::type q, asset::type b )
   {
      FC_ASSERT( q > b, "${quote} > ${base}", ("quote",q)("base",b) );

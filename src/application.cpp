@@ -33,7 +33,8 @@ namespace bts {
           application_impl()
           :_delegate(nullptr),
            _quit_promise( new fc::promise<void>() ),
-           _mail_con(this),_mail_connected(false)
+           _mail_con(this),
+           _mail_connected(false)
            {
            }
           std::vector<fc::ecc::private_key> _keys;
@@ -57,12 +58,12 @@ namespace bts {
           fc::future<void>                  _mail_connect_loop_complete;
 
           fc::promise<void>::ptr            _quit_promise;
+          fc::microseconds                  server_time_offset;
+          mail::connection                  _mail_con;
+          bool                              _mail_connected;
 
           void set_mining_intensity(int intensity) { _bitname_client->set_mining_intensity(intensity); }
           int  get_mining_intensity()              { return _bitname_client->get_mining_intensity(); }
-
-          mail::connection                  _mail_con;
-          bool                              _mail_connected;
 
           void        configure( const application_config& cfg );
           /// Common implementation of profile loading.
@@ -77,7 +78,7 @@ namespace bts {
                 for( auto itr = _config->default_mail_nodes.begin(); itr != _config->default_mail_nodes.end(); ++itr )
                 {
                      try {
-                        ilog( "mail connect ${e}", ("e",*itr) );
+                        ilog( "mail connect ${e}, send sync_time=${t}", ("e",*itr)("t",_profile->get_last_sync_time()) );
                         _mail_con.connect(*itr);
                         _mail_con.set_last_sync_time( _profile->get_last_sync_time() );
 
@@ -121,34 +122,75 @@ namespace bts {
              }
           }
 
-          // mail::connection...
-          virtual void on_connection_message( mail::connection& c, const mail::message& m )
+        /// mail::connection_delegate interface implementation:
+          /// \see mail::connection_delegate interface description.
+          virtual bool on_message_transmission_started(mail::connection& c,
+            const mail::message_header& mh) override
           {
-             if( m.type == bts::bitchat::encrypted_message::type )
-             {
-                auto pm = m.as<bts::bitchat::encrypted_message>();
-                for( auto key = _keys.begin(); key != _keys.end(); ++key )
-                {
-                   bts::bitchat::decrypted_message dm;
-                   if( pm.decrypt( *key, dm ) )
-                   {
-                      bitchat_message_received( dm );
-                   }
-                }
-                _profile->set_last_sync_time( pm.timestamp );
-             }
-             if( m.type == bts::bitchat::server_info_message::type )
-             {
-                 server_time_offset = fc::time_point::now() - m.as<bts::bitchat::server_info_message>().server_time;
-             }
-          }
-          fc::microseconds server_time_offset;
+            if(_delegate != nullptr)
+              return _delegate->receiving_mail_message();
 
-          virtual void on_connection_disconnected( mail::connection& c )
-          {
-              _mail_connected = false;
-              start_mail_connect_loop();
+            return true;
           }
+
+          /// \see mail::connection_delegate interface description.
+          virtual void on_connection_message( mail::connection& c, const mail::message& m ) override
+          {
+             try {
+               if( m.type == bts::bitchat::encrypted_message::type )
+               {
+                  auto pm = m.as<bts::bitchat::encrypted_message>();
+                  for( auto key = _keys.begin(); key != _keys.end(); ++key )
+                  {
+                     bts::bitchat::decrypted_message dm;
+                     if( pm.decrypt( *key, dm ) )
+                        bitchat_message_received( dm );
+                  }
+                  //added sanity check, but now pm.timestamp should always be >= last_sync_time
+                  //because we use mailserver's receive time for timestamp now
+                  //except in case when we first create a new profile (we use local time then)
+                  if (pm.timestamp > _profile->get_last_sync_time())
+                    {
+                    ilog("last_sync_time now: ${t}",("t",_profile->get_last_sync_time()));
+                    }
+                  else if (pm.timestamp == _profile->get_last_sync_time())
+                    ilog("timestamp = last_sync_time = ${t}",("t",pm.timestamp));
+                  else
+                    wlog("timestamp = ${t} < sync_time = ${st}",("t",pm.timestamp)("st",_profile->get_last_sync_time()));
+                  _profile->set_last_sync_time( pm.timestamp );
+               }
+               if( m.type == bts::bitchat::server_info_message::type )
+               {
+                   server_time_offset = fc::time_point::now() - m.as<bts::bitchat::server_info_message>().server_time;
+               }
+             }
+             catch (fc::exception e)
+             {
+               if(_delegate != nullptr)
+                 _delegate->message_transmission_finished(false);
+               throw e;
+             }
+             if(_delegate != nullptr)
+                _delegate->message_transmission_finished(true);
+          }
+          
+          /// \see mail::connection_delegate interface description.
+          virtual void on_connection_disconnected(mail::connection& c) override
+          {
+             if(_delegate != nullptr)
+               _delegate->message_transmission_finished(false);
+
+            _mail_connected = false;
+            start_mail_connect_loop();
+          }
+
+          virtual void on_message_transmission_failed() override
+          {
+            if(_delegate != nullptr)
+              _delegate->message_transmission_finished(false);
+          }
+
+        /// Other implementation helpers:
           void start_mail_connect_loop()
           {
           ilog("start_mail_connect_loop");
@@ -161,26 +203,51 @@ namespace bts {
 
           virtual void bitchat_message_received( const bitchat::decrypted_message& msg )
           {
-              ilog( "received ${msg}", ("msg", msg) );
-              if( _profile ) _profile->cache( msg );
-              switch( msg.msg_type )
+            ilog( "received ${msg}", ("msg", msg) );
+            if( _profile ) _profile->cache( msg );
+            switch( msg.msg_type )
+            {
+              case bitchat::private_message_type::unknown_msg:
+                break;
+              case bitchat::private_message_type::text_msg:
               {
-                 case bitchat::private_message_type::text_msg:
-                 {
-                   auto txt = msg.as<bitchat::private_text_message>();
-                   ilog( "text message ${msg}", ("msg",txt) );
+                auto txt = msg.as<bitchat::private_text_message>();
+                ilog( "text message ${msg}", ("msg",txt) );
 
-                   if( _delegate ) _delegate->received_text( msg );
-                   break;
-                 }
-                 case bitchat::private_message_type::email_msg:
-                 {
-                   auto email = msg.as<bitchat::private_email_message>();
-                   ilog( "email message ${msg}", ("msg",email) );
-                   if( _delegate ) _delegate->received_email( msg );//, *m.from_key, m.decrypt_key->get_public_key() );
-                   break;
-                 }
+                if( _delegate ) _delegate->received_text( msg );
+                break;
               }
+              case bitchat::private_message_type::email_msg:
+              {
+                auto email = msg.as<bitchat::private_email_message>();
+                ilog( "email message ${msg}", ("msg",email) );
+                if( _delegate ) _delegate->received_email( msg );//, *m.from_key, m.decrypt_key->get_public_key() );
+                break;
+              }
+              case bitchat::private_message_type::contact_request_msg:
+              {
+                auto request = msg.as<bitchat::private_contact_request_message>();
+                ilog( "request message ${msg}", ("msg", request) );
+                if( _delegate ) _delegate->received_request( msg );
+                break;
+              }
+              case bitchat::private_message_type::contact_auth_msg:
+                break;
+              case bitchat::private_message_type::status_msg:
+                break;
+              case bitchat::private_message_type::email_msg1:
+              {
+                auto email = msg.as<bitchat::private_email_message1>();
+                ilog( "email message 1 ${msg}", ("msg",email) );
+                if( _delegate ) _delegate->received_email( msg );
+                break;
+              }
+              default:
+              {
+                ilog("received unsupported message");
+                if( _delegate ) _delegate->received_unsupported_msg( msg );
+              }
+            }
           }
 
           virtual void bitname_block_added( const bts::bitname::name_block& h )
@@ -214,31 +281,32 @@ namespace bts {
 
     _server = std::make_shared<bts::network::server>();
 
-    try
-    {
-      ilog("calling get_external_ip");
-      auto ext_ip = bts::network::get_external_ip();
-      ilog( "external IP ${ip}", ("ip",ext_ip) );
-      if( cfg.enable_upnp )
-      {
-        ilog("enable_upnp");
-        _upnp.map_port( cfg.network_port );
-        _server->set_external_ip( _upnp.external_ip() );
-      }
-      else
-      {
-        ilog("set_external_ip");
-        _server->set_external_ip( ext_ip );
-      }
-    }
-    catch (fc::exception e)
-    {
-      elog("Failed to connect to external IP address: ${e}", ("e",e.to_detail_string()));
-    }
-    catch (...)
-    {
-      elog("unrecognized exception while setting external ip, but we're ignoring it");
-    }
+////// issue no #280  sometimes startup hangs:: it happens at connect_to of get_external_ip
+//    try
+//    {
+//      ilog("calling get_external_ip");
+//      auto ext_ip = bts::network::get_external_ip();
+//      ilog( "external IP ${ip}", ("ip",ext_ip) );
+//      if( cfg.enable_upnp )
+//      {
+//        ilog("enable_upnp");
+//        _upnp.map_port( cfg.network_port );
+//        _server->set_external_ip( _upnp.external_ip() );
+//      }
+//      else
+//      {
+//        ilog("set_external_ip");
+//        _server->set_external_ip( ext_ip );
+//      }
+//    }
+//    catch (fc::exception e)
+//    {
+//      elog("Failed to connect to external IP address: ${e}", ("e",e.to_detail_string()));
+//    }
+//    catch (...)
+//    {
+//      elog("unrecognized exception while setting external ip, but we're ignoring it");
+//    }
 
     ilog("configuring server");
     bts::network::server::config server_cfg;
@@ -465,26 +533,41 @@ namespace bts {
   void                        application::mine_name( const std::string& name, const fc::ecc::public_key& key, float effort )
   { try {
      FC_ASSERT( my->_config );
-     my->_bitname_client->mine_name( name, key );
+     if (effort > 0)
+       my->_bitname_client->mine_name( name, key );
+     else
+       my->_bitname_client->stop_mining_name(name);
   } FC_RETHROW_EXCEPTIONS( warn, "name: ${name}", ("name",name) ) }
 
-  void  application::send_contact_request( const fc::ecc::public_key& to, const fc::ecc::private_key& from )
+  void  application::send_contact_request( const bitchat::private_contact_request_message& reqmsg,
+                                           const fc::ecc::public_key& to, const fc::ecc::private_key& from )
   {
-     FC_ASSERT( my->_config );
+    try
+    {
+      FC_ASSERT( my->_config );
+
+      bitchat::decrypted_message msg( reqmsg );
+      msg.sign(from);
+      my->_bitchat_client->send_message( msg, to, 0/* chan 0 */ );
+
+    }
+    FC_RETHROW_EXCEPTIONS( warn, "" )
   }
 
-  void  application::send_email( const bitchat::private_email_message& email, 
+  void  application::send_email( const bitchat::private_email_message1& email, 
                                  const fc::ecc::public_key& to, const fc::ecc::private_key& from )
   { try {
      FC_ASSERT( my->_config );
      //DLNFIX Later change to using derived class which has bcc_list as requested by bytemaster,
      //       but this is safer for now.
-     bitchat::private_email_message email_no_bcc_list(email);
+     bitchat::private_email_message1 email_no_bcc_list(email);
      email_no_bcc_list.bcc_list.clear();
      bitchat::decrypted_message msg( email_no_bcc_list );
      msg.sign(from);
      auto cipher_message = msg.encrypt( to, bts::bitchat::compression_type::lzma_compression );
+     //note: this "sent" timestamp will be overwritten by cmail server's receive time for now
      cipher_message.timestamp = fc::time_point::now() + my->server_time_offset;
+     ilog( "send_email at ${t}",("t",cipher_message.timestamp));
      my->_mail_con.send( mail::message( cipher_message) );
      //my->_bitchat_client->send_message( msg, to, 0/* chan 0 */ );
 

@@ -19,7 +19,7 @@ namespace bts {
   fc::sha512 keychain::stretch_seed( const fc::sha512& seed, std::function<void(double)> progress  )
   {
       fc::thread t("stretch_seed");
-      return t.async( [=]() {
+	  fc::sha512 stretched_seed = t.async( [=]() {
           fc::sha512 last = seed;
           std::vector<fc::sha512> seeds(1024*1024*4);
           seeds[0] = seed;
@@ -32,9 +32,12 @@ namespace bts {
              }
           }
           auto result = fc::sha512::hash( (char*)&seeds[0], sizeof(fc::sha512)*seeds.size() );
-          if( progress ) progress( double(1.0) );
+          if( progress )
+			progress( double(1.0) );
           return result;
       } ).wait();
+	  t.quit();
+	  return stretched_seed;
   }
 
   void              keychain::set_seed( const fc::sha512& stretched_seed )
@@ -51,7 +54,7 @@ namespace bts {
   }
   extended_private_key  keychain::get_identity_key( const std::string& ident )
   {
-    return ext_priv_key.child( fc::city_hash64(ident.c_str(),ident.size()),false );
+    return ext_priv_key.child( fc::hash64(ident.c_str(),ident.size()),false );
   }
 
   extended_private_key  keychain::get_private_account( const std::string& ident, uint32_t i )

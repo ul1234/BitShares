@@ -1,41 +1,19 @@
 #pragma once
+#include <bts/blockchain/output_reference.hpp>
+#include <bts/address.hpp>
+#include <bts/pts_address.hpp>
 #include <bts/blockchain/asset.hpp>
 #include <bts/blockchain/outputs.hpp>
 #include <bts/units.hpp>
-#include <bts/address.hpp>
 #include <bts/proof_of_work.hpp>
 #include <fc/crypto/elliptic.hpp>
 #include <fc/crypto/sha224.hpp>
 #include <fc/io/varint.hpp>
 #include <fc/exception/exception.hpp>
 
+
 namespace bts { namespace blockchain {
 
-/**
- *  A reference to a transaction and output index.
- */
-struct output_reference
-{
-  output_reference():output_idx(0){}
-  output_reference( const uint160& trx, uint8_t idx )
-  :trx_hash(trx),output_idx(idx){}
-  uint160  trx_hash;   // the hash of a transaction, TODO: switch to trx_id_type typedef rather than uint160 directly
-  uint8_t  output_idx; // the output index in the transaction trx_hash
-  
-  friend bool operator==( const output_reference& a, const output_reference& b )
-  {
-     return a.trx_hash == b.trx_hash && a.output_idx == b.output_idx;
-  }
-  friend bool operator!=( const output_reference& a, const output_reference& b )
-  {
-     return !(a==b);
-  }
-  friend bool operator < ( const output_reference& a, const output_reference& b )
-  {
-     return a.trx_hash == b.trx_hash ? a.output_idx < b.output_idx : a.trx_hash < b.trx_hash;
-  }
-};
-//static_assert( sizeof(output_reference) == (sizeof(uint160)+1), "output_reference should pack tightly" );
 
 /**
  *  Defines the source of an input used 
@@ -82,14 +60,7 @@ struct trx_output
 {
     template<typename ClaimType>
     trx_output( const ClaimType& t, const asset& a )
-    :amount(a.to_uint64()),unit(a.unit)
-    {
-       claim_func = ClaimType::type;
-       claim_data = fc::raw::pack(t);
-    }
-    template<typename ClaimType>
-    trx_output( const ClaimType& t, uint64_t a, asset::type u )
-    :amount(a),unit(u)
+    :amount(a)
     {
        claim_func = ClaimType::type;
        claim_data = fc::raw::pack(t);
@@ -102,15 +73,9 @@ struct trx_output
        return fc::raw::unpack<ClaimType>(claim_data);
     }
 
-    trx_output():amount(0){}
+    trx_output(){}
 
-    asset get_amount()const { return asset( amount,unit ); }
-    // NOTE: note this class has a custom to_variant method 
-    //   that pretty prints the claim data for known types
-    //   and this method must be updated if you change these
-    //   fields.
-    uint64_t                                    amount;
-    asset_type                                  unit;
+    asset                                       amount;
     claim_type                                  claim_func;
     std::vector<char>                           claim_data;
 };
@@ -123,10 +88,10 @@ typedef uint160 transaction_id_type;
  */
 struct transaction
 {
-   transaction():stake(0){}
+   transaction():version(0),stake(0){}
    fc::sha256                   digest()const;
 
-   fc::unsigned_int             version;        ///< trx version number
+   uint8_t                      version;        ///< trx version number
    uint32_t                     stake;          ///< used for proof of stake, last 8 bytes of block.id()
    fc::time_point_sec           timestamp;      ///< used to future proof, proof-of-stake
    fc::time_point_sec           valid_after;    ///< trx is only valid after a given time
@@ -138,8 +103,10 @@ struct transaction
 struct signed_transaction : public transaction
 {
     std::unordered_set<address>      get_signed_addresses()const;
+    std::unordered_set<pts_address>  get_signed_pts_addresses()const;
     transaction_id_type              id()const;
     void                             sign( const fc::ecc::private_key& k );
+    size_t                           size()const;
 
     std::set<fc::ecc::compact_signature> sigs;
 };
@@ -151,25 +118,10 @@ namespace fc {
    void from_variant( const variant& var,  bts::blockchain::trx_output& vo );
 };
 
-namespace std {
-  /**
-   *  This is implemented to facilitate generation of unique
-   *  sets of inputs.
-   */
-  template<>
-  struct hash<bts::blockchain::output_reference>
-  {
-     size_t operator()( const bts::blockchain::output_reference& e )const
-     {
-        return fc::city_hash64( (char*)&e.trx_hash, sizeof(e.trx_hash) )^e.output_idx;
-     }
-  };
-
-} // std
 
 FC_REFLECT( bts::blockchain::output_reference, (trx_hash)(output_idx) )
 FC_REFLECT( bts::blockchain::trx_input, (output_ref)(input_data) )
-FC_REFLECT( bts::blockchain::trx_output, (amount)(unit)(claim_func)(claim_data) )
+FC_REFLECT( bts::blockchain::trx_output, (amount)(claim_func)(claim_data) )
 FC_REFLECT( bts::blockchain::transaction, (version)(stake)(timestamp)(valid_after)(valid_until)(inputs)(outputs) )
 FC_REFLECT_DERIVED( bts::blockchain::signed_transaction, (bts::blockchain::transaction), (sigs) );
 

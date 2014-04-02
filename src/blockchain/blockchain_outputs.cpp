@@ -34,20 +34,26 @@ namespace bts { namespace blockchain {
    bool claim_by_bid_output::operator == ( const claim_by_bid_output& other )const
    {
       return  (other.pay_address == pay_address) &&
-              (other.ask_price   == ask_price)   &&
-              (other.min_trade   == min_trade);
+              (other.ask_price   == ask_price);  // &&
+       //       (other.min_trade   == min_trade);
    }
    bool claim_by_long_output::operator == ( const claim_by_long_output& other )const
    {
       return  (other.pay_address == pay_address) &&
-              (other.ask_price   == ask_price)   &&
-              (other.min_trade   == min_trade);
+              (other.ask_price   == ask_price);//
+           //   (other.min_trade   == min_trade);
    }
    bool claim_by_cover_output::operator == ( const claim_by_cover_output& other )const
    {
-      return  (other.owner == owner) &&
-              (other.payoff_unit   == payoff_unit)   &&
-              (other.payoff_amount   == payoff_amount);
+      return  (other.owner         == owner) &&
+              (other.payoff.unit   == payoff.unit)   &&
+              (other.payoff.get_rounded_amount() == payoff.get_rounded_amount() );
    }
 
+   price claim_by_cover_output::get_call_price( asset collat )const
+   {
+       collat.amount *= 3;
+       collat.amount /= 4;
+       return payoff / collat;
+   }
 } } // bts::blockchain

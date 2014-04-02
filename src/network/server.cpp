@@ -1,3 +1,6 @@
+#include <unordered_map>
+#include <map>
+#include <fc/network/ip.hpp>
 #include <bts/network/server.hpp>
 #include <bts/network/connection.hpp>
 #include <fc/network/tcp_socket.hpp>
@@ -9,8 +12,6 @@
 
 
 #include <algorithm>
-#include <unordered_map>
-#include <map>
 
 namespace bts { namespace network {
 
@@ -24,7 +25,7 @@ namespace bts { namespace network {
           cancel_loop(new fc::promise<void>)
           {}
 
-          ~server_impl()
+          virtual ~server_impl()
           {
              close();
           }

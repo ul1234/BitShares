@@ -20,18 +20,35 @@ namespace bts { namespace bitchat {
 
   struct message_header
   {
-      message_header():read_mark(false){}
+      message_header():state_mark(0x00){}
 
       fc::enum_type<uint32_t,private_message_type>   type;
-      fc::time_point_sec                             received_time;
+      fc::time_point                                 received_time;
       fc::ecc::public_key_data                       to_key;
       fc::ecc::public_key_data                       from_key;
       fc::uint256                                    digest;
       fc::enum_type<uint8_t,message_status>          status;
       fc::ecc::compact_signature                     from_sig;
-      fc::time_point_sec                             from_sig_time;
-      fc::time_point_sec                             ack_time;   // the time the ack for this msg was received
-      bool                                           read_mark;  // whether or not the user has read the message
+      fc::time_point                                 from_sig_time;
+      fc::time_point                                 ack_time;   // the time the ack for this msg was received
+      uint8_t                                        state_mark;  // set of mark: 0x01 - read, 0x02 - replied, 0x04 - forwarded
+                                                                  // draft_box - temporary information that the current message is a reply or a forwarded
+                                                                  // 0x10 - reply, 0x20 - message forwarded
+
+      void setRead()      {state_mark = state_mark | 0x01;}
+      void setUnread()    {state_mark = state_mark & 0xFE;}
+      void setReplied()   {state_mark = state_mark | 0x02;}
+      void setForwarded() {state_mark = state_mark | 0x04;}
+      void setTempReply() {state_mark = state_mark | 0x10;}
+      void setTempForwa() {state_mark = state_mark | 0x20;}
+      void clearTemp()    {state_mark = state_mark & 0xCF;}
+
+      bool isRead() const       {return (state_mark & 0x01) != 0;}
+      bool isUnread() const     {return (state_mark & 0x01) != 1;}
+      bool isReplied() const    {return (state_mark & 0x02) != 0;}
+      bool isForwarded() const  {return (state_mark & 0x04) != 0;}
+      bool isTempReply() const  {return (state_mark & 0x10) != 0;}
+      bool isTempForwa() const  {return (state_mark & 0x20) != 0;}
   };
   
   /**
@@ -98,8 +115,12 @@ namespace bts { namespace bitchat {
                                            fc::optional<fc::ecc::public_key_data> from_key  = fc::optional<fc::ecc::public_key_data>());
        
        std::vector<char>            fetch_data(  const fc::uint256& digest );
+
+       message_header               fetch_header(const fc::uint256& digest);
      private:
        std::unique_ptr<detail::message_db_impl> my;
+
+       void update_digest_to_header(const fc::path& dbdir);
   };
 
   typedef std::shared_ptr<message_db> message_db_ptr;
@@ -117,6 +138,6 @@ FC_REFLECT( bts::bitchat::message_header,
     (from_sig)
     (from_sig_time)
     (ack_time)
-    (read_mark)
+    (state_mark)
     (status)
     )

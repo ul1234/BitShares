@@ -1,3 +1,4 @@
+#include <fc/crypto/sha224.hpp>
 #include <bts/bitname/bitname_channel.hpp>
 #include <bts/bitname/bitname_messages.hpp>
 #include <bts/bitname/bitname_db.hpp>
@@ -14,7 +15,6 @@
 #include <fc/log/logger.hpp>
 
 #include <unordered_map>
-
 
 namespace bts { namespace bitname {
 
@@ -697,7 +697,7 @@ namespace bts { namespace bitname {
           { try {
                FC_ASSERT( !!cdat.requested_block );
 
-               // TODO: make sure that I requrested this block... 
+               // TODO: make sure that I requested this block... 
                _fork_db.cache_block( msg.block );
                _new_block_info = true;
                cdat.requested_block.reset();
@@ -724,7 +724,7 @@ namespace bts { namespace bitname {
               
               // TODO: validate that all ids reported have the min proof of work for a name.
 
-              ilog( "received ${x} block headers", ("msg",msg.headers.size() ) );
+              ilog( "received ${msg} block headers", ("msg",msg.headers.size() ) );
               _fork_db.cache_header( msg.first );
               _new_block_info = true;
               name_id_type prev_id = msg.first.id();
@@ -780,12 +780,13 @@ namespace bts { namespace bitname {
              _fork_db.cache_block( block );
              _new_block_info = true;
              _name_db.push_block( block ); // this throws on error
+             _name_db.dump(); // DEBUG
+
              _trx_broadcast_mgr.invalidate_all(); // current inventory is now invalid
              _block_index_broadcast_mgr.clear_old_inventory(); // we can clear old inventory
              _trx_broadcast_mgr.clear_old_inventory(); // this inventory no longer matters
              _block_index_broadcast_mgr.validated( block.id(), block, true );
 
-             _name_db.dump(); // DEBUG
              if( _delegate ) _delegate->name_block_added( block );
           } FC_RETHROW_EXCEPTIONS( warn, "error submitting block", ("block", block) ) }
     };

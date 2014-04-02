@@ -1,3 +1,5 @@
+#include <unordered_map>
+#include <fc/crypto/sha224.hpp>
 #include <bts/bitname/bitname_db.hpp>
 #include <bts/difficulty.hpp>
 #include <bts/blockchain/blockchain_time_keeper.hpp>
@@ -23,6 +25,12 @@ struct name_location
     uint16_t trx_num; /// trx_num max_trx_num == header name
 };
 FC_REFLECT( name_location, (block_num)(trx_num) )
+
+namespace fc {
+//  template<> struct get_typename<bts::bitname::name_header>   { static const char* name()   { return "bts::bitname::name_header";   } };
+  template<> struct get_typename<std::vector<bts::bitname::name_trx>>   { static const char* name()   { return "std::vector<bts::bitname::name_trx>";   } };
+  template<> struct get_typename<std::vector<name_location>>   { static const char* name()   { return "std::vector<name_location>";   } };
+}
 
 namespace bts { namespace bitname {
 
@@ -368,7 +376,7 @@ namespace bts { namespace bitname {
              prev_trx  = prev_block_trxs[prev_loc.trx_num];
           }
 
-          if( trx.repute_points != 0 ) // this is an update
+          if( trx.repute_points != fc::unsigned_int(0) ) // this is an update
           {
              FC_ASSERT( trx.repute_points.value == prev_trx.repute_points.value + repute, "", ("prev_trx", prev_trx)("repute",repute) );
              FC_ASSERT( trx.master_key  == prev_trx.master_key );
@@ -427,7 +435,7 @@ namespace bts { namespace bitname {
        else // new registration...
        {
           FC_ASSERT( trx.age == my->_header_ids.size(), "", ("header_ids.size()", my->_header_ids.size()) );
-          FC_ASSERT( trx.repute_points == 1 );
+          FC_ASSERT( trx.repute_points == fc::unsigned_int(1) );
           FC_ASSERT( trx.master_key != fc::ecc::public_key_data() );
           FC_ASSERT( trx.name_hash > 1000 ); // first 1000 hash slots are reserved for future use
        }

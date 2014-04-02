@@ -20,30 +20,35 @@ namespace bts { namespace blockchain {
       {
           case claim_by_signature:
           {
-             ss << std::string(o.as<claim_by_signature_output>().owner) << "<br/>\n";
+             ss << "<code>"<<std::string(o.as<claim_by_signature_output>().owner) << "</code><br/>\n";
+             break;
+          }
+          case claim_by_pts:
+          {
+             ss << "<code>"<<std::string(o.as<claim_by_pts_output>().owner) << "</code><br/>\n";
              break;
           }
           case claim_by_bid:
           {
              claim_by_bid_output bid = o.as<claim_by_bid_output>();
-             ss << "pay to: "<<std::string(bid.pay_address)<<"<br/>\n";
-             ss << "price:  "<<std::string(bid.ask_price)<<"<br/>\n";
-             ss << "min:    "<<bid.min_trade<<"<br/>\n";
+             ss << "pay to: <code>"<<std::string(bid.pay_address)<<"</code><br/>\n";
+             ss << "price:  <code>"<<std::string(bid.ask_price)<<"</code><br/>\n";
+        //     ss << "min:    "<<bid.min_trade<<"<br/>\n";
             break;
           }
           case claim_by_long:
           {
              claim_by_long_output bid = o.as<claim_by_long_output>();
-             ss << "pay to: "<<std::string(bid.pay_address)<<"<br/>\n";
-             ss << "price:  "<<std::string(bid.ask_price)<<"<br/>\n";
-             ss << "min:    "<<bid.min_trade<<"<br/>\n";
+             ss << "pay to: <code>"<<std::string(bid.pay_address)<<"</code><br/>\n";
+             ss << "price:  <code>"<<std::string(bid.ask_price)<<"</code><br/>\n";
+          //   ss << "min:    "<<bid.min_trade<<"<br/>\n";
             break;
           }
           case claim_by_cover:
           {
              claim_by_cover_output cover = o.as<claim_by_cover_output>();
-             ss << "owner:   "<<std::string(cover.owner)<<"<br/>\n";
-             ss << "payoff:  "<<std::string(cover.get_payoff_amount())<<"<br/>\n";
+             ss << "owner:   <code>"<<std::string(cover.owner)<<"</code><br/>\n";
+             ss << "payoff:  <code>"<<std::string(cover.payoff)<<"</code><br/>\n";
             break;
           }
       }
@@ -64,16 +69,16 @@ namespace bts { namespace blockchain {
         for( uint32_t i = 0; i < state.inputs.size(); ++i )
         {
            out << "<li>\n";
-           out << "<div>" << state.inputs[i].output.amount << " " << fc::variant( state.inputs[i].output.unit ).as_string();
+           out << "<div>" << std::string(state.inputs[i].output.amount);// << " " << fc::variant( state.inputs[i].output.unit ).as_string();
            out << "   " << fc::variant(state.inputs[i].output.claim_func).as_string();
            out << "</br>\n   Source: Block#  "<<state.inputs[i].source.block_num 
                                  << " Trx # " <<state.inputs[i].source.trx_idx <<"\n"
                                  << " Out # " << uint32_t(state.inputs[i].output_num) <<"<br/>\n";
-           uint64_t cdd = (tn.block_num - state.inputs[i].source.block_num) * state.inputs[i].output.amount;
-           if( state.inputs[i].output.unit != asset::bts ) 
-                cdd = 0;
-           total_cdd += cdd;
-           out << " CDD: " << cdd << "<br/>\n";
+           //uint64_t cdd = (tn.block_num - state.inputs[i].source.block_num) * state.inputs[i].output.amount;
+           //if( state.inputs[i].output.unit != asset::bts ) 
+           //     cdd = 0;
+           //total_cdd += cdd;
+           //out << " CDD: " << cdd << "<br/>\n";
            out << "<p/></div>\n</li>\n";
         }
         out << "</ol>\n";
@@ -85,7 +90,7 @@ namespace bts { namespace blockchain {
         {
            out << "<li>\n";
            out << "<div>\n";
-           out << state.trx.outputs[i].amount << " " << fc::variant( state.trx.outputs[i].unit ).as_string();
+           out << std::string(state.trx.outputs[i].amount);// << " " << fc::variant( state.trx.outputs[i].unit ).as_string();
            out << "  <br/>" << fc::variant(state.trx.outputs[i].claim_func).as_string() <<"  ";
            out << "  <br/>\n" << print_output( state.trx.outputs[i] ) <<" \n";
            if( mtrx.meta_outputs[i].is_spent() )
@@ -176,7 +181,7 @@ namespace bts { namespace blockchain {
      ss << "    <td>" << std::string( b.id() ).substr(0,8)                      <<"</td>\n";
      ss << "    <td>" << std::string( b.prev ).substr(0,8)                      <<"</td>\n";
      ss << "    <td align=right cellpadding=5>" << b.total_shares               <<"</td>\n";
-     ss << "    <td cellpadding=5>" << b.total_coindays_destroyed <<"</td>\n";
+     ss << "    <td cellpadding=5>" << b.total_cdd <<"</td>\n";
      ss << "  </tr>\n";
      ss << "</table>\n";
      ss << "</td></tr>\n";

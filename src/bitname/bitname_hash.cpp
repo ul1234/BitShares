@@ -137,7 +137,8 @@ uint64_t  name_hash( const std::string& n )
   // confusion this way... yes this means mom, moon, noon will be the same.. boob, bob, bo will
   // all be treated the same, so one person can 'claim' all of those names with a single 
   // name registration. 
-  replace_char_runs(asciiName);
+  //DLN disabled this, as we allowed keyhotee Founder IDs like C and CC
+  //replace_char_runs(asciiName);
 
   if( asciiName.size() && asciiName.front() == '.' )
     asciiName.erase(0,1);
@@ -152,7 +153,7 @@ uint64_t  name_hash( const std::string& n )
   fc::sha256 h = fc::sha256::hash( asciiName.c_str(), asciiName.size() );
 
   // compress it down to 64 bits
-  return fc::city_hash64( (char*)&h, sizeof(h) );
+  return fc::hash64( (char*)&h, sizeof(h) );
 }
 
 } } 

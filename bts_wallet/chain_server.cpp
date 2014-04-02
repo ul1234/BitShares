@@ -1,3 +1,4 @@
+#include <fc/crypto/ripemd160.hpp>
 #include "chain_server.hpp" 
 #include "chain_connection.hpp"
 #include "chain_messages.hpp"
@@ -12,6 +13,7 @@
 #include <fc/thread/thread.hpp>
 #include <fc/thread/future.hpp>
 #include <fc/io/raw.hpp>
+#include <fc/io/json.hpp>
 #include <fc/log/logger.hpp>
 
 #include <iostream>
@@ -27,28 +29,71 @@ fc::ecc::private_key test_genesis_private_key()
     return fc::ecc::private_key::generate_from_seed( fc::sha256::hash( "freedom!!!!", 10 ) );
 }
 
+struct genesis_block_config
+{
+   genesis_block_config():supply(0),blockheight(0){}
+   double                                            supply;
+   uint64_t                                          blockheight;
+   std::vector< std::pair<bts::pts_address,uint64_t> > balances;
+};
+FC_REFLECT( genesis_block_config, (supply)(balances) )
+
+using namespace bts::blockchain;
+
 bts::blockchain::trx_block create_test_genesis_block()
 {
-   bts::blockchain::trx_block b;
-   b.version      = 0;
-   b.prev         = bts::blockchain::block_id_type();
-   b.block_num    = 0;
-   b.total_shares = 100*COIN;
-   b.timestamp    = fc::time_point::from_iso_string("20131201T054434");
+   try {
+      auto config = fc::json::from_file( "genesis.json" ).as<genesis_block_config>();
+      int64_t total_supply = 0;
+      bts::blockchain::trx_block b;
+      bts::blockchain::signed_transaction coinbase;
+      coinbase.version = 0;
+      coinbase.timestamp = fc::time_point::now();
 
-   bts::blockchain::signed_transaction coinbase;
-   coinbase.version = 0;
-   //coinbase.valid_after = 0;
-   //coinbase.valid_blocks = 0;
-   std::cerr<<"Genesis Private Key: "<<std::string(test_genesis_private_key().get_secret() )<<"\n";
-   // TODO: init from PTS here...
-   coinbase.outputs.push_back( 
-      bts::blockchain::trx_output( bts::blockchain::claim_by_signature_output( bts::address(test_genesis_private_key().get_public_key()) ), b.total_shares, bts::blockchain::asset::bts) );
+      uint8_t output_idx = 0;
+      for( auto itr = config.balances.begin(); itr != config.balances.end(); ++itr )
+      {
+         total_supply += itr->second;
+         ilog( "${i}", ("i",*itr) );
+         coinbase.outputs.push_back( trx_output( claim_by_pts_output( itr->first ), asset( itr->second, asset::bts ) ) );
+         if( output_idx == 0xff )
+         {
+            b.trxs.emplace_back( std::move(coinbase) );
+            coinbase.outputs.clear();
+         }
+         ++output_idx;
+      }
 
-   b.trxs.emplace_back( std::move(coinbase) );
-   b.trx_mroot   = b.calculate_merkle_root();
+      b.version      = 0;
+      b.prev         = bts::blockchain::block_id_type();
+      b.block_num    = 0;
+      b.total_shares = int64_t(total_supply);
+      b.timestamp    = fc::time_point::from_iso_string("20131201T054434");
+      b.next_fee     = bts::blockchain::block_header::min_fee();
 
-   return b;
+      //coinbase.valid_after = 0;
+      //coinbase.valid_blocks = 0;
+      std::cerr<<"Genesis Private Key: "<<std::string(test_genesis_private_key().get_secret() )<<"\n";
+      // TODO: init from PTS here...
+   //   coinbase.outputs.push_back( 
+   //      bts::blockchain::trx_output( bts::blockchain::claim_by_signature_output( bts::address(test_genesis_private_key().get_public_key()) ), bts::blockchain::asset(b.total_shares, bts::blockchain::asset::bts)) );
+
+      ilog( "..." );
+      ilog( "..." );
+      b.trx_mroot   = b.calculate_merkle_root();
+      ilog( "..." );
+      fc::variant var(b);
+      ilog( "..." );
+
+      auto str = fc::json::to_pretty_string(var); //b);
+      ilog( "block: \n${b}", ("b", str ) );
+      return b;
+   } 
+   catch ( const fc::exception& e )
+   {
+      ilog( "caught exception!: ${e}", ("e", e.to_detail_string()) );
+      throw;
+   }
 }
 
 namespace detail
@@ -69,10 +114,6 @@ namespace detail
             ilog( "closing connections..." );
             try 
             {
-                for( auto i = pending_connections.begin(); i != pending_connections.end(); ++i )
-                {
-                  (*i)->close();
-                }
                 tcp_serv.close();
                 if( accept_loop_complete.valid() )
                 {
@@ -93,25 +134,24 @@ namespace detail
                 elog( "unexpected exception" );
             }
         }
-        chain_server_delegate*                                      ser_del;
-        fc::ip::address                                             _external_ip;
-        std::unordered_map<fc::ip::endpoint,chain_connection_ptr>   connections;
+        chain_server_delegate*                                                               ser_del;
+        fc::ip::address                                                                      _external_ip;
+        std::unordered_map<fc::ip::endpoint,chain_connection_ptr>                            connections;
+                                                                                             
+        chain_server::config                                                                 cfg;
+        fc::tcp_server                                                                       tcp_serv;
+                                                                                            
+        fc::future<void>                                                                     accept_loop_complete;
+       // fc::future<void>                                                                     block_gen_loop_complete;
+        std::unordered_map<bts::blockchain::transaction_id_type,bts::blockchain::signed_transaction> pending;
 
-        std::set<chain_connection_ptr>                              pending_connections;
-        chain_server::config                                        cfg;
-        fc::tcp_server                                              tcp_serv;
-                                                                   
-        fc::future<void>                                            accept_loop_complete;
-        fc::future<void>                                            block_gen_loop_complete;
-        std::vector<bts::blockchain::signed_transaction>            pending;
 
-
-        void block_gen_loop()
+       /* void block_gen_loop()
         {
              try {
                 while( true )
                 {
-                   fc::usleep( fc::seconds(20) );
+                   fc::usleep( fc::seconds(5) );
 
                    auto order_trxs   = chain.match_orders(); 
                    pending.insert( pending.end(), order_trxs.begin(), order_trxs.end() );
@@ -133,6 +173,7 @@ namespace detail
                 exit(-1);
              }
         }
+        */
         void broadcast_block( const bts::blockchain::trx_block& blk )
         {
             // copy list to prevent yielding in middle...
@@ -148,6 +189,23 @@ namespace detail
                     itr->second->send( message( blk_msg ) );
                     itr->second->set_last_block_id( blk.id() );
                   }
+               } 
+               catch ( const fc::exception& w )
+               {
+                  wlog( "${w}", ( "w",w.to_detail_string() ) );
+               }
+            }
+        }
+        void broadcast( const message& m )
+        {
+            // copy list to prevent yielding in middle...
+            auto cons = connections;
+            
+            for( auto itr = cons.begin(); itr != cons.end(); ++itr )
+            {
+               try {
+                 // todo... make sure connection is synced...
+                 itr->second->send( m );
                } 
                catch ( const fc::exception& w )
                {
@@ -174,14 +232,37 @@ namespace detail
                 c.set_last_block_id( sm.last_block );
                 c.exec_sync_loop();
              }
+             else if( m.type == block_message::type )
+             {
+                try {
+                   auto blk = m.as<block_message>();
+                   chain.push_block( blk.block_data );
+                   for( auto itr = blk.block_data.trxs.begin(); itr != blk.block_data.trxs.end(); ++itr )
+                   {
+                      pending.erase( itr->id() );
+                   }
+                   broadcast_block( blk.block_data );
+                }
+                catch ( const fc::exception& e )
+                {
+                   trx_err_message reply;
+                   reply.err = e.to_detail_string();
+                   wlog( "${e}", ("e", e.to_detail_string() ) );
+                   c.send( message( reply ) );
+                   c.close();
+                }
+             }
              else if( m.type == chain_message_type::trx_msg )
              {
                 auto trx = m.as<trx_message>();
                 ilog( "recv: ${m}", ("m",trx) );
                 try 
                 {
-                   chain.evaluate_signed_transaction( trx.signed_trx );
-                   pending.push_back(trx.signed_trx);
+                   chain.evaluate_signed_transaction( trx.signed_trx ); // throws exception if invalid trx.
+                   if( pending.insert( std::make_pair(trx.signed_trx.id(),trx.signed_trx) ).second )
+                   {
+                      fc::async( [=]() { broadcast( m ); } );
+                   }
                 } 
                 catch ( const fc::exception& e )
                 {
@@ -206,16 +287,16 @@ namespace detail
 
         virtual void on_connection_disconnected( chain_connection& c )
         {
-          try {
-            ilog( "cleaning up connection after disconnect ${e}", ("e", c.remote_endpoint()) );
-            auto cptr = c.shared_from_this();
-            FC_ASSERT( cptr );
-            if( ser_del ) ser_del->on_disconnected( cptr );
-            auto itr = connections.find(c.remote_endpoint());
-            connections.erase( itr ); //c.remote_endpoint() );
-            // we cannot close/delete the connection from this callback or we will hang the fiber
-            fc::async( [cptr]() {} );
-          } FC_RETHROW_EXCEPTIONS( warn, "error thrown handling disconnect" );
+           try {
+              ilog( "cleaning up connection after disconnect ${e}", ("e", c.remote_endpoint()) );
+              auto cptr = c.shared_from_this();
+              FC_ASSERT( cptr );
+              if( ser_del ) ser_del->on_disconnected( cptr );
+              auto itr = connections.find(c.remote_endpoint());
+              connections.erase( itr ); //c.remote_endpoint() );
+              // we cannot close/delete the connection from this callback or we will hang the fiber
+              fc::async( [cptr]() {} );
+           } FC_RETHROW_EXCEPTIONS( warn, "error thrown handling disconnect" );
         }
 
         /**
@@ -271,7 +352,7 @@ namespace detail
 
                  // limit the rate at which we accept connections to prevent
                  // DOS attacks.
-                 fc::usleep( fc::microseconds( 1000*10 ) );
+                 fc::usleep( fc::microseconds( 1000*1 ) );
               }
            } 
            catch ( fc::eof_exception& e )
@@ -301,7 +382,7 @@ namespace detail
 
 
 chain_server::chain_server()
-:my( new detail::chain_server_impl() ){}
+:my( new ::detail::chain_server_impl() ){}
 
 chain_server::~chain_server()
 { }
@@ -319,15 +400,24 @@ void chain_server::configure( const chain_server::config& c )
      
      ilog( "listening for stcp connections on port ${p}", ("p",c.port) );
      my->tcp_serv.listen( c.port );
+     ilog( "..." );
      my->accept_loop_complete = fc::async( [=](){ my->accept_loop(); } ); 
-     my->block_gen_loop_complete = fc::async( [=](){ my->block_gen_loop(); } ); 
+    // my->block_gen_loop_complete = fc::async( [=](){ my->block_gen_loop(); } ); 
      
      my->chain.open( "chain" );
      if( my->chain.head_block_num() == uint32_t(-1) )
      {
          auto genesis = create_test_genesis_block();
+         ilog( "about to push" );
+         try {
          //ilog( "genesis block: \n${s}", ("s", fc::json::to_pretty_string(genesis) ) );
          my->chain.push_block( genesis );
+         } 
+         catch ( const fc::exception& e )
+         {
+            wlog( "error: ${e}", ("e", e.to_detail_string() ) );
+         }
+         ilog( "push successful" );
      }
 
   } FC_RETHROW_EXCEPTIONS( warn, "error configuring server", ("config", c) );

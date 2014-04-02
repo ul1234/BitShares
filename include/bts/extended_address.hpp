@@ -9,7 +9,7 @@
 namespace bts
 {
     /**
-     *  Given an extended public key you calculate the public key of all
+     *  Given an extended public key you can calculate the public key of all
      *  children keys, but not the coresponding private keys.  
      *
      *  @note this only works for extended private keys that use public derivation

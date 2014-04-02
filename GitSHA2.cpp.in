@@ -1,4 +1,7 @@
+#include <stdint.h>
 #include "GitSHA2.h"
 
 #define GIT_SHA2 "@GIT_SHA2@"
 const char* const g_GIT_SHA2 = GIT_SHA2;
+#define GIT_UNIX_TIMESTAMP2 @GIT_UNIX_TIMESTAMP2@
+const uint32_t g_GIT_UNIX_TIMESTAMP2 = GIT_UNIX_TIMESTAMP2;

@@ -12,19 +12,49 @@ namespace bts { namespace blockchain {
 
     namespace detail  { class blockchain_db_impl; }
 
+    struct price_point
+    {
+        price_point():from_block(0),to_block(0){}
+        fc::time_point_sec from_time;
+        fc::time_point_sec to_time;
+        uint32_t           from_block;
+        uint32_t           to_block;
+        price              open_bid;
+        price              high_bid;
+        price              low_bid;
+        price              close_bid;
+        price              open_ask;
+        price              high_ask;
+        price              low_ask;
+        price              close_ask;
+        asset              quote_volume;
+        asset              base_volume;
+    
+        price_point& operator += ( const price_point& pp );
+    };
+
+
     /**
      *  Information generated as a result of evaluating a signed
      *  transaction.
      */
     struct trx_eval
     {
-       trx_eval():coindays_destroyed(0){}
+       trx_eval()
+       :coindays_destroyed(0),
+        invalid_coindays_destroyed(0),
+        total_spent(0){}
+
        asset  fees; // any fees that would be generated
        uint64_t coindays_destroyed;
+       uint64_t invalid_coindays_destroyed;
+       uint64_t total_spent;
        trx_eval& operator += ( const trx_eval& e )
        {
-         fees               += e.fees;
-         coindays_destroyed += e.coindays_destroyed;
+         fees                       += e.fees;
+         coindays_destroyed         += e.coindays_destroyed;
+         invalid_coindays_destroyed += e.invalid_coindays_destroyed;
+         total_spent                += e.total_spent;
          return *this;
        }
     };
@@ -152,10 +182,20 @@ namespace bts { namespace blockchain {
           void open( const fc::path& dir, bool create = true );
           void close();
 
+          uint64_t      total_shares()const;
           uint32_t      head_block_num()const;
           block_id_type head_block_id()const;
           uint64_t      get_stake(); // head - 1 
+          uint64_t      get_stake2(); // head - 2 
           asset         get_fee_rate()const;
+          uint64_t      current_difficulty()const;
+          uint64_t      available_coindays()const;
+
+          uint64_t      get_market_depth( asset::type quote )const;
+          uint64_t      get_required_depth()const;
+          std::vector<price_point> get_market_history( asset::type quote, asset::type base, 
+                                                      fc::time_point_sec from, fc::time_point_sec to, 
+                                                      uint32_t blocks_per_point = 1 );
 
          /**
           *  Validates that trx could be included in a future block, that
@@ -167,15 +207,16 @@ namespace bts { namespace blockchain {
           *
           *  @throw exception if trx can not be applied to the current chain state.
           */
-         trx_eval   evaluate_signed_transaction( const signed_transaction& trx );       
-         trx_eval   evaluate_signed_transactions( const std::vector<signed_transaction>& trxs );
+         trx_eval   evaluate_signed_transaction( const signed_transaction& trx, bool ignore_fees = false, bool is_market = false );       
+         trx_eval   evaluate_signed_transactions( const std::vector<signed_transaction>& trxs, uint64_t ignore_first_n = 0 );
 
-         std::vector<signed_transaction> match_orders();
+         std::vector<signed_transaction> match_orders( std::vector<price_point>* order_stats = nullptr );
          trx_block  generate_next_block( const std::vector<signed_transaction>& trx );
 
          trx_num    fetch_trx_num( const uint160& trx_id );
          meta_trx   fetch_trx( const trx_num& t );
 
+         signed_transaction          fetch_transaction( const transaction_id_type& trx_id );
          std::vector<meta_trx_input> fetch_inputs( const std::vector<trx_input>& inputs, uint32_t head = INVALID_BLOCK_NUM );
 
          uint32_t     fetch_block_num( const block_id_type& block_id );
@@ -214,3 +255,14 @@ FC_REFLECT( bts::blockchain::trx_num, (block_num)(trx_idx) );
 FC_REFLECT( bts::blockchain::meta_trx_output, (trx_id)(input_num) )
 FC_REFLECT( bts::blockchain::meta_trx_input, (source)(output_num)(output)(meta_output) )
 FC_REFLECT_DERIVED( bts::blockchain::meta_trx, (bts::blockchain::signed_transaction), (meta_outputs) );
+FC_REFLECT( bts::blockchain::bid_data, (bid_price)(amount)(is_short) )
+FC_REFLECT( bts::blockchain::ask_data, (ask_price)(amount) )
+FC_REFLECT( bts::blockchain::short_data, (short_price)(amount) )
+FC_REFLECT( bts::blockchain::margin_data, (call_price)(amount)(collateral) )
+FC_REFLECT( bts::blockchain::market_data, (bids)(asks)(shorts)(margins) )
+
+FC_REFLECT( bts::blockchain::price_point, (from_time)(to_time)
+                                          (from_block)(to_block)
+                                          (open_bid)(high_bid)(low_bid)(close_bid)
+                                          (open_ask)(high_ask)(low_ask)(close_ask)
+                                          (quote_volume)(base_volume) )

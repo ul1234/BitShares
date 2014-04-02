@@ -13,11 +13,22 @@ github or bytemaster on bitcointalk.org
 
 Dependencies
 -------------------
-	g++ 4.6, VC2010 
+	g++ 4.6, VC2012, clang++ 3.2 (apple)
 	boost 1.54
 	OpenSSL
-	Qt 5.1 (for GUI only)
-	cmake 2.8.11.2
+	cmake 2.8.12
+  libreadline-dev
+
+  On Linux you may also require uuid-dev
+
+     apt-get install uuid-dev
+
+OS X Build Instructions
+-----------------------
+Download the latest boost and build it with clang++ with support for static libraries like so
+  
+  sudo ./b2 toolset=clang cxxflags="-stdlib=libc++" linkflags="-stdlib=libc++" link=static install
+
 
 Build
 --------------------

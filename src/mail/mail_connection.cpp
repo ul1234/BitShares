@@ -271,7 +271,17 @@ namespace mail {
              {
                 if( itr.key() > my->_sync_time )
                 {
-                   send( message( itr.value() ) );
+                   bts::bitchat::encrypted_message msg_to_send;
+                   try {
+                     msg_to_send = itr.value();
+                   }
+                   catch (const fc::exception& e)
+                   {
+                      elog( "Cannot decode msg from database, maybe old format: ${e}", ("e", e.to_detail_string() ) );
+                      ++itr;
+                      continue;
+                   }
+                   send( message( msg_to_send ) );
                    my->_sync_time = itr.key();
                 }
                 ++itr;
@@ -287,6 +297,7 @@ namespace mail {
         {
            wlog("other exeception" );
         }
+        close(); //kill connection
       });
   }
 

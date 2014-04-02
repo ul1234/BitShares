@@ -61,6 +61,7 @@ namespace bts { namespace network {
                   m.data.resize( m.size + 16 ); //give extra 16 bytes to allow for padding added in send call
                   memcpy( (char*)m.data.data(), tmp + PACKED_MESSAGE_HEADER, LEFTOVER );
                   sock->read( m.data.data() + LEFTOVER, 16*((m.size -LEFTOVER + 15)/16) );
+                  m.data.resize(m.size);
 
                   try { // message handling errors are warnings... 
                     con_del->on_connection_message( self, m );

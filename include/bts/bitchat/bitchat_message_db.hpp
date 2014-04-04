@@ -120,7 +120,7 @@ namespace bts { namespace bitchat {
      private:
        std::unique_ptr<detail::message_db_impl> my;
 
-       void update_digest_to_header(const fc::path& dbdir);
+//       void update_digest_to_header(const fc::path& dbdir);
   };
 
   typedef std::shared_ptr<message_db> message_db_ptr;

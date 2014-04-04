@@ -55,23 +55,8 @@ namespace bts { namespace bitchat {
         fc::create_directories(dbdir);
         my->_index.open(dbdir/"index");
         my->_digest_to_data.open(dbdir/"digest_to_data");
-        if(!fc::is_directory(dbdir/"digest_to_header"))
-          update_digest_to_header(dbdir);
-        else
-          my->_digest_to_header.open(dbdir/"digest_to_header");
+        my->_digest_to_header.open(dbdir/"digest_to_header");
   } FC_RETHROW_EXCEPTIONS( warn, "", ("dir", dbdir)("key",key)("create",create)) }
-
-  void message_db::update_digest_to_header(const fc::path& dbdir)
-  {
-    my->_digest_to_header.open(dbdir/"digest_to_header");
-    auto itr = my->_index.begin();
-    while( itr.valid() )
-    {
-      auto cur_val = itr.key();
-      my->_digest_to_header.store(cur_val.digest, cur_val);
-      ++itr;
-    }
-  }
 
   message_header message_db::store_message(const decrypted_message& msg,
                                            const message_header* previous_msg_header )

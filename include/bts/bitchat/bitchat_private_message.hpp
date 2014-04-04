@@ -43,33 +43,6 @@ namespace bts { namespace bitchat {
 
     struct decrypted_message;
 
-    //legacy encrypted_message (had insufficient timestamp granularity)
-    struct encrypted_message0 
-    {
-        static const message_type type;
-        encrypted_message0();
-        mutable uint32_t                              noncea; ///< collision a
-        mutable uint32_t                              nonceb; ///< collision b
-
-        uint16_t                                      nonce; ///< increment timestamp after 63K tests
-        fc::time_point_sec                            timestamp;
-        fc::ecc::public_key                           dh_key;
-        fc::uint160_t                                 check;
-        std::vector<char>                             data;
-
-        fc::uint128        id()const;
-
-        /**
-         *  This method will increment the nonce or timestamp until difficulty(id()) > tar_per_kb*(1+data.size()/1024).
-         *
-         *  @return a future object that can be used to cancel the proof of work, result true if target found.
-         */
-        bool        do_proof_work( uint64_t tar_per_kb );
-        bool        validate_proof()const; // checks to make sure the proof of work is valid
-        uint64_t    difficulty()const;
-        bool        decrypt( const fc::ecc::private_key& with, decrypted_message& m )const;
-    };
-
     /**
      *  An encrypted message is encoded with a particular public key destination in
      *  mind.  Each message establishes a new ECDH key pair and one-time shared secret 
@@ -81,29 +54,19 @@ namespace bts { namespace bitchat {
     {
         static const message_type type;
         encrypted_message();
-        encrypted_message(const encrypted_message0& msg) //upgrade from old encrypted_message format
-          {
-          noncea = msg.noncea;
-          nonceb = msg.nonceb;
-          nonce  = msg.nonce;
-          timestamp = msg.timestamp; //switch from time_point_sec to high accuracy time_point
-          dh_key = msg.dh_key;
-          check = msg.check;
-          data = msg.data;
-          }
 
-        mutable uint32_t                              noncea; ///< collision a
-        mutable uint32_t                              nonceb; ///< collision b
+        mutable uint32_t                                  noncea; ///< collision a
+        mutable uint32_t                                  nonceb; ///< collision b
 
-        uint16_t                                      nonce; ///< increment timestamp after 63K tests
-        fc::time_point                                timestamp;
-        fc::ecc::public_key                           dh_key;
-        fc::uint160_t                                 check;
-        std::vector<char>                             data;
+        uint16_t                                          nonce; ///< increment timestamp after 63K tests
+        fc::time_point                                    timestamp;
+        fc::ecc::public_key                               dh_key;
+        fc::uint160_t                                     check;
+        std::vector<char>                                 data;
 
-        fc::uint128        id()const;
-		
-		fc::enum_type<fc::unsigned_int,compression_type>  compress_type;
+        fc::uint128                                       id()const;
+        
+        fc::enum_type<fc::unsigned_int,compression_type>  compress_type;
 
         /**
          *  This method will increment the nonce or timestamp until difficulty(id()) > tar_per_kb*(1+data.size()/1024).
@@ -121,11 +84,11 @@ namespace bts { namespace bitchat {
     {
        unknown_msg          = 0,
        text_msg             = 1,
-       email_msg            = 2,
+//     email_msg            = 2, /// for use in the next update to either replace the email_msg1
        contact_request_msg  = 3,
        contact_auth_msg     = 4,
        status_msg           = 5,
-       email_msg1           = 6 /// for private_email_message1
+       email_msg1           = 6 /// for private_email_message
     };
 
     /**
@@ -213,33 +176,16 @@ namespace bts { namespace bitchat {
 
     struct private_email_message
     {
-       static const private_message_type  type;
-       std::string                        from_keyhotee_id;
-       std::vector<fc::ecc::public_key>   to_list;
-       std::vector<fc::ecc::public_key>   cc_list;
-       std::string                        subject;
-       std::string                        body;
-       std::vector<attachment>            attachments;
-       std::vector<fc::ecc::public_key>   bcc_list;
-    };
-
-    struct private_email_message1 : public private_email_message
-    {
-      private_email_message1(){}
-
-      private_email_message1(const private_email_message& msg) //upgrade from old private_email_message format
-      {
-        from_keyhotee_id  = msg.from_keyhotee_id;
-        to_list           = msg.to_list;
-        cc_list           = msg.cc_list;
-        subject           = msg.subject;
-        body              = msg.body;
-        attachments       = msg.attachments;
-        bcc_list          = msg.bcc_list;
-      }
+      private_email_message(){}
 
       static const private_message_type  type;
-
+      std::string                        from_keyhotee_id;
+      std::vector<fc::ecc::public_key>   to_list;
+      std::vector<fc::ecc::public_key>   cc_list;
+      std::string                        subject;
+      std::string                        body;
+      std::vector<attachment>            attachments;
+      std::vector<fc::ecc::public_key>   bcc_list;
       fc::optional<fc::uint256>          src_msg_id; /// id of the message to which replied or forwarded
     };
 
@@ -293,21 +239,16 @@ FC_REFLECT_ENUM( bts::bitchat::message_type,
        (get_cache_priv_msg)
        (encrypted_msg) )
 
-FC_REFLECT_ENUM( bts::bitchat::private_message_type, (unknown_msg)(text_msg)(email_msg)(contact_request_msg)(contact_auth_msg)(status_msg)(email_msg1) )
+FC_REFLECT_ENUM( bts::bitchat::private_message_type, (unknown_msg)(text_msg)(contact_request_msg)(contact_auth_msg)(status_msg)(email_msg1) )
 FC_REFLECT_ENUM( bts::bitchat::compression_type, (no_compression)(smaz_compression)(lzma_compression) )
 FC_REFLECT_ENUM( bts::bitchat::encryption_type, (no_encryption)(blowfish_encryption)(twofish_encryption)(aes_encryption) )
 FC_REFLECT_ENUM( bts::bitchat::authorization_status, (request)(accept)(deny)(block) )
 FC_REFLECT( bts::bitchat::attachment, (filename)(body) )
 
-FC_REFLECT( bts::bitchat::encrypted_message0, (noncea)(nonceb)(nonce)(timestamp)(dh_key)(check)(data) );
 FC_REFLECT( bts::bitchat::encrypted_message, (noncea)(nonceb)(nonce)(timestamp)(dh_key)(check)(data)(compress_type) );
-
 FC_REFLECT( bts::bitchat::decrypted_message, (msg_type)(data)(sig_time)(from_sig) )
 FC_REFLECT( bts::bitchat::private_text_message, (msg) )
-
-FC_REFLECT( bts::bitchat::private_email_message, (from_keyhotee_id)(to_list)(cc_list)(subject)(body)(attachments)(bcc_list) )
-FC_REFLECT_DERIVED( bts::bitchat::private_email_message1, (bts::bitchat::private_email_message), (src_msg_id) )
-
+FC_REFLECT( bts::bitchat::private_email_message, (from_keyhotee_id)(to_list)(cc_list)(subject)(body)(attachments)(bcc_list)(src_msg_id) )
 FC_REFLECT( bts::bitchat::private_status_message, (status)(status_message) )
 FC_REFLECT( bts::bitchat::private_contact_request_message, (from_first_name)(from_last_name)(from_keyhotee_id)(request_param)
                                                             (greeting_message)(from_channel)(extended_pub_key)(status)(recipient) )

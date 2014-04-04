@@ -217,13 +217,13 @@ namespace bts {
                 if( _delegate ) _delegate->received_text( msg );
                 break;
               }
-              case bitchat::private_message_type::email_msg:
-              {
-                auto email = msg.as<bitchat::private_email_message>();
-                ilog( "email message ${msg}", ("msg",email) );
-                if( _delegate ) _delegate->received_email( msg );//, *m.from_key, m.decrypt_key->get_public_key() );
-                break;
-              }
+              //case bitchat::private_message_type::email_msg:
+              //{
+              //  auto email = msg.as<bitchat::private_email_message>();
+              //  ilog( "email message ${msg}", ("msg",email) );
+              //  if( _delegate ) _delegate->received_email( msg );//, *m.from_key, m.decrypt_key->get_public_key() );
+              //  break;
+              //}
               case bitchat::private_message_type::contact_request_msg:
               {
                 auto request = msg.as<bitchat::private_contact_request_message>();
@@ -237,7 +237,7 @@ namespace bts {
                 break;
               case bitchat::private_message_type::email_msg1:
               {
-                auto email = msg.as<bitchat::private_email_message1>();
+                auto email = msg.as<bitchat::private_email_message>();
                 ilog( "email message 1 ${msg}", ("msg",email) );
                 if( _delegate ) _delegate->received_email( msg );
                 break;
@@ -554,13 +554,13 @@ namespace bts {
     FC_RETHROW_EXCEPTIONS( warn, "" )
   }
 
-  void  application::send_email( const bitchat::private_email_message1& email, 
+  void  application::send_email( const bitchat::private_email_message& email, 
                                  const fc::ecc::public_key& to, const fc::ecc::private_key& from )
   { try {
      FC_ASSERT( my->_config );
      //DLNFIX Later change to using derived class which has bcc_list as requested by bytemaster,
      //       but this is safer for now.
-     bitchat::private_email_message1 email_no_bcc_list(email);
+     bitchat::private_email_message email_no_bcc_list(email);
      email_no_bcc_list.bcc_list.clear();
      bitchat::decrypted_message msg( email_no_bcc_list );
      msg.sign(from);

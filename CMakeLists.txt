@@ -31,6 +31,12 @@ IF (NOT ${BerkeleyDB_FOUND})
   MESSAGE (SEND_ERROR "Missing required BerkeleyDB package")
 ENDIF()
 
+IF(KH_STATIC_QT EQUAL 1)
+   # Use dedicated prefix to find static versions of libraries 
+   SET(ICU_LIBS_PREFIX "s")
+ENDIF()
+find_package( ICU )
+
 #include( VersionMacros )
 #include( SetupTargetMacros )
 
@@ -161,6 +167,7 @@ ENDIF(APPLE)
 
 add_library( bshare ${sources} )
 target_link_libraries( bshare fc leveldb upnpc-static ${BDB_LIBRARIES} ${ZLIB_LIBRARIES} ${PLATFORM_SPECIFIC_LIBS} ${rt_library} ${READLINE_LIBRARIES} ${CMAKE_DL_LIBS})
+target_compile_definitions(bshare PRIVATE U_STATIC_IMPLEMENTATION)
 
 # All include directories required to compile dependency headers will be automatically added 
 # from dependency list specified in target_link_libraries.
@@ -171,6 +178,7 @@ target_include_directories(bshare
   ${CMAKE_CURRENT_SOURCE_DIR}/vendor/miniupnp
   ${BDB_CXX_INCLUDE_DIR}
   ${BDB_INCLUDE_DIR}
+  ${ICU_INCLUDE_DIRS}
 )
 
 IF(WIN32)

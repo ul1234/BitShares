@@ -417,7 +417,13 @@ int main( int argc, char** argv )
                         FC_ASSERT( !"Different public key already registered!" );
                       //register the public key
                       rec.pub_key = params[2].as_string();
-                      _known_names.store( name, rec );
+                      bool valid_key = false;
+                      if (public_key_address::is_valid(rec.pub_key,&valid_key) && valid_key)
+                      {
+                        _known_names.store( name, rec );
+                      }
+                      else
+                        FC_ASSERT("Old Keyhotee client");
                     }
                     //if no founder code, then just verify public key matches
                     else if (rec.pub_key != params[2].as_string() )

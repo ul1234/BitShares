@@ -36,6 +36,11 @@ IF(KH_STATIC_QT EQUAL 1)
    SET(ICU_LIBS_PREFIX "s")
 ENDIF()
 find_package( ICU )
+MESSAGE("Found ICU version ${ICU_VERSION}")
+if (NOT ${ICU_VERSION} EQUAL "52.1")
+  # 53.1 might be ok too, need to test it
+  MESSAGE(FATAL_ERROR "Error, BitShares require ICU version 52.1")
+endif()
 
 #include( VersionMacros )
 #include( SetupTargetMacros )

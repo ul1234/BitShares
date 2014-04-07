@@ -48,7 +48,7 @@ private:
   std::string normalize_unicode_chars(const std::string& string_to_normalize);
   static void convert_to_punycode(const std::string& input, std::string* buffer);
   static bool is_invalid_char(char c);
-  static void replace_dot_runs(std::string& s);
+  static void collapse_runs_of_char(std::string& stringToModify, char charToCollapse);
   static char replace_similar(char c);
   static uint64_t get_name_hash_for_skeleton(const std::string& keyhotee_id_skeleton);
 public:
@@ -276,20 +276,23 @@ char keyhotee_id_hash_generator::replace_similar(char c)
   case 'n': return 'n';
 
   case 'c': return 'c';
-  case '0': 
-  case '8': // D 0 8 O B are all easily confused
-  case 'b': 
-  case 'd':
-  case 'o':
-  case 'q': return 'o';
+
+  case '0': // 0 O Q
+  case 'q':
+  case 'o': return 'o';
+
+  case 'd': return 'd';
+
+  case '8': // 8 B are easily confused
+  case 'b': return 'b';
 
   case 'u':
   case 'w':
   case 'v': return 'u';
 
-  case '.': 
+  case '.': return '.';
   case '_': 
-  case '-': return '.';
+  case '-': return '_';
 
   default:
     return 0;
@@ -301,12 +304,12 @@ char keyhotee_id_hash_generator::replace_similar(char c)
  * '.', '_', and '-' to '.', so the effect is that a string like
  * "foo------bar" becomes equivalent to "foo-bar"
  */
-void keyhotee_id_hash_generator::replace_dot_runs(std::string& s)
+void keyhotee_id_hash_generator::collapse_runs_of_char(std::string& stringToModify, char charToCollapse)
 {
-  if (s.size() > 1)
-    for (size_t p = 0; p < s.size() - 1;)
-      if (s[p] == '.' && s[p + 1] == '.')
-        s.erase(p, 1);
+  if (stringToModify.size() > 1)
+    for (size_t p = 0; p < stringToModify.size() - 1;)
+      if (stringToModify[p] == charToCollapse && stringToModify[p + 1] == charToCollapse)
+        stringToModify.erase(p, 1);
       else
         ++p;
 }
@@ -395,19 +398,24 @@ std::string keyhotee_id_hash_generator::get_keyhotee_id_skeleton( const std::str
   ilog("after removing invaid chars: \"${source}\" -> \"${dest}\"",("source", keyhotee_id)("dest", ascii_portion));
 #endif
 
-  // replace .... characters etc with a single . 
-  // not too useful for ., but it will also replace runs of 
-  // ___ and --- which would be easier to confuse
-  replace_dot_runs(ascii_portion);
+  // replace long runs of .... characters with a single . 
+  collapse_runs_of_char(ascii_portion, '.');
+  // replace long runs of ___ and --- with a single _
+  collapse_runs_of_char(ascii_portion, '_');
 #if !defined(NDEBUG) && defined(VERBOSE_DEBUG)
   ilog("after removing runs of '.': \"${source}\" -> \"${dest}\")",("source", keyhotee_id)("dest", ascii_portion));
 #endif
 
+  // remove a leading or trailing '.', because they can be easily missed, especially near the end 
+  // of a sentence
   if( ascii_portion.size() && ascii_portion.front() == '.' )
     ascii_portion.erase(0,1);
-
   if( ascii_portion.size() && ascii_portion.back() == '.' )
     ascii_portion.erase(ascii_portion.size() - 1);
+
+  // note, we're not removing leading and trailing underscores or hyphens.  That will 
+  // allow people to register 'foo' and '_foo' as different IDs, but these 
+  // are harder to miss.
 
 #if !defined(NDEBUG) && defined(VERBOSE_DEBUG)
   ilog("after all keyhotee id processing on ascii portion: \"${source}\" -> \"${dest}\"",("source", keyhotee_id)("dest", ascii_portion));

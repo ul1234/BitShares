@@ -20,37 +20,32 @@ using namespace boost::assign;
 
 using namespace bts::bitname;
 
-std::vector<std::string> group1 = 
-  list_of("Officer Bob")               // plain ascii
-         ("O\\uFB00icer B\\u00F3b")    // ff ligature, o acute
-         ("O\\uFB03cer B\\u00F2b")     // ffi ligature, o grave
-         ("\\uFF2F\\uFF46\\uFF46\\uFF49\\uFF43\\uFF45\\uFF52\\u3000\\uFF22\\uFF4F\\uFF42") // full width letters
-         ("Officer \\uD835\\uDDA1ob"); // mathematical B
-         
-std::vector<std::string> group2 = 
-  list_of("\\u30B4\\u30B8\\u30E9")                // full width katakana
-         ("\\uFF7A\\uFF9E\\uFF7C\\uFF9E\\uFF97"); // half width katakana
+std::vector<std::vector<std::string> > collision_groups = 
+  list_of<std::vector<std::string> >
+    (list_of("Officer Bob")               // plain ascii
+            ("O\\uFB00icer B\\u00F3b")    // ff ligature, o acute
+            ("O\\uFB03cer B\\u00F2b")     // ffi ligature, o grave
+            ("\\uFF2F\\uFF46\\uFF46\\uFF49\\uFF43\\uFF45\\uFF52\\u3000\\uFF22\\uFF4F\\uFF42") // full width letters
+            ("Officer \\uD835\\uDDA1ob")) // mathematical B
 
-std::vector<std::string> group3 = 
-  list_of("\\u738B\\u83F2")               // cjk unified
-         ("\\uD87E\\uDD29\\u83F2");       // cjk compatibility
+    (list_of("\\u30B4\\u30B8\\u30E9")                // full width katakana
+            ("\\uFF7A\\uFF9E\\uFF7C\\uFF9E\\uFF97"))  // half width katakana
 
-std::vector<std::string> group4 = 
-  list_of("aether")               // plain ascii
-         ("\\u00E6ther");         // ae letter/ligature
+    (list_of("\\u738B\\u83F2")               // cjk unified
+            ("\\uD87E\\uDD29\\u83F2"))       // cjk compatibility
 
-std::vector<std::string> group5 = 
-  list_of("Superstring")               // plain ascii
-         ("Super\\uFB06ring");         // st ligature
+    (list_of("aether")               // plain ascii
+            ("\\u00E6ther"))         // ae letter/ligature
 
-std::vector<std::string> group6 = 
-  list_of("Scoop")                                // plain ascii
-         ("\\u0405\\u0441\\u043E\\u043E\\u0440"); // cyrillic	
+    (list_of("Superstring")               // plain ascii
+            ("Super\\uFB06ring"))         // st ligature
 
-std::vector<std::string> group7 = 
-  list_of("Big\\u2014boy")                           // em-dash
-         ("Big\\u30FCboy")                           // kana prolonged sound mark
-         ("Big\\u4E00boy");                          // kanji numeral 1
+    (list_of("Scoop")                                // plain ascii
+            ("\\u0405\\u0441\\u043E\\u043E\\u0440")) // cyrillic	
+
+    (list_of("Big\\u2014boy")                           // em-dash
+            ("Big\\u30FCboy")                           // kana prolonged sound mark
+            ("Big\\u4E00boy"));                         // kanji numeral 1
 
 std::string convertEscapedStringToUtf8(const std::string& escapedString)
 {
@@ -62,24 +57,21 @@ std::string convertEscapedStringToUtf8(const std::string& escapedString)
 
 void test_group(const std::vector<std::string> group_to_test)
 {
-  assert(group_to_test.size() > 1);
+  BOOST_CHECK(group_to_test.size() > 1);
   std::string skeleton_for_this_group(get_keyhotee_id_skeleton(convertEscapedStringToUtf8(group_to_test[0])));
   for (unsigned i = 1; i < group_to_test.size(); ++i)
   {
     std::string skeleton_for_this_id(get_keyhotee_id_skeleton(convertEscapedStringToUtf8(group_to_test[i])));
-    assert(skeleton_for_this_id == skeleton_for_this_group);
+    BOOST_CHECK(skeleton_for_this_id == skeleton_for_this_group);
   }
 }
 
-void test_all_groups()
+BOOST_AUTO_TEST_CASE(CollisionGroups)
 {
-  test_group(group1);
-  test_group(group2);
-  test_group(group3);
-  test_group(group4);
-  test_group(group5);
-  test_group(group6);
-  test_group(group7);
+  for (const std::vector<std::string>& group : collision_groups)
+  {
+    test_group(group);
+  }
 }
 
 int main(int argc, char** argv)
@@ -87,7 +79,7 @@ int main(int argc, char** argv)
 
   if (argc <= 1)
   {
-    test_all_groups();
+    boost::unit_test::unit_test_main(&init_unit_test, argc, argv);
   }
   else if (argc == 2)
   {

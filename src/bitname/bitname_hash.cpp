@@ -12,7 +12,7 @@
 #include <unicode/uspoof.h>
 #include <unicode/uidna.h>
 
-#define VERBOSE_DEBUG 1
+//#define VERBOSE_DEBUG
 
 extern "C"
 {
@@ -192,7 +192,6 @@ void keyhotee_id_hash_generator::convert_to_punycode(const std::string& input, s
   size_t buffer_length = 1024;
   std::unique_ptr<UChar[]> buf(new UChar[buffer_length]);
   UErrorCode status = U_ZERO_ERROR;
-  UParseError parse_error;
 
   size_t destLen = u_strToPunycode(unicode_output_string.getBuffer(), unicode_output_string.length(), 
                                    buf.get(), buffer_length, 
@@ -401,7 +400,7 @@ std::string keyhotee_id_hash_generator::get_keyhotee_id_skeleton( const std::str
   // ___ and --- which would be easier to confuse
   replace_dot_runs(ascii_portion);
 #if !defined(NDEBUG) && defined(VERBOSE_DEBUG)
-  ilog("after removing runs of '.': \"${source}\" -> \"${dest}\" (output bytes: ${bytes})",("source", keyhotee_id)("dest", ascii_portion));
+  ilog("after removing runs of '.': \"${source}\" -> \"${dest}\")",("source", keyhotee_id)("dest", ascii_portion));
 #endif
 
   if( ascii_portion.size() && ascii_portion.front() == '.' )
@@ -410,7 +409,7 @@ std::string keyhotee_id_hash_generator::get_keyhotee_id_skeleton( const std::str
   if( ascii_portion.size() && ascii_portion.back() == '.' )
     ascii_portion.erase(ascii_portion.size() - 1);
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) && defined(VERBOSE_DEBUG)
   ilog("after all keyhotee id processing on ascii portion: \"${source}\" -> \"${dest}\"",("source", keyhotee_id)("dest", ascii_portion));
 #endif
 
@@ -439,6 +438,11 @@ uint64_t keyhotee_id_hash_generator::name_hash(const std::string& keyhotee_id)
 uint64_t name_hash(const std::string& keyhotee_id)
 {
   return keyhotee_id_hash_generator::get_instance()->name_hash(keyhotee_id);
+}
+
+std::string get_keyhotee_id_skeleton(const std::string& keyhotee_id)
+{
+  return keyhotee_id_hash_generator::get_instance()->get_keyhotee_id_skeleton(keyhotee_id);
 }
 
 } } // end namespace bts::bitname

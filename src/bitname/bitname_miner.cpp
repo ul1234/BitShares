@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include <bts/bitname/bitname_miner.hpp>
 #include <bts/bitname/bitname_hash.hpp>
 #include <bts/difficulty.hpp>

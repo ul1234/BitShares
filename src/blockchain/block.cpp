@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <bts/blockchain/block.hpp>
 #include <bts/proof_of_work.hpp>
 #include <bts/difficulty.hpp>

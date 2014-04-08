@@ -37,3 +37,18 @@ target_link_libraries( momentum_pow_test bshare fc ${BOOST_LIBRARIES}  ${PLATFOR
 
 #add_executable( evpow evpow.cpp )
 #target_link_libraries( evpow fc ${BOOST_LIBRARIES}  ${PLATFORM_SPECIFIC_LIBS} )
+
+#IF(KH_STATIC_QT EQUAL 1)
+#   # Use dedicated prefix to find static versions of libraries 
+#   SET(ICU_LIBS_PREFIX "s")
+#ENDIF()
+#find_package( ICU )
+#MESSAGE("Found ICU version ${ICU_VERSION}")
+#if (NOT ${ICU_VERSION} EQUAL "52.1")
+#  # 53.1 might be ok too, need to test it
+#  MESSAGE(FATAL_ERROR "Error, BitShares require ICU version 52.1")
+#endif()
+
+#add_executable( khid_test khid_test.cpp )
+#target_link_libraries( khid_test bshare fc ${BOOST_LIBRARIES} ${ICU_LIBRARIES} ${PLATFORM_SPECIFIC_LIBS} ${rt_library} ${pthread_library} ${CMAKE_DL_LIBS} )
+#target_include_directories(khid_test PRIVATE ${ICU_INCLUDE_DIRS})

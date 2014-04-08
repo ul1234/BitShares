@@ -1,3 +1,6 @@
+#include <algorithm>
+#include <stdint.h>
+
 #include <fc/crypto/sha224.hpp>
 #include <bts/bitname/bitname_channel.hpp>
 #include <bts/bitname/bitname_messages.hpp>

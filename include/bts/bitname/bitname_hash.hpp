@@ -1,5 +1,9 @@
 #pragma once
 
+#include <stdint.h>
+
+#include <string>
+
 namespace bts { namespace bitname {
 
 /**
@@ -11,5 +15,7 @@ namespace bts { namespace bitname {
  *  rin, njm 
  */
 uint64_t  name_hash( const std::string& n );
+
+std::string get_keyhotee_id_skeleton(const std::string& keyhotee_id);
 
 } }

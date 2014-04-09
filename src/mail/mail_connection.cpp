@@ -193,7 +193,11 @@ namespace mail {
      try {
        // TODO: do we have to worry about multiple calls to connect?
        my->sock = std::make_shared<stcp_socket>();
-       my->sock->connect_to(ep); 
+       my->sock->connect_to(ep);
+       // Enable keepalives on the mail connection.  The connection to the mail server
+       // goes completely idle if the client doesn't send or receive any messages,
+       // and we believe this is causing some NATs to drop the TCP connection.
+       my->sock->get_socket().enable_keep_alives(fc::seconds(60));
        my->remote_ep = remote_endpoint();
        ilog( "    connected to ${ep}", ("ep", ep) );
        my->read_loop_complete = fc::async( [=](){ my->read_loop(); } );

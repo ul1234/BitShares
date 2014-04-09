@@ -7,7 +7,7 @@
 TUpgradeDbMapper* TUpgradeDbMapper::_updateDbMapper = nullptr;
 // this code has no bitshares dependencies, and it
 // could be moved to fc, if fc ever adds a leveldb dependency
-void UpgradeDbIfNecessary(fc::path dir, leveldb::DB* dbase, const char* record_type, size_t record_type_size)
+void UpgradeDbIfNecessary(fc::path dir, leveldb::DB* dbase, const char* record_type, size_t record_type_size,fc::optional<fc::uint512> encrypt_key)
 {
   size_t old_record_type_size = 0;
   std::string old_record_type;
@@ -56,7 +56,7 @@ void UpgradeDbIfNecessary(fc::path dir, leveldb::DB* dbase, const char* record_t
       os << record_type << std::endl;
       os << record_type_size;
       //upgrade the database using upgrade function
-      upgrade_functionI->second(dbase);
+      upgrade_functionI->second(dbase,encrypt_key);
     }
     else
     {

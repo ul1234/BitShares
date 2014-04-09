@@ -5,6 +5,7 @@
 #include <fc/reflect/reflect.hpp>
 #include <fc/io/raw.hpp>
 #include <fc/exception/exception.hpp>
+#include <fc/crypto/sha512.hpp>
 #include <functional>
 #include <map>
 #include <boost/regex.hpp>
@@ -60,7 +61,7 @@ FC_REFLECT( record1, (points)(new_field) )
 typedef record1 record; //current databases store record1 objects
 */
 
-typedef std::function<void(leveldb::DB*)> TUpgradeDbFunction; 
+typedef std::function<void(leveldb::DB*,fc::optional<fc::uint512>)> TUpgradeDbFunction; 
 class TUpgradeDbMapper
 {
   static TUpgradeDbMapper* _updateDbMapper;
@@ -80,7 +81,7 @@ public:
 };
 
 #define REGISTER_DB_OBJECT(TYPE,VERSIONNUM) \
-void UpgradeDb ## TYPE ## VERSIONNUM(leveldb::DB* dbase) \
+void UpgradeDb ## TYPE ## VERSIONNUM(leveldb::DB* dbase, fc::optional<fc::uint512> encrypt_key) \
   { \
   std::unique_ptr<leveldb::Iterator> dbaseI( dbase->NewIterator(leveldb::ReadOptions()) ); \
   dbaseI->SeekToFirst(); \
@@ -91,12 +92,18 @@ void UpgradeDb ## TYPE ## VERSIONNUM(leveldb::DB* dbase) \
   while (dbaseI->Valid()) /* convert dbase objects from legacy TypeVersionNum to current Type */ \
     { \
     TYPE ## VERSIONNUM old_value; /*load old record type*/ \
-    fc::datastream<const char*> dstream( dbaseI->value().data(), dbaseI->value().size() ); \
+    leveldb::Slice slice(dbaseI->value()); \
+    std::vector<char> packed_value(slice.data(), slice.data()+slice.size()); \
+    if (encrypt_key) \
+      packed_value = fc::aes_decrypt( *encrypt_key, packed_value ); \
+    fc::datastream<const char*> dstream(packed_value.data(), packed_value.size()  ); \
     fc::raw::unpack( dstream, old_value ); \
     TYPE new_value(old_value);       /*convert to new record type*/ \
     leveldb::Slice key_slice = dbaseI->key(); \
-    auto vec = fc::raw::pack(new_value); \
-    leveldb::Slice value_slice( vec.data(), vec.size() ); \
+    packed_value = fc::raw::pack(new_value); \
+    if (encrypt_key) \
+      packed_value = fc::aes_encrypt( *encrypt_key, packed_value ); \
+    leveldb::Slice value_slice( packed_value.data(), packed_value.size() ); \
     auto status = dbase->Put( leveldb::WriteOptions(), key_slice, value_slice ); \
     if( !status.ok() ) \
       { \
@@ -108,4 +115,4 @@ void UpgradeDb ## TYPE ## VERSIONNUM(leveldb::DB* dbase) \
 static int dummyResult ## TYPE ## VERSIONNUM  = \
   TUpgradeDbMapper::Instance()->Add(fc::get_typename<TYPE ## VERSIONNUM>::name(), UpgradeDb ## TYPE ## VERSIONNUM);
 
-void UpgradeDbIfNecessary(fc::path dir, leveldb::DB* dbase, const char* record_type, size_t record_type_size);
+void UpgradeDbIfNecessary(fc::path dir, leveldb::DB* dbase, const char* record_type, size_t record_type_size, fc::optional<fc::uint512> encrypt_key);

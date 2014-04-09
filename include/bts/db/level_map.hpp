@@ -45,7 +45,7 @@ namespace bts { namespace db {
                     );
            }
            _db.reset(ndb);
-           UpgradeDbIfNecessary(dir,ndb, fc::get_typename<Value>::name(),sizeof(Value));
+           UpgradeDbIfNecessary(dir,ndb, fc::get_typename<Value>::name(),sizeof(Value),fc::optional<fc::uint512>());
         }
 
         void close()

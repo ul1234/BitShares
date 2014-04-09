@@ -5,6 +5,7 @@
 #include <fc/reflect/reflect.hpp>
 #include <fc/io/raw.hpp>
 #include <fc/exception/exception.hpp>
+#include <fc/crypto/aes.hpp>
 
 #include "upgrade_leveldb.hpp"
 
@@ -24,6 +25,11 @@ namespace bts { namespace db {
      public:
         void open( const fc::path& dir, bool create = true )
         {
+          open_encrypted(dir,create);
+        }
+        void open_encrypted( const fc::path& dir,  bool create = true, fc::optional<fc::uint512> encrypt_key = fc::optional<fc::uint512>() )
+        {
+          _encrypt_key = encrypt_key;
            ldb::Options opts;
            opts.create_if_missing = create;
            opts.comparator = & _comparer;
@@ -44,7 +50,7 @@ namespace bts { namespace db {
                     );
            }
            _db.reset(ndb);
-           UpgradeDbIfNecessary(dir,ndb, fc::get_typename<Value>::name(),sizeof(Value));
+           UpgradeDbIfNecessary(dir,ndb, fc::get_typename<Value>::name(),sizeof(Value),_encrypt_key);
         }
 
         void close()
@@ -56,8 +62,8 @@ namespace bts { namespace db {
         {
           try {
              ldb::Slice key_slice( (char*)&key, sizeof(key) );
-             std::string value;
-             auto status = _db->Get( ldb::ReadOptions(), key_slice, &value );
+             std::string value_string;
+             auto status = _db->Get( ldb::ReadOptions(), key_slice, &value_string );
              if( status.IsNotFound() )
              {
                FC_THROW_EXCEPTION( key_not_found_exception, "unable to find key ${key}", ("key",key) );
@@ -66,17 +72,21 @@ namespace bts { namespace db {
              {
                  FC_THROW_EXCEPTION( exception, "database error: ${msg}", ("msg", status.ToString() ) );
              }
-             fc::datastream<const char*> datastream(value.c_str(), value.size());
+             std::vector<char> value(value_string.begin(),value_string.end());
+             if (_encrypt_key)
+               value = fc::aes_decrypt( *_encrypt_key, value );
+
+             fc::datastream<const char*> datastream(value.data(), value.size());
              Value tmp;
              fc::raw::unpack(datastream, tmp);
              return tmp;
           } FC_RETHROW_EXCEPTIONS( warn, "error fetching key ${key}", ("key",key) );
         }
-
+        
         class iterator
         {
            public:
-             iterator(){}
+             iterator(){} //used to construct an invalid iterator to check against
              bool valid()const 
              {
                 return _it && _it->Valid(); 
@@ -91,7 +101,11 @@ namespace bts { namespace db {
              Value value()const
              {
                Value tmp_val;
-               fc::datastream<const char*> ds( _it->value().data(), _it->value().size() );
+               leveldb::Slice slice(_it->value());
+               std::vector<char> packed_value(slice.data(), slice.data()+slice.size());
+               if (_level_pod_map->_encrypt_key)
+                 packed_value = fc::aes_decrypt( *_level_pod_map->_encrypt_key, packed_value );
+               fc::datastream<const char*> ds(packed_value.data(), packed_value.size()  );
                fc::raw::unpack( ds, tmp_val );
                return tmp_val;
              }
@@ -101,14 +115,15 @@ namespace bts { namespace db {
            
            protected:
              friend class level_pod_map;
-             iterator( ldb::Iterator* it )
-             :_it(it){}
+             iterator( ldb::Iterator* it, level_pod_map<Key,Value>* level_pod_map )
+             :_it(it), _level_pod_map(level_pod_map){}
 
              std::shared_ptr<ldb::Iterator> _it;
+             level_pod_map<Key,Value>*      _level_pod_map;
         };
         iterator begin() 
         { try {
-           iterator itr( _db->NewIterator( ldb::ReadOptions() ) );
+           iterator itr( _db->NewIterator( ldb::ReadOptions() ), this );
            itr._it->SeekToFirst();
 
            if( itr._it->status().IsNotFound() )
@@ -130,7 +145,7 @@ namespace bts { namespace db {
         iterator find( const Key& key )
         { try {
            ldb::Slice key_slice( (char*)&key, sizeof(key) );
-           iterator itr( _db->NewIterator( ldb::ReadOptions() ) );
+           iterator itr( _db->NewIterator( ldb::ReadOptions() ), this );
            itr._it->Seek( key_slice );
            if( itr.valid() && itr.key() == key ) 
            {
@@ -142,7 +157,7 @@ namespace bts { namespace db {
         iterator lower_bound( const Key& key )
         { try {
            ldb::Slice key_slice( (char*)&key, sizeof(key) );
-           iterator itr( _db->NewIterator( ldb::ReadOptions() ) );
+           iterator itr( _db->NewIterator( ldb::ReadOptions() ), this );
            itr._it->Seek( key_slice );
            if( itr.valid()  ) 
            {
@@ -178,7 +193,11 @@ namespace bts { namespace db {
            {
              return false;
            }
-           fc::datastream<const char*> ds( it->value().data(), it->value().size() );
+           leveldb::Slice slice(it->value());
+           std::vector<char> packed_value(slice.data(), slice.data()+slice.size());
+           if (_encrypt_key)
+             packed_value = fc::aes_decrypt( *_encrypt_key, packed_value );
+           fc::datastream<const char*> ds( packed_value.data(), packed_value.size() );
            fc::raw::unpack( ds, v );
 
            FC_ASSERT( sizeof( Key) == it->key().size() );
@@ -193,8 +212,9 @@ namespace bts { namespace db {
           {
              ldb::Slice ks( (char*)&k, sizeof(k) );
              auto vec = fc::raw::pack(v);
-             ldb::Slice vs( vec.data(), vec.size() );
-             
+             if (_encrypt_key)
+              vec = fc::aes_encrypt( *_encrypt_key, vec );
+             ldb::Slice vs( vec.data(), vec.size() );             
              auto status = _db->Put( ldb::WriteOptions(), ks, vs );
              if( !status.ok() )
              {
@@ -243,6 +263,7 @@ namespace bts { namespace db {
 
         key_compare                  _comparer;
         std::unique_ptr<leveldb::DB> _db;
+        fc::optional<fc::uint512>    _encrypt_key;
         
   };
 

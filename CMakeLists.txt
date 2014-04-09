@@ -2,6 +2,7 @@
 
 project( bitshares )
 cmake_minimum_required( VERSION 2.8.12 )
+MESSAGE(STATUS "Configuring project bitshares located in: ${CMAKE_CURRENT_SOURCE_DIR}")
 
 set( CMAKE_AUTOMOC OFF )
 
@@ -37,9 +38,9 @@ IF(KH_STATIC_QT EQUAL 1)
 ENDIF()
 find_package( ICU )
 MESSAGE("Found ICU version ${ICU_VERSION}")
-if (NOT ${ICU_VERSION} EQUAL "52.1")
+if (NOT ${ICU_VERSION} EQUAL "53.1" AND NOT ${ICU_VERSION} EQUAL "52.1")
   # 53.1 might be ok too, need to test it
-  MESSAGE(FATAL_ERROR "Error, BitShares require ICU version 52.1")
+  MESSAGE(FATAL_ERROR "Error, BitShares require ICU version 52.1 or 53.1")
 endif()
 
 #include( VersionMacros )

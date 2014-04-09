@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include <bts/address.hpp>
 #include <bts/small_hash.hpp>
 #include <fc/crypto/base58.hpp>

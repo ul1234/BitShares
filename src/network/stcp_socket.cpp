@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <bts/network/stcp_socket.hpp>
 #include <fc/crypto/hex.hpp>
 #include <fc/crypto/aes.hpp>

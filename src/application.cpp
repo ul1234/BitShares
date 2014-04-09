@@ -180,17 +180,6 @@ namespace bts {
              if(_delegate != nullptr)
                _delegate->message_transmission_finished(false);
 
-			 //DLN added in case read_loop throws when connection isn't closed
-			 try { _mail_con.close(); }
-			 catch (const fc::exception& e)
-			 {
-               wlog("unhandled exception on close:\n${e}", ("e", e.to_detail_string()));
-			 }
-			 catch (...)
-			 {
-               elog("unhandled exception on close ${e}", ("e", fc::except_str()));
-			 }
-
             _mail_connected = false;
             start_mail_connect_loop();
           }
@@ -206,6 +195,16 @@ namespace bts {
           {
           ilog("start_mail_connect_loop");
               _mail_connect_loop_complete = fc::async( [=](){
+                  try
+                  {
+                    ilog("Closing the mail connection (which may not be open)");
+                    _mail_con.close();
+                    ilog("Done closing the mail connection");
+                  }
+                  catch (fc::exception&)
+                  {
+                    ilog("Caught exception while closing mail connection");
+                  }
                   fc::usleep(fc::seconds(5));
                   mail_connect_loop(); 
                  } );

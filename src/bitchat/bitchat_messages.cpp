@@ -12,6 +12,8 @@ const message_type encrypted_message::type = message_type::encrypted_msg;
 const message_type encrypted_message_ack::type = message_type::encrypted_msg_ack_msg;
 const message_type server_info_message::type = message_type::server_info_msg;
 const message_type client_info_message::type = message_type::client_info_msg;
+const message_type ping_request::type = message_type::ping_request_msg;
+const message_type ping_reply::type = message_type::ping_reply_msg;
 
 } } // bts::bitchat
 

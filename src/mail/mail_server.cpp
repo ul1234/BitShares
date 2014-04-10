@@ -99,7 +99,7 @@ namespace mail {
                if( m.type == bts::bitchat::encrypted_message::type )
                {
                    auto pm = m.as<bts::bitchat::encrypted_message>();
-                   wlog( "received message size: ${s}", ("s",m.size) );
+                   wlog("received message size: ${size} hash: ${hash}", ("size", m.size)("hash", pm.id()));
                    //ilog( "received ${m}", ( "m",pm) );
              
             //       if( pm.validate_proof() )
@@ -109,6 +109,10 @@ namespace mail {
                       pm.timestamp = received_time;
                       _message_db.store( received_time, pm );
                       c.ack_message(m);
+                   }
+                   else
+                   {
+                     c.ack_message(m, bts::bitchat::encrypted_msg_send_error_type::message_too_large_error);
                    }
                }
                else if( m.type == bts::bitchat::client_info_message::type )

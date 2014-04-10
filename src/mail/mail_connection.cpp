@@ -155,7 +155,7 @@ namespace mail {
           my->exec_sync_loop_complete.wait();
         }
     } 
-    catch ( const fc::canceled_exception& e )
+    catch ( const fc::canceled_exception& )
     {
       ilog( "canceled" );
     }
@@ -207,7 +207,7 @@ namespace mail {
   void connection::connect( const std::string& host_port )
   {
       int idx = host_port.find( ':' );
-      auto eps = fc::resolve( host_port.substr( 0, idx ), fc::to_int64(host_port.substr( idx+1 )));
+      auto eps = fc::resolve( host_port.substr( 0, idx ), (uint16_t)fc::to_int64(host_port.substr( idx+1 )));
       ilog( "connect to ${host_port} and resolved ${endpoints}", ("host_port", host_port)("endpoints",eps) );
       for( auto itr = eps.begin(); itr != eps.end(); ++itr )
       {
@@ -216,7 +216,7 @@ namespace mail {
             connect( *itr );
             return;
          } 
-         catch ( const fc::exception& e )
+         catch ( const fc::exception& )
          {
             wlog( "    attempt to connect to ${ep} failed.", ("ep", *itr) );
          }
@@ -305,7 +305,7 @@ namespace mail {
         close(); //kill connection
       });
   }
-  void connection::ack_message(const message& m)
+  void connection::ack_message(const message& m, bts::bitchat::encrypted_msg_send_error_type send_error /* = no_error */)
   {
     // we should only be trying to ack encrypted_messages
     assert(m.type == bts::bitchat::encrypted_message::type);
@@ -313,7 +313,7 @@ namespace mail {
     {
       bts::bitchat::encrypted_message encrypted_msg = m.as<bts::bitchat::encrypted_message>();
       bts::bitchat::encrypted_message_ack ack;
-      ack.error_code = bts::bitchat::encrypted_msg_send_error_type::no_error;
+      ack.error_code = send_error;
       ack.encrypted_msg_check = encrypted_msg.check;
       send(message(ack));
     }

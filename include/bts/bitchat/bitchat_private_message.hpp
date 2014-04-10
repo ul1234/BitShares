@@ -15,16 +15,18 @@ namespace bts { namespace bitchat {
 
     enum message_type
     {
-       inv_msg             = 1, ///< publishes known active inventory
-       cache_inv_msg       = 2, ///< publishes known historic inventory
-       get_inv_msg         = 3, ///< requests active inventory
-       get_cache_inv_msg   = 4, ///< requests historic inventory
-       get_priv_msg        = 5, ///< sent to request an private message in the active inventory
-       get_cache_priv_msg  = 6, ///< sent to request an private message in the historic inventory
-       encrypted_msg       = 7, ///< a message encrypted to unknown receip (sent in reponse to get_priv_msg)
-       server_info_msg     = 8, ///< a message that gives clients server stats
-       client_info_msg     = 9, ///< a message that gives clients server stats
-       encrypted_msg_ack_msg = 10 ///< in reply to an encrypted_msg, confirms the server queued the message
+       inv_msg               = 1,  ///< publishes known active inventory
+       cache_inv_msg         = 2,  ///< publishes known historic inventory
+       get_inv_msg           = 3,  ///< requests active inventory
+       get_cache_inv_msg     = 4,  ///< requests historic inventory
+       get_priv_msg          = 5,  ///< sent to request an private message in the active inventory
+       get_cache_priv_msg    = 6,  ///< sent to request an private message in the historic inventory
+       encrypted_msg         = 7,  ///< a message encrypted to unknown receip (sent in reponse to get_priv_msg)
+       server_info_msg       = 8,  ///< a message that gives clients server stats
+       client_info_msg       = 9,  ///< a message that gives clients server stats
+       encrypted_msg_ack_msg = 10, ///< in reply to an encrypted_msg, confirms the server queued the message
+       ping_request_msg      = 11, ///< when the connection is idle for a certain amount of time, send a message to verify the connection is still working
+       ping_reply_msg        = 12  ///< response to the ping_request_message
     };
 
     enum compression_type
@@ -83,7 +85,8 @@ namespace bts { namespace bitchat {
     enum encrypted_msg_send_error_type
     {
       no_error = 0,
-      unspecified_error = 1
+      unspecified_error = 1,
+      message_too_large_error = 2,
     };
     struct encrypted_message_ack
     {
@@ -98,7 +101,25 @@ namespace bts { namespace bitchat {
       fc::uint160_t encrypted_msg_check;
     };
 
+    struct ping_request
+    {
+      static const message_type type;
+      ping_request() {}
+      ping_request(uint32_t sequence_number) :
+        sequence_number(sequence_number)
+      {}
+      uint32_t sequence_number;
+    };
 
+    struct ping_reply
+    {
+      static const message_type type;
+      ping_reply() {}
+      ping_reply(uint32_t sequence_number) :
+        sequence_number(sequence_number)
+      {}
+      uint32_t sequence_number;
+    };
 
     /** content of private_message data */
     enum private_message_type
@@ -274,5 +295,7 @@ FC_REFLECT( bts::bitchat::private_status_message, (status)(status_message) )
 FC_REFLECT( bts::bitchat::private_contact_request_message, (from_first_name)(from_last_name)(from_keyhotee_id)(request_param)
                                                             (greeting_message)(from_channel)(extended_pub_key)(status)(recipient) )
 
-FC_REFLECT_ENUM( bts::bitchat::encrypted_msg_send_error_type, (no_error)(unspecified_error))
-FC_REFLECT( bts::bitchat::encrypted_message_ack, (error_code)(encrypted_msg_check) )
+FC_REFLECT_ENUM(bts::bitchat::encrypted_msg_send_error_type, (no_error)(unspecified_error)(message_too_large_error))
+FC_REFLECT(bts::bitchat::encrypted_message_ack, (error_code)(encrypted_msg_check))
+FC_REFLECT(bts::bitchat::ping_request, (sequence_number))
+FC_REFLECT(bts::bitchat::ping_reply, (sequence_number))

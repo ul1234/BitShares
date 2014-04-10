@@ -131,6 +131,18 @@ namespace bts {
 
   typedef std::shared_ptr<application> application_ptr;
 
+  class message_rejected_exception : public fc::exception
+  {
+  private:
+    std::string reason_text;
+  public:
+    message_rejected_exception(const std::string& reason_text) :
+      reason_text(reason_text)
+    {}
+    virtual const char* what() const throw() { return "Message rejected"; }
+    const std::string& get_reason_text() const { return reason_text; }
+  };
+
 } // namespace bts
 
 FC_REFLECT( bts::application_config, (data_dir)(network_port)(rpc_config)(enable_upnp)(default_nodes)(default_mail_nodes) )

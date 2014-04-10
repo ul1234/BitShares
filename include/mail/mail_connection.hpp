@@ -72,7 +72,8 @@ namespace mail {
         void           set_last_sync_time( const fc::time_point& );
 
         void exec_sync_loop();
-        void ack_message(const message& m);
+        void ack_message(const message& m,
+                         bts::bitchat::encrypted_msg_send_error_type send_error = bts::bitchat::encrypted_msg_send_error_type::no_error);
         void set_database( bts::db::level_map<fc::time_point,bts::bitchat::encrypted_message>*  );
 
       private:

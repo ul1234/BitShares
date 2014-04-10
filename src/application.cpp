@@ -62,6 +62,9 @@ namespace bts {
           mail::connection                  _mail_con;
           bool                              _mail_connected;
 
+          typedef std::map<fc::uint160_t, fc::promise<bts::bitchat::encrypted_msg_send_error_type>::ptr > awaiting_ack_map_type;
+          awaiting_ack_map_type _awaiting_ack;
+
           void set_mining_intensity(int intensity) { _bitname_client->set_mining_intensity(intensity); }
           int  get_mining_intensity()              { return _bitname_client->get_mining_intensity(); }
 
@@ -150,9 +153,7 @@ namespace bts {
                   //because we use mailserver's receive time for timestamp now
                   //except in case when we first create a new profile (we use local time then)
                   if (pm.timestamp > _profile->get_last_sync_time())
-                    {
                     ilog("last_sync_time now: ${t}",("t",_profile->get_last_sync_time()));
-                    }
                   else if (pm.timestamp == _profile->get_last_sync_time())
                     ilog("timestamp = last_sync_time = ${t}",("t",pm.timestamp));
                   else
@@ -163,7 +164,14 @@ namespace bts {
                {
                    server_time_offset = fc::time_point::now() - m.as<bts::bitchat::server_info_message>().server_time;
                }
-             }
+			   if (m.type == bts::bitchat::encrypted_message_ack::type)
+			   {
+				   bts::bitchat::encrypted_message_ack ack_message = m.as<bts::bitchat::encrypted_message_ack>();
+				   auto iter = _awaiting_ack.find(ack_message.encrypted_msg_check);
+				   if (iter != _awaiting_ack.end())
+					   iter->second->set_value(ack_message.error_code);
+			   }
+			 }
              catch (fc::exception e)
              {
                if(_delegate != nullptr)
@@ -578,7 +586,33 @@ namespace bts {
      //note: this "sent" timestamp will be overwritten by cmail server's receive time for now
      cipher_message.timestamp = fc::time_point::now() + my->server_time_offset;
      ilog( "send_email at ${t}",("t",cipher_message.timestamp));
-     my->_mail_con.send( mail::message( cipher_message) );
+
+     fc::promise<bts::bitchat::encrypted_msg_send_error_type>::ptr messageAckedPromise(new fc::promise<bts::bitchat::encrypted_msg_send_error_type>());
+     my->_awaiting_ack.insert(detail::application_impl::awaiting_ack_map_type::value_type(cipher_message.check, messageAckedPromise));
+     try
+     {
+       my->_mail_con.send( mail::message( cipher_message) );
+     }
+     catch (...)
+     {
+       my->_awaiting_ack.erase(cipher_message.check);
+       throw; //error in send
+     }
+     const int timeout = 30;
+     bts::bitchat::encrypted_msg_send_error_type ack_result = bts::bitchat::encrypted_msg_send_error_type::no_error;
+     try
+     {
+       bts::bitchat::encrypted_msg_send_error_type ack_result = messageAckedPromise->wait(fc::seconds(timeout));
+     }
+     catch (fc::timeout_exception&)
+     {
+       my->_awaiting_ack.erase(cipher_message.check);
+       FC_THROW("Server failed to acknowledge message after ${timeout} seconds", ("timeout", timeout));
+     }
+     my->_awaiting_ack.erase(cipher_message.check);
+     if (ack_result != bts::bitchat::encrypted_msg_send_error_type::no_error)
+       FC_THROW("Server rejected our message (code ${code})", ("code", (int)ack_result));
+     ilog( "server acknowledged receipt of our message at ${t}",("t",fc::time_point::now()));
      //my->_bitchat_client->send_message( msg, to, 0/* chan 0 */ );
 
   } FC_RETHROW_EXCEPTIONS( warn, "" ) }

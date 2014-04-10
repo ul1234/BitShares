@@ -305,6 +305,20 @@ namespace mail {
         close(); //kill connection
       });
   }
+  void connection::ack_message(const message& m)
+  {
+    // we should only be trying to ack encrypted_messages
+    assert(m.type == bts::bitchat::encrypted_message::type);
+    if (m.type == bts::bitchat::encrypted_message::type)
+    {
+      bts::bitchat::encrypted_message encrypted_msg = m.as<bts::bitchat::encrypted_message>();
+      bts::bitchat::encrypted_message_ack ack;
+      ack.error_code = bts::bitchat::encrypted_msg_send_error_type::no_error;
+      ack.encrypted_msg_check = encrypted_msg.check;
+      send(message(ack));
+    }
+  }
+
 
   void connection::set_database( bts::db::level_map<fc::time_point,bts::bitchat::encrypted_message>* db )
   {

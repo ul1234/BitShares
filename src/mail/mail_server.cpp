@@ -108,6 +108,7 @@ namespace mail {
                       fc::time_point received_time = fc::time_point::now();
                       pm.timestamp = received_time;
                       _message_db.store( received_time, pm );
+                      c.ack_message(m);
                    }
                }
                else if( m.type == bts::bitchat::client_info_message::type )

@@ -130,7 +130,12 @@ namespace bts {
             if(_delegate != nullptr)
               return _delegate->receiving_mail_message();
 
-            return true;
+            // Change because of an issue #345
+            // Function return true if further read(of message body) should be continued.
+            // There is no delegate (application is probably in the process of closing),
+            // so do not have make sense to read the rest of data
+            wlog("on_message_transmission_started: _delegate == nullptr");
+            return false;
           }
 
           /// \see mail::connection_delegate interface description.

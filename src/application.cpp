@@ -186,7 +186,8 @@ namespace bts {
                _delegate->message_transmission_finished(false);
 
             _mail_connected = false;
-            start_mail_connect_loop();
+			if (!_mail_connect_loop_complete.valid() || _mail_connect_loop_complete.ready())
+              start_mail_connect_loop();
           }
 
           virtual void on_message_transmission_failed() override

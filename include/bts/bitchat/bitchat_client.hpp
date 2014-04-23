@@ -52,6 +52,7 @@ namespace bts { namespace bitchat
           /** sets the private keys that are used to receive incoming messages*/
           void set_receive_keys( const std::vector<fc::ecc::private_key>& recv_keys );
           void add_receive_key( const fc::ecc::private_key& key );
+          void remove_receive_key(const fc::ecc::private_key& key);
 
           void join_channel( uint16_t chan_num );
           void send_message( const decrypted_message& m, const fc::ecc::public_key& to, uint16_t chan = 0);

@@ -34,6 +34,7 @@ namespace bts {
             bitchat::message_db_ptr                         _draft_db;
             bitchat::message_db_ptr                         _pending_db;
             bitchat::message_db_ptr                         _sent_db;
+            bitchat::message_db_ptr                         _spam_db;
             bitchat::message_db_ptr                         _chat_db;
             // current authorization requests - requiring user action (accept, reject, block),
             //    not handled queries are stored and loaded every time when start the application
@@ -65,6 +66,7 @@ namespace bts {
     my->_draft_db  = std::make_shared<bitchat::message_db>();
     my->_pending_db  = std::make_shared<bitchat::message_db>();
     my->_sent_db  = std::make_shared<bitchat::message_db>();
+    my->_spam_db = std::make_shared<bitchat::message_db>();
     my->_chat_db = std::make_shared<bitchat::message_db>();
     my->_request_db= std::make_shared<bitchat::message_db>();
     my->_auth_db = std::make_shared<bitchat::message_db>();
@@ -119,6 +121,7 @@ namespace bts {
       fc::create_directories( profile_dir / "mail" / "draft" );
       fc::create_directories( profile_dir / "mail" / "pending" );
       fc::create_directories( profile_dir / "mail" / "sent" );
+      fc::create_directories( profile_dir / "mail" / "smap");
       fc::create_directories( profile_dir / "chat" );
       fc::create_directories( profile_dir / "request" );
       fc::create_directories( profile_dir / "authorization" );
@@ -143,6 +146,7 @@ namespace bts {
       my->_draft_db->open( profile_dir / "mail" / "draft", profile_cfg_key );
       my->_pending_db->open( profile_dir / "mail" / "pending", profile_cfg_key );
       my->_sent_db->open( profile_dir / "mail" / "sent", profile_cfg_key );
+      my->_spam_db->open(profile_dir / "mail" / "spam", profile_cfg_key);
       my->_chat_db->open( profile_dir / "chat", profile_cfg_key );
       my->_request_db->open( profile_dir / "request", profile_cfg_key );
       my->_auth_db->open( profile_dir / "authorization", profile_cfg_key );
@@ -212,6 +216,7 @@ namespace bts {
   bitchat::message_db_ptr profile::get_draft_db() const { return my->_draft_db; }
   bitchat::message_db_ptr profile::get_pending_db() const { return my->_pending_db; }
   bitchat::message_db_ptr profile::get_sent_db() const { return my->_sent_db; }
+  bitchat::message_db_ptr profile::get_spam_db() const { return my->_spam_db; }
   bitchat::message_db_ptr profile::get_chat_db() const { return my->_chat_db; }
   bitchat::message_db_ptr profile::get_request_db() const {return my->_request_db; }
   bitchat::message_db_ptr profile::get_auth_db() const {return my->_auth_db; }

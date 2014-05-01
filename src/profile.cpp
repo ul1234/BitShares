@@ -14,6 +14,7 @@
 #include <fc/exception/exception.hpp>
 #include <fc/io/fstream.hpp>
 #include <fc/filesystem.hpp>
+#include <iostream>
 
 namespace bts { namespace addressbook {
 REGISTER_DB_OBJECT(wallet_identity,0)

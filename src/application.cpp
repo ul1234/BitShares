@@ -18,6 +18,7 @@
 #include <mail/mail_connection.hpp>
 
 #include <fstream>
+#include <iostream>
 
 namespace bts {
 

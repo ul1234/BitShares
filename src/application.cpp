@@ -488,14 +488,16 @@ namespace bts {
                                              const profile_config& cfg, const std::string& password, 
                                              std::function<void(double)> progress )
   { try {
+     std::cerr << "create_profile\n";
      fc::path fcProfPath(profileName);
      auto pro_dir = my->_profile_dir / fcProfPath;
      fc::create_directories( pro_dir );
      auto config_file = pro_dir / "config.json";
-     
+     std::cerr << "created profile directories if necessary\n";
      ilog("config_file: ${file}", ("file", config_file) );
      if (fc::exists(config_file) == false)
      {
+       std::cerr << "No existing config file, let's create one\n";
        bts::application_config default_cfg;
        default_cfg.data_dir = pro_dir / "data";
        fc::create_directories(default_cfg.data_dir);
@@ -513,10 +515,11 @@ namespace bts {
        fc::ofstream out(config_file);
        //if(out)
         out << fc::json::to_pretty_string(default_cfg);
+        std::cerr << "Finished creating config file\n";
        //else
        //  FC_THROW("Cannot write config file: ${path}", ("path", config_file));
      }
-
+     std::cerr << "Read config file then re-write it to disk\n";
      auto app_config = fc::json::from_file(config_file).as<bts::application_config>();
      fc::ofstream out(config_file);
      out << fc::json::to_pretty_string(app_config);
@@ -529,6 +532,7 @@ namespace bts {
      tmp_profile->open( pro_dir, password );
      
      configure(app_config);
+     std::cerr << "exit create_profile\n";
      return my->_profile = tmp_profile;
 
   } FC_RETHROW_EXCEPTIONS( warn, "" ) }

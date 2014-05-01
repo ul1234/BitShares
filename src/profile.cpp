@@ -92,13 +92,18 @@ namespace bts {
        auto seed = encoder.result();
 
        /// note: this could take a minute
+       std::cerr << "start keychain::stretch_seed\n";
        auto stretched_seed   = keychain::stretch_seed( seed, progress );
+       std::cerr << "finished stretch_seed\n";
        ilog("finished stretch_seed");
       // FC_ASSERT( !fc::exists( profile_dir ) );
+       std::cerr << "another create_directories\n";
        fc::create_directories( profile_dir );
        
        auto profile_cfg_key  = fc::sha512::hash( password.c_str(), password.size() );
+       std::cerr << "encrypt and save encrypted seed\n";
        fc::aes_save( profile_dir / KEYHOTEE_MASTER_KEY_FILE, profile_cfg_key, fc::raw::pack(stretched_seed) );
+       std::cerr << "finished saving encrypted seed\n";
   } FC_RETHROW_EXCEPTIONS( warn, "", ("profile_dir",profile_dir)("config",cfg) ) }
 
   std::wstring profile::get_name()const

@@ -96,6 +96,7 @@ namespace bts {
       bitchat::message_db_ptr       get_draft_db()const;
       bitchat::message_db_ptr       get_pending_db()const;
       bitchat::message_db_ptr       get_sent_db()const;
+      bitchat::message_db_ptr       get_spam_db()const;
       bitchat::message_db_ptr       get_chat_db()const;
       bitchat::message_db_ptr       get_request_db()const;
       bitchat::message_db_ptr       get_auth_db()const;

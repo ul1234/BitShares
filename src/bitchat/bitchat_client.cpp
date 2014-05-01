@@ -97,6 +97,22 @@ namespace bts { namespace bitchat {
      my->_recv_keys.emplace_back(recv_key);
    }
 
+   void client::remove_receive_key( const fc::ecc::private_key& recv_key )
+   {
+       auto iter = my->_recv_keys.begin();
+       while (iter != my->_recv_keys.end())
+       {
+           if(recv_key == *iter)
+           {
+               iter = my->_recv_keys.erase(iter);
+           }
+           else
+           {
+               ++iter;
+           }
+       }
+   }
+
    void client::configure( const fc::path& dir )
    { try {
       my->_data_dir = dir;

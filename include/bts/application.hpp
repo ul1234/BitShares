@@ -103,7 +103,7 @@ namespace bts {
                                                            const std::string& password, std::function<void(double)> progress = std::function<void(double)>() );
                                   
       void                                 add_receive_key( const fc::ecc::private_key& k );
-
+      void                                 remove_receive_key( const fc::ecc::private_key& k );
       fc::optional<bitname::name_record>   lookup_name( const std::string& name );
       fc::optional<bitname::name_record>   reverse_name_lookup( const fc::ecc::public_key& key );
 

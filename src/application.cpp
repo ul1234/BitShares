@@ -484,6 +484,24 @@ namespace bts {
      my->_bitchat_client->add_receive_key( k );
   }
 
+  void  application::remove_receive_key( const fc::ecc::private_key &k )
+  {
+      auto iter = my->_keys.begin();
+      while (iter != my->_keys.end())
+      {
+          if(k == *iter)
+          {
+              iter = my->_keys.erase(iter);
+          }
+          else
+          {
+              ++iter;
+          }
+      }
+
+      my->_bitchat_client->remove_receive_key( k );
+  }
+
   profile_ptr   application::create_profile( const std::wstring& profileName,
                                              const profile_config& cfg, const std::string& password, 
                                              std::function<void(double)> progress )

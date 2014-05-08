@@ -578,19 +578,20 @@ namespace bts {
        my->_bitname_client->stop_mining_name(name);
   } FC_RETHROW_EXCEPTIONS( warn, "name: ${name}", ("name",name) ) }
 
-  void  application::send_contact_request( const bitchat::private_contact_request_message& reqmsg,
-                                           const fc::ecc::public_key& to, const fc::ecc::private_key& from )
+  void  application::send_contact_request(const bitchat::private_contact_request_message& reqmsg,
+    const fc::ecc::public_key& to, const fc::ecc::private_key& from)
   {
     try
     {
-      FC_ASSERT( my->_config );
-
-      bitchat::decrypted_message msg( reqmsg );
+      FC_ASSERT(my->_config);
+      bitchat::decrypted_message msg(reqmsg);
       msg.sign(from);
-      my->_bitchat_client->send_message( msg, to, 0/* chan 0 */ );
+      auto cipher_message = msg.encrypt(to, bts::bitchat::compression_type::lzma_compression);
+      cipher_message.timestamp = fc::time_point::now() + my->server_time_offset;
+      ilog("send_contact_request at ${t}", ("t", cipher_message.timestamp));
+      my->_mail_con.send(mail::message(cipher_message));
 
-    }
-    FC_RETHROW_EXCEPTIONS( warn, "" )
+    } FC_RETHROW_EXCEPTIONS(warn, "")
   }
 
   void  application::send_email( const bitchat::private_email_message& email, 

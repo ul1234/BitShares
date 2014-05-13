@@ -166,6 +166,7 @@ namespace bts { namespace bitchat {
        bts::extended_public_key                             extended_pub_key;
        fc::enum_type<fc::unsigned_int,authorization_status> status;
        fc::ecc::public_key                                  recipient;
+       fc::optional<std::vector<char>>                      from_icon_png;
     };
 
     struct attachment
@@ -251,5 +252,5 @@ FC_REFLECT( bts::bitchat::private_text_message, (msg) )
 FC_REFLECT( bts::bitchat::private_email_message, (from_keyhotee_id)(to_list)(cc_list)(subject)(body)(attachments)(bcc_list)(src_msg_id) )
 FC_REFLECT( bts::bitchat::private_status_message, (status)(status_message) )
 FC_REFLECT( bts::bitchat::private_contact_request_message, (from_first_name)(from_last_name)(from_keyhotee_id)(request_param)
-                                                            (greeting_message)(from_channel)(extended_pub_key)(status)(recipient) )
+                                                           (greeting_message)(from_channel)(extended_pub_key)(status)(recipient)(from_icon_png))
 

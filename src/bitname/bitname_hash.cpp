@@ -8,22 +8,324 @@
 #include <sstream>
 
 #include <unicode/translit.h>
+#include <unicode/uidna.h>
 #include <unicode/usprep.h>
 #include <unicode/uspoof.h>
-#include <unicode/uidna.h>
+#include <unicode/utypes.h>
 
 //#define VERBOSE_DEBUG
 
-extern "C"
-{
-  /* Declare this function provided by ICU, but not exposed in the public
-     headers (normally it's called as a final step of ICU's exposed uidna_toASCII 
-     function, but that does extra processing that we're not interested in */
-  U_CFUNC int32_t u_strToPunycode(const UChar *src, int32_t srcLength,
-                                  UChar *dest, int32_t destCapacity,
-                                  const UBool *caseFlags,
-                                  UErrorCode *pErrorCode);
-}
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///   Code below was originally placed inside ICU, but punycode conversion was needed here      ///
+///////////////////////////////////////////////////////////////////////////////////////////////////
+namespace {
+  /* Punycode parameters for Bootstring */
+#define BASE            36
+#define TMIN            1
+#define TMAX            26
+#define SKEW            38
+#define DAMP            700
+#define INITIAL_BIAS    72
+#define INITIAL_N       0x80
+
+  /* "Basic" Unicode/ASCII code points */
+#define _HYPHEN         0X2d
+#define DELIMITER       _HYPHEN
+
+#define _ZERO_          0X30
+#define _NINE           0x39
+
+#define _SMALL_A        0X61
+#define _SMALL_Z        0X7a
+
+#define _CAPITAL_A      0X41
+#define _CAPITAL_Z      0X5a
+
+#define IS_BASIC(c) ((c)<0x80)
+#define IS_BASIC_UPPERCASE(c) (_CAPITAL_A<=(c) && (c)<=_CAPITAL_Z)
+
+  /**
+  * digitToBasic() returns the basic code point whose value
+  * (when used for representing integers) is d, which must be in the
+  * range 0 to BASE-1. The lowercase form is used unless the uppercase flag is
+  * nonzero, in which case the uppercase form is used.
+  */
+  static inline char
+    digitToBasic(int32_t digit, UBool uppercase) {
+      /*  0..25 map to ASCII a..z or A..Z */
+      /* 26..35 map to ASCII 0..9         */
+      if(digit < 26) {
+        if(uppercase) {
+          return (char)(_CAPITAL_A + digit);
+          }
+        else {
+          return (char)(_SMALL_A + digit);
+          }
+        }
+      else {
+        return (char)((_ZERO_ - 26) + digit);
+        }
+    }
+
+  static inline char
+    asciiCaseMap(char b, UBool uppercase) {
+      if(uppercase) {
+        if(_SMALL_A <= b && b <= _SMALL_Z) {
+          b -= (_SMALL_A - _CAPITAL_A);
+          }
+        }
+      else {
+        if(_CAPITAL_A <= b && b <= _CAPITAL_Z) {
+          b += (_SMALL_A - _CAPITAL_A);
+          }
+        }
+      return b;
+    }
+
+  /* Bias adaptation function. */
+  static int32_t
+    adaptBias(int32_t delta, int32_t length, UBool firstTime) {
+      int32_t count;
+
+      if(firstTime) {
+        delta /= DAMP;
+        }
+      else {
+        delta /= 2;
+        }
+
+      delta += delta / length;
+      for(count = 0; delta > ((BASE - TMIN)*TMAX) / 2; count += BASE) {
+        delta /= (BASE - TMIN);
+        }
+
+      return count + (((BASE - TMIN + 1)*delta) / (delta + SKEW));
+    }
+
+  /**
+  * NUL-terminate a UChar * string if possible.
+  * If length  < destCapacity then NUL-terminate.
+  * If length == destCapacity then do not terminate but set U_STRING_NOT_TERMINATED_WARNING.
+  * If length  > destCapacity then do not terminate but set U_BUFFER_OVERFLOW_ERROR.
+  *
+  * @param dest Destination buffer, can be NULL if destCapacity==0.
+  * @param destCapacity Number of UChars available at dest.
+  * @param length Number of UChars that were (to be) written to dest.
+  * @param pErrorCode ICU error code.
+  * @return length
+  */
+  U_CAPI int32_t U_EXPORT2
+    u_terminateUChars(UChar *dest, int32_t destCapacity, int32_t length, UErrorCode *pErrorCode);
+
+#define MAX_CP_COUNT    200
+
+  U_CFUNC int32_t
+    u_strToPunycode(const UChar *src, int32_t srcLength,
+    UChar *dest, int32_t destCapacity,
+    const UBool *caseFlags,
+    UErrorCode *pErrorCode) {
+
+      int32_t cpBuffer[MAX_CP_COUNT];
+      int32_t n, delta, handledCPCount, basicLength, destLength, bias, j, m, q, k, t, srcCPCount;
+      UChar c, c2;
+
+      /* argument checking */
+      if(pErrorCode == NULL || U_FAILURE(*pErrorCode)) {
+        return 0;
+        }
+
+      if(src == NULL || srcLength < -1 || (dest == NULL && destCapacity != 0)) {
+        *pErrorCode = U_ILLEGAL_ARGUMENT_ERROR;
+        return 0;
+        }
+
+      /*
+      * Handle the basic code points and
+      * convert extended ones to UTF-32 in cpBuffer (caseFlag in sign bit):
+      */
+      srcCPCount = destLength = 0;
+      if(srcLength == -1) {
+        /* NUL-terminated input */
+        for(j = 0; /* no condition */; ++j) {
+          if((c = src[j]) == 0) {
+            break;
+            }
+          if(srcCPCount == MAX_CP_COUNT) {
+            /* too many input code points */
+            *pErrorCode = U_INDEX_OUTOFBOUNDS_ERROR;
+            return 0;
+            }
+          if(IS_BASIC(c)) {
+            cpBuffer[srcCPCount++] = 0;
+            if(destLength < destCapacity) {
+              dest[destLength] =
+                caseFlags != NULL ?
+                asciiCaseMap((char)c, caseFlags[j]) :
+                (char)c;
+              }
+            ++destLength;
+            }
+          else {
+            n = (caseFlags != NULL && caseFlags[j]) << 31L;
+            if(U16_IS_SINGLE(c)) {
+              n |= c;
+              }
+            else if(U16_IS_LEAD(c) && U16_IS_TRAIL(c2 = src[j + 1])) {
+              ++j;
+              n |= (int32_t)U16_GET_SUPPLEMENTARY(c, c2);
+              }
+            else {
+              /* error: unmatched surrogate */
+              *pErrorCode = U_INVALID_CHAR_FOUND;
+              return 0;
+              }
+            cpBuffer[srcCPCount++] = n;
+            }
+          }
+        }
+      else {
+        /* length-specified input */
+        for(j = 0; j < srcLength; ++j) {
+          if(srcCPCount == MAX_CP_COUNT) {
+            /* too many input code points */
+            *pErrorCode = U_INDEX_OUTOFBOUNDS_ERROR;
+            return 0;
+            }
+          c = src[j];
+          if(IS_BASIC(c)) {
+            cpBuffer[srcCPCount++] = 0;
+            if(destLength < destCapacity) {
+              dest[destLength] =
+                caseFlags != NULL ?
+                asciiCaseMap((char)c, caseFlags[j]) :
+                (char)c;
+              }
+            ++destLength;
+            }
+          else {
+            n = (caseFlags != NULL && caseFlags[j]) << 31L;
+            if(U16_IS_SINGLE(c)) {
+              n |= c;
+              }
+            else if(U16_IS_LEAD(c) && (j + 1) < srcLength && U16_IS_TRAIL(c2 = src[j + 1])) {
+              ++j;
+              n |= (int32_t)U16_GET_SUPPLEMENTARY(c, c2);
+              }
+            else {
+              /* error: unmatched surrogate */
+              *pErrorCode = U_INVALID_CHAR_FOUND;
+              return 0;
+              }
+            cpBuffer[srcCPCount++] = n;
+            }
+          }
+        }
+
+      /* Finish the basic string - if it is not empty - with a delimiter. */
+      basicLength = destLength;
+      if(basicLength > 0) {
+        if(destLength < destCapacity) {
+          dest[destLength] = DELIMITER;
+          }
+        ++destLength;
+        }
+
+      /*
+      * handledCPCount is the number of code points that have been handled
+      * basicLength is the number of basic code points
+      * destLength is the number of chars that have been output
+      */
+
+      /* Initialize the state: */
+      n = INITIAL_N;
+      delta = 0;
+      bias = INITIAL_BIAS;
+
+      /* Main encoding loop: */
+      for(handledCPCount = basicLength; handledCPCount < srcCPCount; /* no op */) {
+        /*
+        * All non-basic code points < n have been handled already.
+        * Find the next larger one:
+        */
+        for(m = 0x7fffffff, j = 0; j < srcCPCount; ++j) {
+          q = cpBuffer[j] & 0x7fffffff; /* remove case flag from the sign bit */
+          if(n <= q && q<m) {
+            m = q;
+            }
+          }
+
+        /*
+        * Increase delta enough to advance the decoder's
+        * <n,i> state to <m,0>, but guard against overflow:
+        */
+        if(m - n>(0x7fffffff - MAX_CP_COUNT - delta) / (handledCPCount + 1)) {
+          *pErrorCode = U_INTERNAL_PROGRAM_ERROR;
+          return 0;
+          }
+        delta += (m - n)*(handledCPCount + 1);
+        n = m;
+
+        /* Encode a sequence of same code points n */
+        for(j = 0; j < srcCPCount; ++j) {
+          q = cpBuffer[j] & 0x7fffffff; /* remove case flag from the sign bit */
+          if(q < n) {
+            ++delta;
+            }
+          else if(q == n) {
+            /* Represent delta as a generalized variable-length integer: */
+            for(q = delta, k = BASE; /* no condition */; k += BASE) {
+
+              /** RAM: comment out the old code for conformance with draft-ietf-idn-punycode-03.txt
+
+              t=k-bias;
+              if(t<TMIN) {
+              t=TMIN;
+              } else if(t>TMAX) {
+              t=TMAX;
+              }
+              */
+
+              t = k - bias;
+              if(t < TMIN) {
+                t = TMIN;
+                }
+              else if(k >= (bias + TMAX)) {
+                t = TMAX;
+                }
+
+              if(q < t) {
+                break;
+                }
+
+              if(destLength < destCapacity) {
+                dest[destLength] = digitToBasic(t + (q - t) % (BASE - t), 0);
+                }
+              ++destLength;
+              q = (q - t) / (BASE - t);
+              }
+
+            if(destLength < destCapacity) {
+              dest[destLength] = digitToBasic(q, (UBool)(cpBuffer[j] < 0));
+              }
+            ++destLength;
+            bias = adaptBias(delta, handledCPCount + 1, (UBool)(handledCPCount == basicLength));
+            delta = 0;
+            ++handledCPCount;
+            }
+          }
+
+        ++delta;
+        ++n;
+        }
+
+      return u_terminateUChars(dest, destCapacity, destLength, pErrorCode);
+    }
+
+} /// anonymous
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///                   End of Code ICU code supporting, punycode conversion                      ///
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 namespace bts { namespace bitname {
 

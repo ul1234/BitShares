@@ -171,8 +171,13 @@ ENDIF(APPLE)
 #include_directories( fc/include )
 #include_directories( $Boost_INCLUDE_DIR} )
 
+message(STATUS "Bitshare ICU libs: ${ICU_LIBRARIES} ${ICU_DT_LIBRARY}")
+
 add_library( bshare ${sources} )
-target_link_libraries( bshare fc leveldb upnpc-static ${BDB_LIBRARIES} ${ZLIB_LIBRARIES} ${PLATFORM_SPECIFIC_LIBS} ${rt_library} ${READLINE_LIBRARIES} ${CMAKE_DL_LIBS})
+target_link_libraries( bshare fc leveldb upnpc-static ${BDB_LIBRARIES} ${ZLIB_LIBRARIES}
+  ${ICU_LIBRARIES} ${ICU_DT_LIBRARY} ${PLATFORM_SPECIFIC_LIBS} ${rt_library}
+  ${READLINE_LIBRARIES} ${CMAKE_DL_LIBS})
+
 target_compile_definitions(bshare PRIVATE U_STATIC_IMPLEMENTATION)
 
 # All include directories required to compile dependency headers will be automatically added 

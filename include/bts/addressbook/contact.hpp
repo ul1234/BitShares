@@ -105,6 +105,13 @@ namespace bts { namespace addressbook {
       std::vector<contact_property>   properties;
    };
 
+  static inline std::string trim_pubkey(const contact& c)
+  {
+    std::string pkText = c.public_key.to_base58();
+    assert(pkText.size() > 6);
+    return pkText.substr(0, 6);
+  }
+
   /** Helper function to compose display name for wallet_identity and wallet_contact. Must be external
       since these classes hierarachy is broken.
   */
@@ -144,9 +151,7 @@ namespace bts { namespace addressbook {
         /** If alias has been defined display_name should contain just 6 first digits of pk textual
             form to increase readability.
         */
-        std::string pkText = c.public_key.to_base58();
-        assert(pkText.size() > 6);
-        display_name += pkText.substr(0, 6);
+        display_name += trim_pubkey(c);
       }
       else
       {
@@ -174,6 +179,7 @@ namespace bts { namespace addressbook {
       {
         return compose_display_name(first_name, last_name, *this);
       }
+      std::string get_trim_pk() const { return "<" + trim_pubkey(*this) + ">"; }
 
       std::string          wallet_ident;      // used to generate the master public key for this identity
       float                mining_effort;
@@ -208,6 +214,7 @@ namespace bts { namespace addressbook {
       {
         return compose_display_name(first_name, last_name, *this);
       }
+      std::string get_trim_pk() const { return "<" + trim_pubkey(*this) + ">"; }
 
       /** used to generate the extended private key for this contact */
       uint32_t                                    wallet_index;

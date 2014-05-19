@@ -223,6 +223,7 @@ FC_REFLECT_DERIVED( bts::bitname::name_header, (bts::bitname::name_trx), (prev) 
 FC_REFLECT_DERIVED( bts::bitname::name_block, (bts::bitname::name_header), (name_trxs) )
 FC_REFLECT( bts::bitname::name_block_index, (header)(name_trxs) )
 
+FC_REFLECT_TYPENAME(bts::bitname::name_id_type)
 
 /**
  *  Define custom serialization that conditionally includes either the public key or a 

@@ -54,17 +54,23 @@ IF( WIN32 )
 
   add_subdirectory( vendor/leveldb-win )
 ELSE(WIN32)
+  # Put here common options for unix & apple platform
   MESSAGE(STATUS "Configuring Bitshares on UNIX/APPLE")
 
   FIND_PACKAGE( ZLIB REQUIRED )
 
-  add_subdirectory( vendor/leveldb-1.12.0 )
+  if(UNIX)
+    find_library(READLINE_LIBRARIES NAMES readline)
+    find_path(READLINE_INCLUDE_DIR readline/readline.h)
+    if(NOT READLINE_INCLUDE_DIR OR NOT READLINE_LIBRARIES)
+      MESSAGE(FATAL_ERROR "Could not find lib readline.")
+    endif()
 
-  # Put here common options for unix & apple platform
-  IF(NOT APPLE)
     SET(rt_library rt )
     SET(pthread_library pthread)
-  ENDIF(NOT APPLE)
+  ENDIF(UNIX)
+
+  add_subdirectory( vendor/leveldb-1.12.0 )
 
 ENDIF(WIN32)
 
@@ -174,7 +180,7 @@ ENDIF(APPLE)
 message(STATUS "Bitshare ICU libs: ${ICU_LIBRARIES} ${ICU_DT_LIBRARY}")
 
 add_library( bshare ${sources} )
-target_link_libraries( bshare fc leveldb upnpc-static ${BDB_LIBRARIES} ${ZLIB_LIBRARIES}
+target_link_libraries( bshare PUBLIC fc leveldb upnpc-static ${BDB_LIBRARIES} ${ZLIB_LIBRARIES}
   ${ICU_LIBRARIES} ${ICU_DT_LIBRARY} ${PLATFORM_SPECIFIC_LIBS} ${rt_library}
   ${READLINE_LIBRARIES} ${CMAKE_DL_LIBS})
 

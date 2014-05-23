@@ -196,9 +196,10 @@ namespace bts { namespace addressbook {
     sent_request,
     accepted,
     denied,
-    blocked,
+    i_block,
     accepted_mail,
-    accepted_chat
+    accepted_chat,
+    blocked_me
   };
 
   /**
@@ -272,9 +273,10 @@ FC_REFLECT_ENUM( bts::addressbook::authorization_status,
   (sent_request)
   (accepted)
   (denied)
-  (blocked)
+  (i_block)
   (accepted_mail)
   (accepted_chat)
+  (blocked_me)
 )
 
 FC_REFLECT( bts::addressbook::property_signature,

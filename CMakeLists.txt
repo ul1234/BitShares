@@ -66,8 +66,10 @@ ELSE(WIN32)
       MESSAGE(FATAL_ERROR "Could not find lib readline.")
     endif()
 
-    SET(rt_library rt )
-    SET(pthread_library pthread)
+    IF(NOT APPLE)
+      SET(rt_library rt)
+      SET(pthread_library pthread)
+    ENDIF(NOT APPLE)
   ENDIF(UNIX)
 
   add_subdirectory( vendor/leveldb-1.12.0 )

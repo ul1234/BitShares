@@ -525,7 +525,14 @@ namespace bts {
        //DLNFIX Quiet error messages as there's no server listening to this port currently.
        //       Let's setup a peer server soon somewhere that does handle connection attempts.
        // default_cfg.default_nodes.push_back( fc::ip::endpoint( std::string("162.243.67.4"), 9876 ) );
-       default_cfg.default_mail_nodes.push_back( fc::ip::endpoint( std::string("162.243.67.4"), 7896 ) );
+#ifdef _DEBUG
+       /// In Debug build local development mail server is used which could be upgraded more frequently
+       std::string defaultMailServerAddress("192.168.4.148");
+#else
+       std::string defaultMailServerAddress("162.243.67.4");
+#endif /// _DEBUG
+
+       default_cfg.default_mail_nodes.push_back(fc::ip::endpoint(defaultMailServerAddress, 7896));
        
        /** \warning Don't use fc::ostream - this class doesn't provide info about write/opening
            operation status.

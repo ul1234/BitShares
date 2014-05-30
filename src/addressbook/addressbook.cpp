@@ -77,7 +77,10 @@ namespace bts { namespace addressbook {
       auto itr = my->_id_to_number.find(dac_id_hash);
       if( itr != my->_id_to_number.end() )
       {
-          return my->_number_to_contact[itr->second];
+          /// \warning name hashing is not strict and can result in found bad object
+          wallet_contact foundContact = my->_number_to_contact[itr->second];
+          if(foundContact.dac_id_string.empty() == false && dac_id_hash == foundContact.dac_id_hash)
+            contact = foundContact;
       }
       return contact;
   } FC_RETHROW_EXCEPTIONS( warn, "", ("dac_id", dac_id) ) }

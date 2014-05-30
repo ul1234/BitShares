@@ -654,11 +654,32 @@ namespace bts {
        
        /// Wait until direct connection loop finishes.
        if(my->_connect_loop_complete.valid())
-         my->_connect_loop_complete.wait();
+         {
+         /** All potential exceptions caught by fiber we would like to wait for must be caught here
+            to allow closeup of next 
+         */
+         try
+           {
+           my->_connect_loop_complete.wait();
+           }
+         catch(const fc::exception& e)
+           {
+           wlog("${e}", ("e", e.to_detail_string()));
+           }
+         }
        
        /// Wait until mail connection loop finishes.
        if(my->_mail_connect_loop_complete.valid())
-         my->_mail_connect_loop_complete.wait();
+         {
+         try
+           {
+           my->_mail_connect_loop_complete.wait();
+           }
+         catch(const fc::exception& e)
+           {
+           wlog("${e}", ("e", e.to_detail_string()));
+           }
+         }
 
        if(my->_server)
          my->_server->close();

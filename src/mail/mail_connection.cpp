@@ -191,7 +191,19 @@ namespace mail {
   void connection::connect( const fc::ip::endpoint& ep )
   {
      try {
+       /** \warning: It is possible (because of timing purposes caused by usleeps used in callers) to 
+           enter this routine after starting read_loop. Then, since sock object is recreated here,
+           previously started read_loop code can use broken object while processing socket reads etc
+       */
+       if(my->read_loop_complete.valid())
+         {
+         /// \warning Don't remove braces around. Looks like VC 2013 has a bug and eliminates this
+         /// code without braces.
+         return;
+         }
+
        // TODO: do we have to worry about multiple calls to connect?
+
        my->sock = std::make_shared<stcp_socket>();
        my->sock->connect_to(ep);
        // Enable keepalives on the mail connection.  The connection to the mail server

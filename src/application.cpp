@@ -76,7 +76,8 @@ namespace bts {
              _mail_connected = false;
              while( !_quit_promise->ready() )
              {
-                for( auto itr = _config->default_mail_nodes.begin(); itr != _config->default_mail_nodes.end(); ++itr )
+                for( auto itr = _config->default_mail_nodes.begin();
+                    _quit_promise->ready() == false  && itr != _config->default_mail_nodes.end(); ++itr)
                 {
                      try {
                         ilog( "mail connect ${e}, send sync_time=${t}", ("e",*itr)("t",_profile->get_last_sync_time()) );
@@ -95,6 +96,10 @@ namespace bts {
                         wlog( "${e}", ("e",e.to_detail_string()));
                      }
                 }
+
+                if(_quit_promise->ready())
+                  break;
+
                 fc::usleep( fc::seconds(3) );
              }
           }

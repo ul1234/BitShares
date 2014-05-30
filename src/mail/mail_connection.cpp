@@ -197,9 +197,15 @@ namespace mail {
        */
        if(my->read_loop_complete.valid())
          {
-         /// \warning Don't remove braces around. Looks like VC 2013 has a bug and eliminates this
-         /// code without braces.
-         return;
+         my->read_loop_complete.cancel();
+         try
+           {
+           my->read_loop_complete.wait();
+           }
+         catch(const fc::exception& e)
+           {
+           wlog("${e}", ("e", e.to_detail_string()));
+           }
          }
 
        // TODO: do we have to worry about multiple calls to connect?

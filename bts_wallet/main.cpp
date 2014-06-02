@@ -734,7 +734,7 @@ class client : public chain_connection_delegate
          auto trx = _wallet.transfer( asset(amnt,unit), addr );
          ilog( "${trx}", ("trx",trx) );
          broadcast_transaction( trx );
-         return trx.id();
+         return std::string(trx.id());
       }
       std::string short_sell( asset amnt, price p ) //double amnt, std::string u, double sellprice )
       {
@@ -742,7 +742,7 @@ class client : public chain_connection_delegate
          std::cout<<"trx id: "<< std::string(trx.id()) <<"\n";
          ilog( "${trx}", ("trx",trx) );
          broadcast_transaction( trx );
-         return trx.id();
+         return std::string(trx.id());
       }
 
       std::string buy( asset amount, price pr )
@@ -750,14 +750,14 @@ class client : public chain_connection_delegate
          auto trx = _wallet.bid( amount, pr );
          ilog( "${trx}", ("trx",trx) );
          broadcast_transaction( trx );
-         return trx.id();
+         return std::string(trx.id());
       }
       std::string sell( asset amount, price pr ) //double amnt, std::string u, double buyprice, std::string base )
       {
          auto trx = _wallet.bid( amount, pr );
          ilog( "${trx}", ("trx",trx) );
          broadcast_transaction( trx );
-         return trx.id();
+         return std::string(trx.id());
       }
 
 
@@ -787,7 +787,7 @@ class client : public chain_connection_delegate
          asset::type unit = fc::variant(u).as<asset::type>();
          auto trx = _wallet.cover( asset( amnt, unit ) );
          broadcast_transaction( trx );
-         return trx.id();
+         return std::string(trx.id());
       }
 
       void print_open_orders( asset::type a )
@@ -798,13 +798,13 @@ class client : public chain_connection_delegate
       { 
          auto trx = _wallet.cancel_bid( output_reference(fc::uint160(h), idx) );
          broadcast_transaction( trx );
-         return trx.id();
+         return std::string(trx.id());
       }
       std::string cancel_open_bid( const output_index& idx ) //uint32_t b, uint32_t t, uint32_t i );
       { 
          auto trx = _wallet.cancel_bid( idx );
          broadcast_transaction( trx );
-         return trx.id();
+         return std::string(trx.id());
       }
 
       bool         _auto_mine;

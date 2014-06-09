@@ -122,7 +122,7 @@ namespace bts { namespace blockchain {
                  return;
                }
             }
-            FC_THROW_EXCEPTION( key_not_found_exception, "unable to find node id ${id} at block number ${height}", ("id",node_id)("height",height)("valid_state",valid_state) );
+            FC_THROW_EXCEPTION( fc::key_not_found_exception, "unable to find node id ${id} at block number ${height}", ("id",node_id)("height",height)("valid_state",valid_state) );
          }
 
          fc::optional<Key> get_best_fork_for_height( uint32_t height )

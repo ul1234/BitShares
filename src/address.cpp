@@ -7,6 +7,8 @@
 #include <fc/crypto/elliptic.hpp>
 #include <fc/exception/exception.hpp>
 
+using namespace fc;
+
 namespace bts
 {
    address::address()

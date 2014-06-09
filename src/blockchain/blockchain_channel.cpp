@@ -7,6 +7,8 @@
 
 #include <map>
 
+using namespace fc;
+
 namespace bts { namespace blockchain {
 
   using namespace network;

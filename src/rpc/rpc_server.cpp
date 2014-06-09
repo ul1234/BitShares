@@ -5,6 +5,8 @@
 #include <fc/thread/thread.hpp>
 #include <bts/application.hpp>
 
+using namespace fc;
+
 namespace bts { namespace rpc { 
 
   namespace detail 

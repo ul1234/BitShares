@@ -113,7 +113,7 @@ namespace bts { namespace network {
             catch ( ... )
             {
               // TODO: call con_del->????
-              FC_THROW_EXCEPTION( unhandled_exception, "disconnected: {e}", ("e", fc::except_str() ) );
+              FC_THROW_EXCEPTION( fc::unhandled_exception, "disconnected: {e}", ("e", fc::except_str() ) );
             }
           }
      };
@@ -212,7 +212,7 @@ namespace bts { namespace network {
             wlog( "    attempt to connect to ${ep} failed.", ("ep", *itr) );
          }
       }
-      FC_THROW_EXCEPTION( exception, "unable to connect to ${host_port}", ("host_port",host_port) );
+      FC_THROW_EXCEPTION( fc::exception, "unable to connect to ${host_port}", ("host_port",host_port) );
   }
 
   void connection::send( const message& m )

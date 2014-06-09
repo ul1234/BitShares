@@ -207,7 +207,7 @@ namespace bts { namespace bitname {
        {
          if( !create )
          {
-            FC_THROW_EXCEPTION( file_not_found_exception, "Unable to open name database ${dir}", ("dir",db_dir) );
+            FC_THROW_EXCEPTION( fc::file_not_found_exception, "Unable to open name database ${dir}", ("dir",db_dir) );
          }
          fc::create_directories( db_dir );
        }

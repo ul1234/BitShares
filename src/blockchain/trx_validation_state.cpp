@@ -43,7 +43,7 @@ void trx_validation_state::validate()
        {
           if( inputs[i].meta_output.is_spent() )
           {
-             FC_THROW_EXCEPTION( exception, 
+             FC_THROW_EXCEPTION( fc::exception, 
                 "input [${iidx}] = references output which was already spent",
                 ("iidx",i)("input",trx.inputs[i])("output",inputs[i]) );
           }
@@ -68,7 +68,7 @@ void trx_validation_state::validate()
      {
         if( balance_sheet[i].creates_money() )
         {
-            FC_THROW_EXCEPTION( exception, "input value ${in} does not match output value ${out}",
+            FC_THROW_EXCEPTION( fc::exception, "input value ${in} does not match output value ${out}",
                                ("in", std::string(balance_sheet[i].in))( "out", std::string(balance_sheet[i].out) ) );
                            
         }
@@ -88,7 +88,7 @@ void trx_validation_state::validate()
      }
      if( missing.size() )
      {
-        FC_THROW_EXCEPTION( exception, "missing signatures for ${addresses}", ("addresses", missing) );
+        FC_THROW_EXCEPTION( fc::exception, "missing signatures for ${addresses}", ("addresses", missing) );
      }
 
      // TODO: what should we do about trxs that include extra, unnecessary signatures
@@ -134,7 +134,7 @@ void trx_validation_state::validate_input( const meta_trx_input& in )
           validate_password( in );
           return;
         default:
-          FC_THROW_EXCEPTION( exception, "unsupported claim function ${f}", ("f", in.output.claim_func ) );
+          FC_THROW_EXCEPTION( fc::exception, "unsupported claim function ${f}", ("f", in.output.claim_func ) );
      }
 } // validate_input
 
@@ -173,7 +173,7 @@ void trx_validation_state::validate_output( const trx_output& out )
           validate_password( out );
           return;
         default:
-          FC_THROW_EXCEPTION( exception, "unsupported claim function ${f}", ("f", out.claim_func ) );
+          FC_THROW_EXCEPTION( fc::exception, "unsupported claim function ${f}", ("f", out.claim_func ) );
      }
 } // validate_output
 

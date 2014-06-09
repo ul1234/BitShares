@@ -62,11 +62,11 @@ namespace bts { namespace db {
              auto status = _db->Get( ldb::ReadOptions(), ks, &value );
              if( status.IsNotFound() )
              {
-               FC_THROW_EXCEPTION( key_not_found_exception, "unable to find key ${key}", ("key",k) );
+               FC_THROW_EXCEPTION( fc::key_not_found_exception, "unable to find key ${key}", ("key",k) );
              }
              if( !status.ok() )
              {
-                 FC_THROW_EXCEPTION( exception, "database error: ${msg}", ("msg", status.ToString() ) );
+                 FC_THROW_EXCEPTION( fc::exception, "database error: ${msg}", ("msg", status.ToString() ) );
              }
              fc::datastream<const char*> ds(value.c_str(), value.size());
              Value tmp;
@@ -117,11 +117,11 @@ namespace bts { namespace db {
 
            if( itr._it->status().IsNotFound() )
            {
-             FC_THROW_EXCEPTION( key_not_found_exception, "" );
+             FC_THROW_EXCEPTION( fc::key_not_found_exception, "" );
            }
            if( !itr._it->status().ok() )
            {
-               FC_THROW_EXCEPTION( exception, "database error: ${msg}", ("msg", itr._it->status().ToString() ) );
+               FC_THROW_EXCEPTION( fc::exception, "database error: ${msg}", ("msg", itr._it->status().ToString() ) );
            }
 
            if( itr.valid() )
@@ -205,7 +205,7 @@ namespace bts { namespace db {
              auto status = _db->Put( ldb::WriteOptions(), ks, vs );
              if( !status.ok() )
              {
-                 FC_THROW_EXCEPTION( exception, "database error: ${msg}", ("msg", status.ToString() ) );
+                 FC_THROW_EXCEPTION( fc::exception, "database error: ${msg}", ("msg", status.ToString() ) );
              }
           } FC_RETHROW_EXCEPTIONS( warn, "error storing ${key} = ${value}", ("key",k)("value",v) );
         }
@@ -219,11 +219,11 @@ namespace bts { namespace db {
              auto status = _db->Delete( ldb::WriteOptions(), ks );
              if( status.IsNotFound() )
              {
-               FC_THROW_EXCEPTION( key_not_found_exception, "unable to find key ${key}", ("key",k) );
+               FC_THROW_EXCEPTION( fc::key_not_found_exception, "unable to find key ${key}", ("key",k) );
              }
              if( !status.ok() )
              {
-                 FC_THROW_EXCEPTION( exception, "database error: ${msg}", ("msg", status.ToString() ) );
+                 FC_THROW_EXCEPTION( fc::exception, "database error: ${msg}", ("msg", status.ToString() ) );
              }
           } FC_RETHROW_EXCEPTIONS( warn, "error removing ${key}", ("key",k) );
         }

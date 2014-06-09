@@ -482,7 +482,7 @@ namespace bts { namespace bitname {
                    handle_headers( con, cdat, m.as<headers_message>() );
                    break;
                  default:
-                   FC_THROW_EXCEPTION( exception, "unknown bitname message type ${msg_type}", ("msg_type", m.msg_type ) );
+                   FC_THROW_EXCEPTION( fc::exception, "unknown bitname message type ${msg_type}", ("msg_type", m.msg_type ) );
              }
             } 
             catch ( fc::exception& e )

@@ -50,7 +50,7 @@ namespace bts { namespace network {
             // ignore errors...
          }
       }
-      FC_THROW_EXCEPTION( exception, "Unable to connect to ipecho.net" );
+      FC_THROW_EXCEPTION( fc::exception, "Unable to connect to ipecho.net" );
    }
  
 } } // bts::network

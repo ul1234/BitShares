@@ -32,6 +32,8 @@
 #include <iostream>
 #include <fstream>
 
+using namespace fc;
+
 namespace bts {
    namespace qi = boost::spirit::qi;
    namespace ascii = boost::spirit::ascii;

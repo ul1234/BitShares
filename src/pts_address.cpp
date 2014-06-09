@@ -6,6 +6,8 @@
 #include <fc/crypto/ripemd160.hpp>
 #include <fc/exception/exception.hpp>
 
+using namespace fc;
+
 namespace bts
 {
    pts_address::pts_address()

@@ -83,7 +83,7 @@ namespace bts { namespace bitchat {
         auto itr = my->_channels.find( chan );
         if( itr == my->_channels.end() )
         {
-          FC_THROW_EXCEPTION( exception, "unable to find bitchat channel ${c}", ("c",chan)("message",m) );
+          FC_THROW_EXCEPTION( fc::exception, "unable to find bitchat channel ${c}", ("c",chan)("message",m) );
         }
         itr->second->broadcast( std::move(cipher_message) );
    } FC_RETHROW_EXCEPTIONS( warn, "", ("msg",m) ) }

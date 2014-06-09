@@ -112,7 +112,7 @@ namespace bts { namespace bitchat {
         {
            if( msg_type != T::type )
            {
-              FC_THROW_EXCEPTION( bad_cast_exception, "Unable to cast ${msg_type} to ${type}",
+              FC_THROW_EXCEPTION( fc::bad_cast_exception, "Unable to cast ${msg_type} to ${type}",
                                                       ("msg_type",msg_type)("type",T::type) );
            }
            return fc::raw::unpack<T>( data );

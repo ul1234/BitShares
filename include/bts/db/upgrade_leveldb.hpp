@@ -88,7 +88,7 @@ void UpgradeDb ## TYPE ## VERSIONNUM(leveldb::DB* dbase, fc::optional<fc::uint51
   if (dbaseI->status().IsNotFound()) /*if empty database, do nothing*/ \
     return; \
   if (!dbaseI->status().ok()) \
-    FC_THROW_EXCEPTION( exception, "database error: ${msg}", ("msg", dbaseI->status().ToString() ) ); \
+    FC_THROW_EXCEPTION( fc::exception, "database error: ${msg}", ("msg", dbaseI->status().ToString() ) ); \
   while (dbaseI->Valid()) /* convert dbase objects from legacy TypeVersionNum to current Type */ \
     { \
     TYPE ## VERSIONNUM old_value; /*load old record type*/ \
@@ -107,7 +107,7 @@ void UpgradeDb ## TYPE ## VERSIONNUM(leveldb::DB* dbase, fc::optional<fc::uint51
     auto status = dbase->Put( leveldb::WriteOptions(), key_slice, value_slice ); \
     if( !status.ok() ) \
       { \
-      FC_THROW_EXCEPTION( exception, "database error: ${msg}", ("msg", status.ToString() ) ); \
+      FC_THROW_EXCEPTION( fc::exception, "database error: ${msg}", ("msg", status.ToString() ) ); \
       } \
     dbaseI->Next(); \
     } /*while*/ \
@@ -116,3 +116,11 @@ static int dummyResult ## TYPE ## VERSIONNUM  = \
   TUpgradeDbMapper::Instance()->Add(fc::get_typename<TYPE ## VERSIONNUM>::name(), UpgradeDb ## TYPE ## VERSIONNUM);
 
 void UpgradeDbIfNecessary(fc::path dir, leveldb::DB* dbase, const char* record_type, size_t record_type_size, fc::optional<fc::uint512> encrypt_key);
+
+enum 
+{
+db_in_use_exception_code = fc::unspecified_exception_code
+};
+
+FC_DECLARE_EXCEPTION(db_in_use_exception, db_in_use_exception_code, "Database already in use");
+

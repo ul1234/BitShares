@@ -26,6 +26,7 @@
 #endif //!WIN32
 
 using namespace bts::blockchain;
+using namespace fc;
 
 class client_delegate
 {

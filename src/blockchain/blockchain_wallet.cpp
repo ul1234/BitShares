@@ -375,10 +375,9 @@ namespace bts { namespace blockchain {
            FC_RETHROW_EXCEPTION( er, warn, "unable to load ${wal}", ("wal",wallet_dat) );
        } catch( const std::exception& e ) {
            my->_exception_on_open = true;
-           throw  fc::std_exception(
+           throw  fc::unhandled_exception(
                FC_LOG_MESSAGE( warn, "unable to load ${wal}", ("wal",wallet_dat) ), 
-               std::current_exception(), 
-               e.what() ) ; 
+               std::current_exception()) ; 
        } catch( ... ) {  
            my->_exception_on_open = true;
            throw fc::unhandled_exception( 

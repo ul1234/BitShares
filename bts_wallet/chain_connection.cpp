@@ -22,6 +22,7 @@ const chain_message_type block_message::type = chain_message_type::block_msg;
 const chain_message_type trx_message::type = chain_message_type::trx_msg;
 const chain_message_type trx_err_message::type = chain_message_type::trx_err_msg;
 
+
   namespace detail
   {
      class chain_connection_impl
@@ -125,7 +126,7 @@ const chain_message_type trx_err_message::type = chain_message_type::trx_err_msg
             {
                wlog( "unhandled??" );
               // TODO: call con_del->????
-              FC_THROW_EXCEPTION( unhandled_exception, "disconnected: {e}", ("e", fc::except_str() ) );
+              FC_THROW_EXCEPTION( fc::unhandled_exception, "disconnected: {e}", ("e", fc::except_str() ) );
             }
           }
      };
@@ -243,7 +244,7 @@ const chain_message_type trx_err_message::type = chain_message_type::trx_err_msg
             wlog( "    attempt to connect to ${ep} failed.", ("ep", *itr) );
          }
       }
-      FC_THROW_EXCEPTION( exception, "unable to connect to ${host_port}", ("host_port",host_port) );
+      FC_THROW_EXCEPTION( fc::exception, "unable to connect to ${host_port}", ("host_port",host_port) );
   }
 
   void chain_connection::send( const message& m )

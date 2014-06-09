@@ -101,7 +101,7 @@ namespace mail {
             {
               if( con_del )
                 con_del->on_connection_disconnected( self );
-              FC_THROW_EXCEPTION( unhandled_exception, "disconnected: {e}", ("e", fc::except_str() ) );
+              FC_THROW_EXCEPTION( fc::unhandled_exception, "disconnected: {e}", ("e", fc::except_str() ) );
             }
           }
      };
@@ -239,7 +239,7 @@ namespace mail {
             wlog( "    attempt to connect to ${ep} failed.", ("ep", *itr) );
          }
       }
-      FC_THROW_EXCEPTION( exception, "unable to connect to ${host_port}", ("host_port",host_port) );
+      FC_THROW_EXCEPTION( fc::exception, "unable to connect to ${host_port}", ("host_port",host_port) );
   }
 
   void connection::send( const message& m )

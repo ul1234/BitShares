@@ -221,7 +221,7 @@ namespace bts { namespace bitname {
      auto current_record = my->_chan->lookup_name( bitname_id );
      if( current_record  && current_record->master_key != name_key )
      {
-        FC_THROW_EXCEPTION( exception, "name ${bitname_id} has already been reserved as ${record}",
+        FC_THROW_EXCEPTION( fc::exception, "name ${bitname_id} has already been reserved as ${record}",
                                          ("bitname_id",bitname_id)("record",*current_record) );
      }
      my->_names_to_mine[bitname_id] = name_key;

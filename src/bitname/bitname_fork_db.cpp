@@ -338,7 +338,7 @@ namespace bts { namespace bitname {
          }
          cur_id = cur_head.prev;
      }
-     FC_THROW_EXCEPTION( key_not_found_exception, "id ${x} is not in best fork", ("x",b) );
+     FC_THROW_EXCEPTION( fc::key_not_found_exception, "id ${x} is not in best fork", ("x",b) );
   } FC_RETHROW_EXCEPTIONS( warn, "", ("b",b) ) }
 
   std::vector<meta_header> fork_db::get_forks()

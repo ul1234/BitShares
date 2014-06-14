@@ -6,7 +6,10 @@ MESSAGE(STATUS "Configuring project bitshares located in: ${CMAKE_CURRENT_SOURCE
 
 set( CMAKE_AUTOMOC OFF )
 
-add_subdirectory( fc )
+# Warning: fc can be already defined by bitshare_toolkit dependencies
+if(NOT TARGET fc)
+  add_subdirectory( fc )
+endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/fc/GitVersionGen")
@@ -16,8 +19,9 @@ INCLUDE(GetGitRevisionDescription)
 get_git_head_revision(GIT_REFSPEC GIT_SHA2)
 get_git_unix_timestamp(GIT_UNIX_TIMESTAMP2)
 
-add_subdirectory( vendor/miniupnp/miniupnpc )
-
+IF(NOT TARGET upnpc-static)
+  add_subdirectory( vendor/miniupnp/miniupnpc )
+ENDIF()
 
 # Set the Berkeley DB version you use
 IF (WIN32)
@@ -52,7 +56,9 @@ IF( WIN32 )
   # Set this variable to empty on windows to simplify target_link_libraries specification
   SET(ZLIB_LIBRARIES "")
 
-  add_subdirectory( vendor/leveldb-win )
+  IF(NOT TARGET leveldb)
+    add_subdirectory( vendor/leveldb-win )
+  ENDIF()
 ELSE(WIN32)
   # Put here common options for unix & apple platform
   MESSAGE(STATUS "Configuring Bitshares on UNIX/APPLE")
@@ -72,8 +78,9 @@ ELSE(WIN32)
     ENDIF(NOT APPLE)
   ENDIF(UNIX)
 
-  add_subdirectory( vendor/leveldb-1.12.0 )
-
+  IF(NOT TARGET leveldb)
+    add_subdirectory( vendor/leveldb-1.12.0 )
+  ENDIF()
 ENDIF(WIN32)
 
 #IF( APPLE )
@@ -236,7 +243,11 @@ ENDIF()
 #target_link_libraries( bitshared bshare fc ${BOOST_LIBRARIES} )
 
 #add_subdirectory( cli_client )
-add_subdirectory( bts_wallet )
+
+IF(NOT TARGET bts_wallet)
+  add_subdirectory( bts_wallet )
+ENDIF()
+
 add_subdirectory( tests )
 #add_subdirectory( founder_reg_server )
 add_subdirectory( mail_server )

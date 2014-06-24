@@ -9,10 +9,12 @@ set( CMAKE_AUTOMOC OFF )
 # Warning: fc can be already defined by bitshare_toolkit dependencies
 if(NOT TARGET fc)
   add_subdirectory( fc )
+  list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/fc/GitVersionGen")
+else()
+  list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../bitshares_toolkit/libraries/fc/GitVersionGen")
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules")
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/fc/GitVersionGen")
 
 INCLUDE(GetGitRevisionDescription)
 

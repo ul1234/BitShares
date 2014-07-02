@@ -7,6 +7,7 @@
 #include <bts/bitcoin_wallet.hpp>
 #include <unordered_map>
 #include <map>
+#include <fc/exception/exception.hpp>
 #include <fc/filesystem.hpp>
 #include <fc/io/raw.hpp>
 #include <fc/io/json.hpp>

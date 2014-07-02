@@ -233,7 +233,7 @@ namespace bts { namespace blockchain {
                            }
                        }
                    }
-                   FC_ASSERT( !"Unable to collect sufficient unspent inputs", "", ("min_amnt",min_amnt)("total_collected",total_in) );
+                   FC_ASSERT( false, "Unable to collect sufficient unspent inputs", ("min_amnt",min_amnt)("total_collected",total_in) );
               }
 
               asset get_margin_balance( asset::type unit, asset& total_collat )
@@ -295,7 +295,7 @@ namespace bts { namespace blockchain {
                           return results;
                        }
                    }
-                   FC_ASSERT( !"Unable to collect sufficient unspent inputs", "", ("min_amnt",min_amnt) );
+                   FC_ASSERT( false, "Unable to collect sufficient unspent inputs", ("min_amnt",min_amnt) );
               }
 
               trx_output get_cover_output( const output_reference& r )
@@ -373,7 +373,7 @@ namespace bts { namespace blockchain {
        }catch( fc::exception& er ) {
            my->_exception_on_open = true;
            FC_RETHROW_EXCEPTION( er, warn, "unable to load ${wal}", ("wal",wallet_dat) );
-       } catch( const std::exception& e ) {
+       } catch( const std::exception& ) {
            my->_exception_on_open = true;
            throw  fc::unhandled_exception(
                FC_LOG_MESSAGE( warn, "unable to load ${wal}", ("wal",wallet_dat) ), 

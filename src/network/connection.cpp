@@ -66,8 +66,8 @@ namespace bts { namespace network {
                   try { // message handling errors are warnings... 
                     con_del->on_connection_message( self, m );
                   } 
-                  catch ( fc::canceled_exception& e ) { throw; }
-                  catch ( fc::eof_exception& e ) { throw; }
+                  catch ( fc::canceled_exception& ) { throw; }
+                  catch ( fc::eof_exception& ) { throw; }
                   catch ( fc::exception& e ) 
                   { 
                      wlog( "disconnected ${er}", ("er", e.to_detail_string() ) );
@@ -75,7 +75,7 @@ namespace bts { namespace network {
                   }
                }
             } 
-            catch ( const fc::canceled_exception& e )
+            catch ( const fc::canceled_exception& )
             {
               if( con_del )
               {
@@ -150,7 +150,7 @@ namespace bts { namespace network {
         my->read_loop_complete.wait();
       }
     } 
-    catch ( const fc::canceled_exception& e )
+    catch ( const fc::canceled_exception& )
     {
       ilog( "canceled" );
     }
@@ -207,7 +207,7 @@ namespace bts { namespace network {
             connect( *itr );
             return;
          } 
-         catch ( const fc::exception& e )
+         catch ( const fc::exception& )
          {
             wlog( "    attempt to connect to ${ep} failed.", ("ep", *itr) );
          }

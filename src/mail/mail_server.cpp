@@ -49,7 +49,7 @@ namespace mail {
                       accept_loop_complete.wait();
                   }
               } 
-              catch ( const fc::canceled_exception& e )
+              catch ( const fc::canceled_exception& )
               {
                   ilog( "expected exception on closing tcp server\n" );  
               }
@@ -173,7 +173,7 @@ namespace mail {
                       ("ep", std::string(s->get_socket().remote_endpoint()) )("c",connections.size()) );
                 if( ser_del ) ser_del->on_connected( con );
              } 
-             catch ( const fc::canceled_exception& e )
+             catch ( const fc::canceled_exception& )
              {
                 ilog( "canceled accept operation" );
              }
@@ -208,11 +208,11 @@ namespace mail {
                    fc::usleep( fc::microseconds( 1000*10 ) );
                 }
              } 
-             catch ( fc::eof_exception& e )
+             catch ( fc::eof_exception& )
              {
                 ilog( "accept loop eof" );
              }
-             catch ( fc::canceled_exception& e )
+             catch ( fc::canceled_exception& )
              {
                 ilog( "accept loop canceled" );
              }

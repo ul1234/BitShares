@@ -293,7 +293,7 @@ namespace bts { namespace bitname {
         // if no block is known for id.
         return my->_blocks.fetch(id);
      } 
-     catch ( const fc::key_not_found_exception& e )
+     catch ( const fc::key_not_found_exception& )
      {
        return fc::optional<name_block>();
      }
@@ -396,7 +396,7 @@ namespace bts { namespace bitname {
        }
        return cur;
     }
-    FC_ASSERT( !"No forks found?" );
+    FC_ASSERT(false, "No forks found?");
  } FC_RETHROW_EXCEPTIONS( warn, "", ("height",height) ) }
 
 

@@ -683,7 +683,7 @@ namespace bts { namespace bitname {
                 update_block_index_downloads( msg.trx ); 
                 submit_name( msg.trx );
              } 
-             catch ( fc::exception& e )
+             catch ( fc::exception& )
              {
                // TODO: connection just sent us an invalid trx... what do we do...
                // log it and ignore it because it was probably for the prior
@@ -708,7 +708,7 @@ namespace bts { namespace bitname {
                try {
                   submit_block(msg.block); //_name_db.push_block( msg.block ); 
                } 
-               catch( const fc::exception& e )
+               catch( const fc::exception& )
                {
                  // don't try to fetch this or any of its decendants again..
                  //_fork_tree.set_valid_state( _name_db.head_block_num()+1, msg.block.id(), false );

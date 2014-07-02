@@ -203,7 +203,7 @@ namespace bts { namespace bitname {
 
   name_record client::reverse_name_lookup( const fc::ecc::public_key& k )
   {
-    FC_ASSERT( !"Not Implemented" );
+    FC_ASSERT(false, "Not Implemented");
   }
 
   /**

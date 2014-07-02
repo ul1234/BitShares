@@ -232,7 +232,7 @@ namespace bts { namespace rpc {
             my->_accept_loop_complete.wait();
          }
      } 
-     catch ( const fc::canceled_exception& e ){}
+     catch ( const fc::canceled_exception& ){}
      catch ( const fc::exception& e )
      {
         wlog( "unhandled exception thrown in destructor.\n${e}", ("e", e.to_detail_string() ) );

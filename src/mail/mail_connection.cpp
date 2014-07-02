@@ -155,7 +155,7 @@ namespace mail {
           my->exec_sync_loop_complete.wait();
         }
     } 
-    catch ( const fc::canceled_exception& e )
+    catch ( const fc::canceled_exception& )
     {
       ilog( "canceled" );
     }
@@ -234,7 +234,7 @@ namespace mail {
             connect( *itr );
             return;
          } 
-         catch ( const fc::exception& e )
+         catch ( const fc::exception& )
          {
             wlog( "    attempt to connect to ${ep} failed.", ("ep", *itr) );
          }

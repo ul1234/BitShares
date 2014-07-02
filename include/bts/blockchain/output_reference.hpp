@@ -40,7 +40,7 @@ namespace std {
   {
      size_t operator()( const bts::blockchain::output_reference& e )const
      {
-        return fc::city_hash64( (char*)&e.trx_hash, sizeof(e.trx_hash) )^e.output_idx;
+        return fc::city_hash_size_t( (char*)&e.trx_hash, sizeof(e.trx_hash) )^e.output_idx;
      }
   };
 

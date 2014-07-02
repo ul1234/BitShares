@@ -7,7 +7,7 @@ namespace bts {
   {
      if( mid_states.size() == 0 ) return uint160();
      if( mid_states.size() == 1 ) return mid_states[0];
-     FC_ASSERT( !"TODO: Merged Mining is Not Yet Implemented" );
+     FC_ASSERT( false, "TODO: Merged Mining is Not Yet Implemented" );
   }
 
 } // namespace bts

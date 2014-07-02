@@ -171,7 +171,7 @@ namespace bts {
          plainkey.assign( (char*)&plaindata[0], (char*)&plaindata[0] + 32 );
          return true;
       }
-      FC_ASSERT( !"Unable to decrypt key" );
+      FC_ASSERT( false, "Unable to decrypt key" );
    } FC_RETHROW_EXCEPTIONS( warn, "unable to decrypt key" ) }
 
    static bool private_key_matches_public( fc::ecc::private_key& privkey, std::vector<unsigned char> &pubkey )

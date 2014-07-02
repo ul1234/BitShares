@@ -45,7 +45,7 @@ namespace bts { namespace network {
                   if( accept_loop_complete.valid() )
                     accept_loop_complete.wait();
               } 
-              catch ( const fc::canceled_exception& e )
+              catch ( const fc::canceled_exception& )
               {
                   ilog( "expected exception on closing tcp server\n" );  
               }
@@ -119,7 +119,7 @@ namespace bts { namespace network {
                 connections[con->remote_endpoint()] = con;
                 ser_del->on_connected( con );
              } 
-             catch ( const fc::canceled_exception& e )
+             catch ( const fc::canceled_exception& )
              {
                 ilog( "canceled accept operation" );
              }
@@ -153,11 +153,11 @@ namespace bts { namespace network {
                    fc::usleep( fc::microseconds( 1000*10 ) );
                 }
              } 
-             catch ( fc::eof_exception& e )
+             catch ( fc::eof_exception& )
              {
                 ilog( "accept loop eof" );
              }
-             catch ( fc::canceled_exception& e )
+             catch ( fc::canceled_exception& )
              {
                 ilog( "accept loop canceled" );
              }

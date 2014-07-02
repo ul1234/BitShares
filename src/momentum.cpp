@@ -58,7 +58,7 @@ namespace bts
    {
       uint32_t whichbit = (uint32_t(hash) & ((1UL<<FILTER_SLOTS_POWER)-1));
       uint32_t cbits = filter[whichbit/16];
-      return (cbits & (2UL<<(((whichbit&0xf)<<1))));
+      return (cbits & (2UL<<(((whichbit&0xf)<<1)))) != 0;
    }
 
    uint32_t *allocate_filter() 

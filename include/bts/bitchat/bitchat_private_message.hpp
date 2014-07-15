@@ -23,7 +23,8 @@ namespace bts { namespace bitchat {
        get_cache_priv_msg  = 6, ///< sent to request an private message in the historic inventory
        encrypted_msg       = 7, ///< a message encrypted to unknown receip (sent in reponse to get_priv_msg)
        server_info_msg     = 8, ///< a message that gives clients server stats
-       client_info_msg     = 9  ///< a message that gives clients server stats
+       client_info_msg     = 9, ///< a message that gives clients server stats
+       confirmation_msg    = 10 ///< confirmation encrypted message
     };
 
     enum compression_type
@@ -39,6 +40,16 @@ namespace bts { namespace bitchat {
        blowfish_encryption = 1,
        twofish_encryption  = 2,
        aes_encryption      = 3
+    };
+
+    enum confirmation_type
+    {
+      chat_confirm_ok         = 0
+      /* not used for now
+         decrypt_error           = 1,
+         authorization_rejected  = 2, /// Chat message from known contact rejected
+         unknown_contact         = 3  /// Received chat message from unknown contact/missing sender - ignoring
+      */
     };
 
     struct decrypted_message;
@@ -145,6 +156,14 @@ namespace bts { namespace bitchat {
        std::string      msg;
     };
 
+    struct confirmation_message
+    {
+      static const message_type  type;
+
+      fc::uint128                                        id;
+      fc::enum_type<fc::unsigned_int, confirmation_type> confirm_type;
+    };
+
     enum authorization_status
     {
       request   = 0,
@@ -238,19 +257,21 @@ FC_REFLECT_ENUM( bts::bitchat::message_type,
        (get_cache_inv_msg)
        (get_priv_msg)
        (get_cache_priv_msg)
-       (encrypted_msg) )
+       (encrypted_msg) 
+       (confirmation_msg) )
 
 FC_REFLECT_ENUM( bts::bitchat::private_message_type, (unknown_msg)(text_msg)(contact_request_msg)(contact_auth_msg)(status_msg)(email_msg1) )
 FC_REFLECT_ENUM( bts::bitchat::compression_type, (no_compression)(smaz_compression)(lzma_compression) )
 FC_REFLECT_ENUM( bts::bitchat::encryption_type, (no_encryption)(blowfish_encryption)(twofish_encryption)(aes_encryption) )
 FC_REFLECT_ENUM( bts::bitchat::authorization_status, (request)(accept)(deny)(block) )
+FC_REFLECT_ENUM(bts::bitchat::confirmation_type, (chat_confirm_ok))
 FC_REFLECT( bts::bitchat::attachment, (filename)(body) )
 
 FC_REFLECT( bts::bitchat::encrypted_message, (noncea)(nonceb)(nonce)(timestamp)(dh_key)(check)(data)(compress_type) );
-FC_REFLECT( bts::bitchat::decrypted_message, (msg_type)(data)(sig_time)(from_sig) )
-FC_REFLECT( bts::bitchat::private_text_message, (msg) )
+FC_REFLECT(bts::bitchat::decrypted_message, (msg_type)(data)(sig_time)(from_sig))
+FC_REFLECT(bts::bitchat::private_text_message, (msg))
+FC_REFLECT(bts::bitchat::confirmation_message, (id)(confirm_type));
 FC_REFLECT( bts::bitchat::private_email_message, (from_keyhotee_id)(to_list)(cc_list)(subject)(body)(attachments)(bcc_list)(src_msg_id) )
 FC_REFLECT( bts::bitchat::private_status_message, (status)(status_message) )
 FC_REFLECT( bts::bitchat::private_contact_request_message, (from_first_name)(from_last_name)(from_keyhotee_id)(request_param)
                                                            (greeting_message)(from_channel)(extended_pub_key)(status)(recipient)(from_icon_png))
-

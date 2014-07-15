@@ -108,6 +108,9 @@ namespace bts { namespace bitchat {
                   case get_cache_inv_msg:
                      handle_get_cache_inv( c, cdat, m.as<get_cache_inv_message>() );
                      break;
+                  case confirmation_msg:
+                     handle_confirmation(c, cdat, m.as<confirmation_message>());
+                     break;
                   default:
                      // TODO: figure out how to document this / punish the connection that sent us this 
                      // message.
@@ -286,7 +289,6 @@ namespace bts { namespace bitchat {
               // track messages that I've requested and make sure that no one sends us a msg we haven't requested
               if( priv_msgs.find(msg_id) == priv_msgs.end() )
               {
-
                  // must not be more than 30 minutes old
                  if( (fc::time_point::now() - msg.timestamp) < fc::seconds(60*30) &&
                       msg.timestamp < (fc::time_point::now()+fc::seconds(60*5)) ) 
@@ -300,11 +302,24 @@ namespace bts { namespace bitchat {
                  _message_cache.cache( m );
 
                  del->handle_message( m, chan_id );
+
+                 /// Send confirmation
+                 ilog("send confirmation");
+                 confirmation_message confirm;
+                 confirm.id = m.id();
+                 confirm.confirm_type = confirmation_type::chat_confirm_ok;
+                 c->send(network::message(confirm, chan_id));
               }
               else
               {
                  wlog( "duplicate message received" );
               }
+          }
+
+          void handle_confirmation(const connection_ptr& c, chan_data& cd, const confirmation_message& msg)
+          {
+            ilog("${msg}", ("msg", msg));
+            //.....
           }
      };
 

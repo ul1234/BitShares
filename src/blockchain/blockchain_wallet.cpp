@@ -358,7 +358,7 @@ namespace bts { namespace blockchain {
            my->_wallet_base_password = password;
            my->_exception_on_open = false;
 
-           FC_ASSERT( fc::exists( wallet_dat ), "", ("wallet_dat",wallet_dat) )
+           FC_ASSERT( fc::exists( wallet_dat ), "", ("wallet_dat",wallet_dat) );
 
            if( password == std::string() )
            {

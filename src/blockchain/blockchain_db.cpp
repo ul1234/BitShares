@@ -1212,7 +1212,7 @@ namespace bts { namespace blockchain {
             for( uint32_t in = 0; in < itr->inputs.size(); ++in )
             {
                FC_ASSERT( consumed_outputs.insert( itr->inputs[in].output_ref).second, 
-                          "output can only be referenced once", ("in",in)("output_ref",itr->inputs[in].output_ref) )
+                          "output can only be referenced once", ("in",in)("output_ref",itr->inputs[in].output_ref) );
             }
          }
          trxs.insert( trxs.end(), in_trxs.begin(), in_trxs.end() );

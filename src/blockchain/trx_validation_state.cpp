@@ -7,7 +7,6 @@
 #include <fc/log/logger.hpp>
 
 #include <cstdint>
-
 namespace bts  { namespace blockchain { 
 
 trx_validation_state::trx_validation_state( const signed_transaction& t, blockchain_db* d, bool enf, uint32_t h )

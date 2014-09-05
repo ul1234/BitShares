@@ -62,8 +62,8 @@ namespace bts { namespace rpc {
             con->add_method( "login", [=]( const fc::variants& params ) -> fc::variant 
             {
                 FC_ASSERT( params.size() == 2 );
-                FC_ASSERT( params[0].as_string() == _config.user )
-                FC_ASSERT( params[1].as_string() == _config.pass )
+                FC_ASSERT(params[0].as_string() == _config.user);
+                FC_ASSERT(params[1].as_string() == _config.pass);
                 _login_set.insert( capture_con );
                 return fc::variant( true );
             });

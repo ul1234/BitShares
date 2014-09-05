@@ -6,6 +6,8 @@
 
 #include <fc/log/logger.hpp>
 
+#include <cstdint>
+
 namespace bts  { namespace blockchain { 
 
 trx_validation_state::trx_validation_state( const signed_transaction& t, blockchain_db* d, bool enf, uint32_t h )
@@ -384,7 +386,7 @@ void trx_validation_state::validate_bid( const meta_trx_input& in )
          // get balance of partial order, validate that it is greater than min_trade 
          // subtract partial order from output_bal and insure the remaining order is greater than min_trade
          // look for an output making payment of the balance to the pay address
-         FC_ASSERT( accepted_bal.amount > 0 )
+         FC_ASSERT(accepted_bal.amount > 0);
          uint16_t sig_out   = find_unused_sig_output( cbb.pay_address, accepted_bal /* cbb.ask_price*/ );
          FC_ASSERT( sig_out != output_not_found );
          mark_output_as_used( sig_out );
@@ -444,7 +446,7 @@ void trx_validation_state::validate_long( const meta_trx_input& in )
          // get balance of partial order, validate that it is greater than min_trade 
          // subtract partial order from output_bal and insure the remaining order is greater than min_trade
          // look for an output making payment of the balance to the pay address
-         FC_ASSERT( accepted_bal.amount > 0 )
+         FC_ASSERT(accepted_bal.amount > 0);
          uint16_t sig_out   = find_unused_cover_output( claim_by_cover_output( accepted_bal, long_claim.pay_address ), 
                                                         2*(in.output.amount-split_out.amount).get_rounded_amount() );
          FC_ASSERT( sig_out != output_not_found );
